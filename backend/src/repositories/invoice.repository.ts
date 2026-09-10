@@ -34,6 +34,8 @@ export const invoiceRepository = {
       .from(TABLE)
       .select('*')
       .eq('credit_transaction_id', creditTransactionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error) throw mapSupabaseError(error, { entity: 'Invoice' });
@@ -46,7 +48,8 @@ export const invoiceRepository = {
     const { data, error } = await supabase
       .from(TABLE)
       .select('*')
-      .in('credit_transaction_id', creditTransactionIds);
+      .in('credit_transaction_id', creditTransactionIds)
+      .order('created_at', { ascending: true });
 
     if (error) throw mapSupabaseError(error, { entity: 'Invoice' });
     return (data ?? []).map((row) => toInvoiceDomain(row as any));

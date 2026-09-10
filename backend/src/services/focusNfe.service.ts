@@ -1,7 +1,7 @@
 import { DomainError } from '../types/errors';
 import { InvoiceEnvironment, InvoiceStatus } from '../types/domain';
 
-type FocusResponse = Record<string, any>;
+export type FocusResponse = Record<string, any>;
 
 const statusMap: Record<string, InvoiceStatus> = {
   autorizado: 'authorized',
@@ -11,6 +11,10 @@ const statusMap: Record<string, InvoiceStatus> = {
   em_processamento: 'processing',
   erro_autorizacao: 'error',
   erro: 'error',
+  rejeitado: 'error',
+  rejeitada: 'error',
+  denegado: 'error',
+  denegada: 'error',
   cancelado: 'canceled',
   cancelada: 'canceled',
 };
@@ -29,15 +33,39 @@ export const normalizeFocusStatus = (status?: string | null): InvoiceStatus => {
   return statusMap[String(status).toLowerCase()] ?? 'processing';
 };
 
+const firstPresent = (payload: FocusResponse, keys: string[]) => {
+  const key = keys.find((candidate) =>
+    Object.prototype.hasOwnProperty.call(payload, candidate)
+  );
+  return key ? payload[key] : null;
+};
+
+const nullableString = (value: unknown) =>
+  value === null || value === undefined || value === '' ? null : String(value);
+
+const normalizeDownloadUrl = (value: unknown) => {
+  const path = nullableString(value);
+  if (!path) return null;
+  try {
+    return new URL(path, getBaseUrl() + '/').toString();
+  } catch {
+    return path;
+  }
+};
+
 export const mapFocusInvoiceFields = (payload: FocusResponse) => ({
-  status: normalizeFocusStatus(payload.status),
-  sefazStatus: payload.status_sefaz ? String(payload.status_sefaz) : null,
-  sefazMessage: payload.mensagem_sefaz ? String(payload.mensagem_sefaz) : null,
-  accessKey: payload.chave_nfe ? String(payload.chave_nfe) : null,
-  number: payload.numero ? String(payload.numero) : null,
-  series: payload.serie ? String(payload.serie) : null,
-  danfeUrl: payload.caminho_danfe ? String(payload.caminho_danfe) : null,
-  xmlUrl: payload.caminho_xml_nota_fiscal ? String(payload.caminho_xml_nota_fiscal) : null,
+  status: normalizeFocusStatus(nullableString(payload.status)),
+  sefazStatus: nullableString(firstPresent(payload, ['status_sefaz', 'sefaz_status'])),
+  sefazMessage: nullableString(firstPresent(payload, ['mensagem_sefaz', 'sefaz_message'])),
+  accessKey: nullableString(firstPresent(payload, ['chave_nfe', 'access_key'])),
+  number: nullableString(firstPresent(payload, ['numero', 'number'])),
+  series: nullableString(firstPresent(payload, ['serie', 'series'])),
+  danfeUrl: normalizeDownloadUrl(
+    firstPresent(payload, ['caminho_danfe', 'danfe_url', 'url_danfe'])
+  ),
+  xmlUrl: normalizeDownloadUrl(
+    firstPresent(payload, ['caminho_xml_nota_fiscal', 'xml_url', 'url_xml'])
+  ),
 });
 
 const getEnvironment = (): InvoiceEnvironment => {

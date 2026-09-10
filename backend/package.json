@@ -13,7 +13,8 @@
     "smoke:tier-a": "ts-node scripts/smoke-tier-a-repos.ts",
     "smoke:tier-b": "ts-node scripts/smoke-tier-b-repos.ts",
     "smoke:tier-c": "ts-node scripts/smoke-tier-c-repos.ts",
-    "test:realtime": "node --test -r ts-node/register/transpile-only tests/realtime.test.cjs"
+    "test:realtime": "node --test -r ts-node/register/transpile-only tests/realtime.test.cjs",
+    "test:nfe": "node --test -r ts-node/register/transpile-only tests/nfe-status.test.cjs"
   },
   "keywords": [],
   "author": "",
