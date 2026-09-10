@@ -13,6 +13,21 @@ type NfeItem = OrderItem & { product: Product };
 
 const digitsOnly = (value?: string | null) => String(value ?? '').replace(/\D/g, '');
 
+export const buildRecipientIeFields = (value?: string | null) => {
+  const raw = String(value ?? '').trim();
+  const digits = digitsOnly(raw);
+  const isNumericRegistration = !!digits && /^[\d.\-/\s]+$/.test(raw);
+
+  if (!isNumericRegistration) {
+    return { indicador_inscricao_estadual_destinatario: 9 as const };
+  }
+
+  return {
+    indicador_inscricao_estadual_destinatario: 1 as const,
+    inscricao_estadual_destinatario: digits,
+  };
+};
+
 const requireValue = (value: string | null | undefined, field: string) => {
   if (!String(value ?? '').trim()) {
     throw new ValidationError(field, 'Campo fiscal obrigatorio para emissao de NF-e');
@@ -90,6 +105,7 @@ const buildFocusPayload = async (
 
   const total = focusItems.reduce((sum, item) => sum + Number(item.valor_bruto || 0), 0);
   const now = new Date().toISOString();
+  const recipientIeFields = buildRecipientIeFields(customer.stateRegistration);
 
   return {
     natureza_operacao: 'Venda de mercadoria',
@@ -114,8 +130,7 @@ const buildFocusPayload = async (
     regime_tributario_emitente: parseTaxRegime(config),
     nome_destinatario: requireValue(customer.legalName ?? customer.name, 'legalName'),
     cnpj_destinatario: customerDocument,
-    inscricao_estadual_destinatario: customer.stateRegistration || null,
-    indicador_inscricao_estadual_destinatario: customer.stateRegistration ? 1 : 9,
+    ...recipientIeFields,
     logradouro_destinatario: requireValue(customer.fiscalStreet, 'fiscalStreet'),
     numero_destinatario: requireValue(customer.fiscalNumber, 'fiscalNumber'),
     bairro_destinatario: requireValue(customer.fiscalNeighborhood, 'fiscalNeighborhood'),
@@ -161,35 +176,37 @@ export const invoiceService = {
       throw new ValidationError('creditTransactionId', 'Informe uma cobranca de fiado');
     }
 
-    let invoice = await invoiceRepository.findByCreditTransactionId(creditTransactionId);
+    const previousInvoice = await invoiceRepository.findByCreditTransactionId(
+      creditTransactionId
+    );
 
-    if (invoice?.status === 'authorized') return invoice;
-
-    if (!invoice) {
-      invoice = await invoiceRepository.create({
-        id: createId(),
-        customerId: charge.customerId,
-        orderId: charge.orderId,
-        creditTransactionId: charge.id,
-        focusRef: `fiado_${charge.id}`,
-        environment: focusNfeService.getEnvironment(),
-        status: 'pending',
-        sefazStatus: null,
-        sefazMessage: null,
-        accessKey: null,
-        number: null,
-        series: null,
-        danfeUrl: null,
-        xmlUrl: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-    } else {
-      invoice = await invoiceRepository.update(invoice.id, {
-        status: 'pending',
-        sefazMessage: null,
-      });
+    if (
+      previousInvoice &&
+      ['authorized', 'pending', 'processing'].includes(previousInvoice.status)
+    ) {
+      return previousInvoice;
     }
+
+    // Focus consumes every submitted ref, including rejected/canceled attempts.
+    // Preserve the old row for history and create a fresh attempt without schema changes.
+    let invoice = await invoiceRepository.create({
+      id: createId(),
+      customerId: charge.customerId,
+      orderId: charge.orderId,
+      creditTransactionId: charge.id,
+      focusRef: previousInvoice ? `fiado_${createId()}` : `fiado_${charge.id}`,
+      environment: focusNfeService.getEnvironment(),
+      status: 'pending',
+      sefazStatus: null,
+      sefazMessage: null,
+      accessKey: null,
+      number: null,
+      series: null,
+      danfeUrl: null,
+      xmlUrl: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     try {
       const [items, config] = await Promise.all([

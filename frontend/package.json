@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:realtime": "vitest run"
+    "test:realtime": "vitest run",
+    "test:nfe": "vitest run tests/nfe-status.test.tsx"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
