@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { clsx } from 'clsx';
 import {
   AlertCircle,
@@ -21,7 +21,8 @@ import {
   X,
 } from 'lucide-react';
 import api from '../../services/api';
-import type { CreditEntry, Customer } from '../../types';
+import type { CreditEntry, Customer, Invoice } from '../../types';
+import { useInvoiceStatusPolling } from '../../hooks/useInvoiceStatusPolling';
 
 type FilterMode = 'all' | 'open' | 'paid';
 
@@ -207,8 +208,9 @@ const getInvoiceMeta = (status?: string | null) => {
         text: 'NF-e autorizada pela SEFAZ.',
       };
     case 'error':
+    case 'canceled':
       return {
-        label: 'Erro',
+        label: status === 'canceled' ? 'Cancelada' : 'Erro',
         badgeClass: 'bg-[#fef2f2] text-[#dc2626] border-[#fecaca]',
         text: 'A emissão retornou erro.',
       };
@@ -283,15 +285,16 @@ const CreditPage: React.FC = () => {
   const [chargeDescription, setChargeDescription] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [invoiceLoadingId, setInvoiceLoadingId] = useState<string | null>(null);
+  const [invoiceRefreshingIds, setInvoiceRefreshingIds] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<NoticeState | null>(null);
   const [missingPhoneCustomer, setMissingPhoneCustomer] = useState<Customer | null>(null);
   const [missingPhone, setMissingPhone] = useState('');
 
-  const showError = (message: string, title = 'Não foi possível concluir') => {
+  const showError = useCallback((message: string, title = 'Não foi possível concluir') => {
     setNotice({ title, message, variant: 'error' });
-  };
+  }, []);
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       const { data } = await api.get('/customers/credit');
       setCustomers(data);
@@ -301,11 +304,11 @@ const CreditPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showError]);
 
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    void fetchCustomers();
+  }, [fetchCustomers]);
 
   const totals = useMemo(() => {
     return customers.reduce(
@@ -526,11 +529,46 @@ const CreditPage: React.FC = () => {
     });
   };
 
+  const updateInvoice = useCallback((invoice: Invoice) => {
+    setCustomers((current) =>
+      current.map((customer) => ({
+        ...customer,
+        openRows: customer.openRows?.map((row) =>
+          row.invoice?.id === invoice.id ? { ...row, invoice } : row
+        ),
+        paidRows: customer.paidRows?.map((row) =>
+          row.invoice?.id === invoice.id ? { ...row, invoice } : row
+        ),
+      }))
+    );
+  }, []);
+
+  useInvoiceStatusPolling(customers, updateInvoice);
+
+  const handleRefreshInvoice = async (invoice: Invoice) => {
+    setInvoiceRefreshingIds((current) => new Set(current).add(invoice.id));
+    try {
+      const { data } = await api.get<Invoice>('/invoices/' + invoice.id);
+      updateInvoice(data);
+    } catch (error: unknown) {
+      console.error(error);
+      const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      showError(apiMessage || 'Não foi possível atualizar o status da NF-e.', 'Erro ao consultar NF-e');
+    } finally {
+      setInvoiceRefreshingIds((current) => {
+        const next = new Set(current);
+        next.delete(invoice.id);
+        return next;
+      });
+    }
+  };
+
   const handleIssueInvoice = async (row: CreditEntry) => {
     try {
       setInvoiceLoadingId(row.id);
-      await api.post('/invoices', { creditTransactionId: row.id });
-      fetchCustomers();
+      const { data } = await api.post<Invoice>('/invoices', { creditTransactionId: row.id });
+      if (data) updateInvoice(data);
+      await fetchCustomers();
     } catch (error: unknown) {
       console.error(error);
       const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -632,7 +670,9 @@ const CreditPage: React.FC = () => {
               onPay={(row) => openPayModal(customer, row)}
               onWhatsApp={() => openWhatsApp(customer)}
               onIssueInvoice={handleIssueInvoice}
+              onRefreshInvoice={handleRefreshInvoice}
               invoiceLoadingId={invoiceLoadingId}
+              invoiceRefreshingIds={invoiceRefreshingIds}
             />
           ))}
         </section>
@@ -958,7 +998,9 @@ const CustomerCard: React.FC<{
   onPay: (row?: CreditEntry) => void;
   onWhatsApp: () => void;
   onIssueInvoice: (row: CreditEntry) => void;
+  onRefreshInvoice: (invoice: Invoice) => void;
   invoiceLoadingId: string | null;
+  invoiceRefreshingIds: Set<string>;
 }> = ({
   customer,
   expandedRows,
@@ -969,7 +1011,9 @@ const CustomerCard: React.FC<{
   onPay,
   onWhatsApp,
   onIssueInvoice,
+  onRefreshInvoice,
   invoiceLoadingId,
+  invoiceRefreshingIds,
 }) => {
   const openRows = customer.openRows ?? [];
   const paidRows = customer.paidRows ?? [];
@@ -1065,8 +1109,10 @@ const CustomerCard: React.FC<{
                   onPay={() => onPay(row)}
                   onWhatsApp={onWhatsApp}
                   onIssueInvoice={() => onIssueInvoice(row)}
+                  onRefreshInvoice={() => row.invoice && onRefreshInvoice(row.invoice)}
                   onEditCustomer={onEdit}
                   invoiceLoading={invoiceLoadingId === row.id}
+                  invoiceRefreshing={!!row.invoice && invoiceRefreshingIds.has(row.invoice.id)}
                   showCollectionActions
                 />
               ))}
@@ -1109,8 +1155,10 @@ const CustomerCard: React.FC<{
                 onPay={() => onPay(row)}
                 onWhatsApp={onWhatsApp}
                 onIssueInvoice={() => onIssueInvoice(row)}
+                onRefreshInvoice={() => row.invoice && onRefreshInvoice(row.invoice)}
                 onEditCustomer={onEdit}
                 invoiceLoading={invoiceLoadingId === row.id}
+                invoiceRefreshing={!!row.invoice && invoiceRefreshingIds.has(row.invoice.id)}
                 showCollectionActions={false}
               />
             ))}
@@ -1129,8 +1177,10 @@ const CreditRow: React.FC<{
   onPay: () => void;
   onWhatsApp: () => void;
   onIssueInvoice: () => void;
+  onRefreshInvoice: () => void;
   onEditCustomer: () => void;
   invoiceLoading: boolean;
+  invoiceRefreshing: boolean;
   showCollectionActions?: boolean;
 }> = ({
   customer,
@@ -1140,8 +1190,10 @@ const CreditRow: React.FC<{
   onPay,
   onWhatsApp,
   onIssueInvoice,
+  onRefreshInvoice,
   onEditCustomer,
   invoiceLoading,
+  invoiceRefreshing,
   showCollectionActions = true,
 }) => {
   const status = getRowStatus(row);
@@ -1151,7 +1203,8 @@ const CreditRow: React.FC<{
   const invoiceMeta = !hasLinkedOrder ? unavailableInvoiceMeta : getInvoiceMeta(row.invoice?.status);
   const invoiceBlockedByFiscalData = !row.invoice && hasLinkedOrder && missingFiscalFields.length > 0;
   const displayAmount = row.status === 'PAID' ? row.amount : row.openAmount;
-  const showInvoiceError = row.invoice?.status === 'error' && hasLinkedOrder;
+  const invoiceCanBeReissued = ['error', 'canceled'].includes(row.invoice?.status ?? '') && hasLinkedOrder;
+  const invoiceCanBeRefreshed = ['pending', 'processing'].includes(row.invoice?.status ?? '');
 
   return (
     <div className="overflow-hidden rounded-[10px] border border-[#e2e8f0]">
@@ -1274,8 +1327,19 @@ const CreditRow: React.FC<{
                 <span className={clsx('rounded-md border px-2 py-0.5 text-[11px] font-semibold', invoiceMeta.badgeClass)}>
                   {invoiceMeta.label}
                 </span>
-                {row.invoice?.status !== 'error' && invoiceMeta.text && (
+                {!invoiceCanBeReissued && invoiceMeta.text && (
                   <span className="text-[12.5px] text-[#94a3b8]">{invoiceMeta.text}</span>
+                )}
+                {row.invoice && invoiceCanBeRefreshed && (
+                  <button
+                    type="button"
+                    onClick={onRefreshInvoice}
+                    disabled={invoiceRefreshing}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[#cbd5e1] bg-white px-2 py-1 text-[12.5px] font-medium text-[#475569] hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <RefreshCw size={13} className={invoiceRefreshing ? 'animate-spin' : undefined} />
+                    {invoiceRefreshing ? 'Atualizando...' : 'Atualizar status'}
+                  </button>
                 )}
                 {!hasLinkedOrder && (
                   <span className="text-[12.5px] text-[#64748b]">
@@ -1310,7 +1374,7 @@ const CreditRow: React.FC<{
                 )}
               </div>
 
-              {showInvoiceError && (
+              {invoiceCanBeReissued && (
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2.5">
                   <span className="text-[12.5px] leading-relaxed text-red-700">
                     {row.invoice?.sefazMessage || 'Erro ao emitir NF-e.'}
@@ -1322,7 +1386,7 @@ const CreditRow: React.FC<{
                       className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-red-600 disabled:opacity-50"
                     >
                       {invoiceLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                      {invoiceLoading ? 'Emitindo...' : 'Tentar novamente'}
+                      {invoiceLoading ? 'Emitindo...' : 'Emitir novamente'}
                     </button>
                   )}
                 </div>
