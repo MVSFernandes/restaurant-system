@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useMenuViewers } from '../hooks/useMenuViewers';
 import { ShoppingCart, Users, TrendingUp, Clock, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
@@ -81,7 +82,7 @@ const DashboardPage: React.FC = () => {
     lowStockItems: 0,
   });
   const [recentOrders, setRecentOrders] = React.useState<RecentOrder[]>([]);
-  const onlineUsers = 0;
+  const onlineUsers = useMenuViewers();
   const [loadingStats, setLoadingStats] = React.useState(true);
   const [loadingRecentOrders, setLoadingRecentOrders] = React.useState(true);
   const [recentOrdersError, setRecentOrdersError] = React.useState('');
@@ -250,7 +251,7 @@ const DashboardPage: React.FC = () => {
 
         <div className="mb-6 max-w-sm">
           <WaiterMiniCard
-            title="Clientes no Cardápio Online"
+            title="Pessoas vendo o cardápio agora"
             value={onlineUsers.toString()}
             icon={<Users className="text-primary-600" size={22} />}
             color="bg-primary-100"
@@ -329,8 +330,8 @@ const DashboardPage: React.FC = () => {
 
       <div className="mb-6 bg-primary-600 rounded-2xl p-6 text-white flex items-center justify-between shadow-lg shadow-primary-200">
         <div>
-          <h2 className="text-lg font-medium opacity-90">Clientes no Cardápio Online</h2>
-          <p className="text-4xl font-bold mt-1">{onlineUsers}</p>
+          <h2 className="text-lg font-medium opacity-90">Pessoas vendo o cardápio agora</h2>
+          <p className="text-4xl font-bold mt-1" role="status" aria-live="polite">{onlineUsers}</p>
         </div>
         <div className="bg-white/20 p-4 rounded-full">
           <Users size={40} />

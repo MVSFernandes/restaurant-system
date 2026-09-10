@@ -3,6 +3,7 @@ import api from '../../services/api';
 import type { Category, Product, RestaurantConfig } from '../../types';
 import { ShoppingCart, Plus, Minus, Trash2, X, UtensilsCrossed, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useMenuViewers } from '../../hooks/useMenuViewers';
 
 interface CartItem { product: Product; quantity: number; }
 
@@ -12,6 +13,7 @@ const createIdempotencyKey = () =>
     : `order-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const PublicMenuPage: React.FC = () => {
+  useMenuViewers(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [config, setConfig] = useState<RestaurantConfig | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);

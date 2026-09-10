@@ -12,7 +12,8 @@
     "smoke:category": "ts-node scripts/smoke-category-repo.ts",
     "smoke:tier-a": "ts-node scripts/smoke-tier-a-repos.ts",
     "smoke:tier-b": "ts-node scripts/smoke-tier-b-repos.ts",
-    "smoke:tier-c": "ts-node scripts/smoke-tier-c-repos.ts"
+    "smoke:tier-c": "ts-node scripts/smoke-tier-c-repos.ts",
+    "test:realtime": "node --test -r ts-node/register/transpile-only tests/realtime.test.cjs"
   },
   "keywords": [],
   "author": "",
@@ -29,7 +30,6 @@
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
-    "socket.io": "^4.7.5",
     "winston": "^3.13.0"
   },
   "devDependencies": {

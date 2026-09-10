@@ -147,6 +147,20 @@ VITE_API_URL=http://localhost:3001/api
 
 ---
 
+### Supabase Realtime
+
+Consulte `frontend/.env.example` e preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no ambiente local do frontend. Use a URL do mesmo projeto do backend e a chave pública **anon**. Reinicie o Vite após configurar; para produção, configure essas variáveis antes do build. O backend reutiliza `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`, sem novas variáveis.
+
+O cardápio registra uma presença anônima por aba em `menu-viewers`; o dashboard apenas observa e conta essas presenças. O backend envia `stock_updated` e `stock_low` por HTTP Broadcast em `stock-events`. Os avisos levam somente IDs de insumos; quantidades, nomes e alertas são buscados pela API autenticada. O frontend não consulta tabelas pelo Supabase.
+
+Os canais são públicos e exigem **Allow public access to channels** habilitado no Realtime. Não precisam de políticas adicionais em `realtime.messages`. Qualquer portador da anon key pode ouvir/enviar mensagens nesses canais: os eventos são apenas avisos para refazer a consulta autenticada, e a presença é um indicador aproximado. O RLS existente no schema `public` continua sem políticas e sem acesso da anon key aos dados.
+
+Sem configuração ou conexão, o cardápio e as operações de estoque continuam disponíveis; o contador fica em zero. Ao reconectar, as presenças são sincronizadas e o estoque é consultado novamente. O botão **Atualizar** permite recarregar o estoque manualmente.
+
+Referências: [Presence](https://supabase.com/docs/guides/realtime/presence), [Broadcast](https://supabase.com/docs/guides/realtime/broadcast) e [autorização de canais](https://supabase.com/docs/guides/realtime/authorization).
+
+---
+
 ## Banco de dados
 
 O esquema conta com 22 tabelas no PostgreSQL, cobrindo usuários, produtos, pedidos, pagamentos, caixa, estoque, fornecedores, clientes, crédito e documentos fiscais.

@@ -1,19 +1,12 @@
 import { Request, Response } from 'express';
 import { stockService } from '../services/domain.services';
 import { DomainError } from '../types/errors';
+import { notifyStockChanged } from '../services/stockRealtime.service';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
   if (error instanceof DomainError) return res.status(error.status).json({ message: error.message });
   console.error(error);
   return res.status(500).json({ message: fallback });
-};
-
-const emitStockUpdate = async (req: Request) => {
-  const io = req.app.get('io');
-  if (!io) return;
-  const lowStockItems = await stockService.findLowStock();
-  io.emit('stock:updated');
-  io.emit('stock:low', lowStockItems);
 };
 
 export const getStockItems = async (_req: Request, res: Response) => {
@@ -45,7 +38,7 @@ export const createStockItem = async (req: Request, res: Response) => {
   try {
     const { name, quantity, unit, minQuantity } = req.body;
     const item = await stockService.create({ name, quantity, unit, minQuantity });
-    await emitStockUpdate(req);
+    void notifyStockChanged();
     res.status(201).json(item);
   } catch (error) {
     handleError(res, error, 'Erro ao criar item de estoque');
@@ -56,7 +49,7 @@ export const updateStockItem = async (req: Request, res: Response) => {
   try {
     const { name, quantity, unit, minQuantity } = req.body;
     const item = await stockService.update(req.params.id, { name, quantity, unit, minQuantity });
-    await emitStockUpdate(req);
+    void notifyStockChanged();
     res.json(item);
   } catch (error) {
     handleError(res, error, 'Erro ao atualizar item de estoque');
@@ -66,7 +59,7 @@ export const updateStockItem = async (req: Request, res: Response) => {
 export const deleteStockItem = async (req: Request, res: Response) => {
   try {
     await stockService.delete(req.params.id);
-    await emitStockUpdate(req);
+    void notifyStockChanged();
     res.status(204).send();
   } catch (error) {
     handleError(res, error, 'Erro ao excluir item de estoque');

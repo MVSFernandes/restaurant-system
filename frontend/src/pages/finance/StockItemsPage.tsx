@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../services/api';
 import type { StockItem } from '../../types';
-import { Plus, Pencil, Trash2, AlertTriangle, Bell, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, Bell, X, RefreshCw } from 'lucide-react';
 
+import { useStockEvents } from '../../hooks/useStockEvents';
 
 type StockLevel = 'NORMAL' | 'LOW' | 'CRITICAL';
 
@@ -23,25 +24,32 @@ const StockItemsPage: React.FC = () => {
   const [itemToDelete, setItemToDelete] = useState<StockItem | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchItems = async () => {
+  const requestVersion = useRef(0);
+  const fetchItems = useCallback(async () => {
+    const version = ++requestVersion.current;
     try {
       const [itemsRes, lowRes] = await Promise.all([
         api.get('/stock'),
         api.get('/stock/low'),
       ]);
 
-      setItems(itemsRes.data);
-      setLowStockItems(lowRes.data);
+      if (version === requestVersion.current) {
+        setItems(itemsRes.data);
+        setLowStockItems(lowRes.data);
+      }
     } catch (error) {
       console.error('Erro ao buscar estoque:', error);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  };
+  }, []);
+
+  useStockEvents(fetchItems);
 
   useEffect(() => {
     fetchItems();
-  }, []);
+    return () => { requestVersion.current += 1; };
+  }, [fetchItems]);
 
   const handleOpenModal = (item?: StockItem) => {
     if (item) {
@@ -173,13 +181,16 @@ const StockItemsPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Estoque</h1>
           <p className="text-gray-500">Controle de insumos e materiais</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button onClick={() => void fetchItems()} className="btn-secondary flex items-center gap-2">
+            <RefreshCw size={18} /> Atualizar
+          </button>
           <div className="bg-white border rounded-2xl px-4 py-3 shadow-sm flex items-center gap-3">
             <div className="relative">
               <Bell size={18} className="text-orange-600" />

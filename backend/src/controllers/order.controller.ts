@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { orderService } from '../services/order.service';
 import { orderRepository } from '../repositories/order.repository';
 import { cashRegisterRepository } from '../repositories/cashRegister.repository';
-import { stockService } from '../services/domain.services';
+import { notifyStockChanged } from '../services/stockRealtime.service';
 import { DomainError } from '../types/errors';
 import { productRepository } from '../repositories/product.repository';
 
@@ -106,14 +106,6 @@ const handleError = (res: Response, error: unknown, fallback: string) => {
   return res.status(500).json({ message: fallback });
 };
 
-const emitStockUpdate = async (req: Request) => {
-  const io = req.app.get('io');
-  if (!io) return;
-  const lowStockItems = await stockService.findLowStock();
-  io.emit('stock:updated');
-  io.emit('stock:low', lowStockItems);
-};
-
 export const getOrders = async (req: Request, res: Response) => {
   try {
     const { tableId, status, myOrders, waiterId } = req.query;
@@ -195,7 +187,7 @@ export const createOrder = async (req: Request, res: Response) => {
   await runIdempotent(req, res, 'orders:create', async () => {
     const user = (req as any).user;
     const order = await orderService.createOrder(req.body, { id: user.id, role: user.role });
-    await emitStockUpdate(req);
+    void notifyStockChanged();
     const items = await getItemsWithProduct(order.id);
     return { status: 201, body: { ...order, items } };
   }, 'Erro ao criar pedido');
@@ -204,7 +196,7 @@ export const createOrder = async (req: Request, res: Response) => {
 export const createPublicOrder = async (req: Request, res: Response) => {
   await runIdempotent(req, res, 'orders:create-public', async () => {
     const order = await orderService.createPublicOrder(req.body);
-    await emitStockUpdate(req);
+    void notifyStockChanged();
     const items = await getItemsWithProduct(order.id);
     return { status: 201, body: { ...order, items } };
   }, 'Erro ao criar pedido público');
@@ -218,7 +210,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       req.body.status,
       { id: user.id, role: user.role }
     );
-    await emitStockUpdate(req);
+    void notifyStockChanged();
     const items = await getItemsWithProduct(order.id);
     res.json({ ...order, items });
   } catch (error) {
@@ -246,7 +238,7 @@ export const updateOrder = async (req: Request, res: Response) => {
       req.body,
       { id: user.id, role: user.role }
     );
-    await emitStockUpdate(req);
+    void notifyStockChanged();
     const items = await getItemsWithProduct(order.id);
     res.json({ ...order, items });
   } catch (error) {
@@ -257,7 +249,7 @@ export const updateOrder = async (req: Request, res: Response) => {
 export const deleteOrder = async (req: Request, res: Response) => {
   try {
     await orderService.deleteOrder(req.params.id);
-    await emitStockUpdate(req);
+    void notifyStockChanged();
     res.status(204).send();
   } catch (error) {
     handleError(res, error, 'Erro ao excluir pedido');
