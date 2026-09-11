@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
-import type { CashRegisterSession, Order } from '../../types';
+import type { CashRegisterSession, Order, RestaurantConfig } from '../../types';
+import { NfceReceiptPanel } from '../../components/fiscal/NfceReceiptPanel';
 import { CalendarDays, History, Search, UserRound, ShoppingBag, RotateCcw } from 'lucide-react';
 
 interface HistorySession extends CashRegisterSession {
@@ -76,6 +77,7 @@ const HistoryPage: React.FC = () => {
   const [customerName, setCustomerName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [config, setConfig] = useState<RestaurantConfig | null>(null);
 
   const fetchHistory = async (filters?: {
     customerName?: string;
@@ -104,6 +106,9 @@ const HistoryPage: React.FC = () => {
 
   useEffect(() => {
     void fetchHistory();
+    api.get('/config')
+      .then(({ data }) => setConfig(data))
+      .catch((error) => console.error('Erro ao carregar configuração de NFC-e:', error));
   }, []);
 
   const handleSearch = () => {
@@ -402,6 +407,13 @@ const HistoryPage: React.FC = () => {
                         })}
                       </div>
                     </div>
+
+                    {config?.nfceEnabled &&
+                      order.status === 'FINISHED' &&
+                      order.payment?.status === 'PAID' &&
+                      order.payment.method !== 'CREDIT' && (
+                        <NfceReceiptPanel orderId={order.id} phone={order.deliveryPhone} />
+                      )}
                   </article>
                 ))}
               </div>

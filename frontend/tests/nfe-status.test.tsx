@@ -20,6 +20,8 @@ const makeInvoice = (status: Invoice['status'], patch: Partial<Invoice> = {}): I
   customerId: 'customer-1',
   orderId: 'order-1',
   creditTransactionId: 'charge-1',
+  model: '55',
+  consumerDocument: null,
   focusRef: 'focus-1',
   environment: 'homologation',
   status,

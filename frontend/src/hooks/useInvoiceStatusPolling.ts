@@ -6,23 +6,17 @@ const POLL_INTERVAL_MS = 10_000;
 const MAX_POLL_ATTEMPTS = 12;
 const POLLING_STATUSES = new Set(['pending', 'processing']);
 
-function getPendingInvoiceIds(customers: Customer[]): string[] {
-  const ids = new Set<string>();
-  for (const customer of customers) {
-    const rows = [...(customer.openRows ?? []), ...(customer.paidRows ?? [])];
-    for (const row of rows) {
-      if (row.invoice && POLLING_STATUSES.has(row.invoice.status)) ids.add(row.invoice.id);
-    }
-  }
-  return [...ids].sort();
-}
-
-export function useInvoiceStatusPolling(
-  customers: Customer[],
+export function useInvoicePolling(
+  invoices: Array<Invoice | null | undefined>,
   onInvoiceUpdate: (invoice: Invoice) => void,
 ) {
-  const pendingIds = useMemo(() => getPendingInvoiceIds(customers), [customers]);
-  const pendingKey = pendingIds.join(',');
+  const pendingKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const invoice of invoices) {
+      if (invoice && POLLING_STATUSES.has(invoice.status)) ids.add(invoice.id);
+    }
+    return [...ids].sort().join(',');
+  }, [invoices]);
   const attemptsRef = useRef(new Map<string, number>());
 
   useEffect(() => {
@@ -66,4 +60,22 @@ export function useInvoiceStatusPolling(
       clearTimeout(timer);
     };
   }, [pendingKey, onInvoiceUpdate]);
+}
+
+export function useInvoiceStatusPolling(
+  customers: Customer[],
+  onInvoiceUpdate: (invoice: Invoice) => void,
+) {
+  const invoices = useMemo(() => {
+    const result: Invoice[] = [];
+    for (const customer of customers) {
+      const rows = [...(customer.openRows ?? []), ...(customer.paidRows ?? [])];
+      for (const row of rows) {
+        if (row.invoice) result.push(row.invoice);
+      }
+    }
+    return result;
+  }, [customers]);
+
+  useInvoicePolling(invoices, onInvoiceUpdate);
 }

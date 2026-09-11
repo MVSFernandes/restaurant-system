@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:realtime": "vitest run",
-    "test:nfe": "vitest run tests/nfe-status.test.tsx"
+    "test:nfe": "vitest run tests/nfe-status.test.tsx",
+    "test:nfce": "vitest run tests/nfce-panel.test.tsx"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

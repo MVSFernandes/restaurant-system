@@ -196,8 +196,23 @@ const SettingsPage: React.FC = () => {
         <div className="card md:col-span-2">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <ReceiptText size={20} className="text-primary-500" />
-            Dados Fiscais (NF-e)
+            Dados Fiscais (NF-e e NFC-e)
           </h2>
+
+          <label className="mb-5 flex cursor-pointer items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4">
+            <input
+              type="checkbox"
+              checked={config.nfceEnabled ?? false}
+              onChange={(event) => updateConfigField('nfceEnabled', event.target.checked)}
+              className="mt-1 h-4 w-4 accent-orange-600"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-gray-900">Habilitar emissão de NFC-e no PDV</span>
+              <span className="mt-1 block text-xs text-gray-600">
+                Ative somente depois de configurar o CSC e a NFC-e no painel da Focus NFe.
+              </span>
+            </span>
+          </label>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

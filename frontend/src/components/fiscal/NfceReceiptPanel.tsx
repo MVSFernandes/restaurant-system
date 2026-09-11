@@ -1,0 +1,312 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Copy,
+  Loader2,
+  MessageCircle,
+  Printer,
+  ReceiptText,
+  RefreshCw,
+} from 'lucide-react';
+import api from '../../services/api';
+import type { Invoice } from '../../types';
+import { useInvoicePolling } from '../../hooks/useInvoiceStatusPolling';
+import { formatCpf, isValidCpf } from '../../lib/cpf';
+
+interface NfceReceiptPanelProps {
+  orderId: string;
+  phone?: string | null;
+}
+
+const digitsOnly = (value?: string | null) => String(value ?? '').replace(/\D/g, '');
+
+const formatPhone = (value?: string | null) => {
+  const digits = digitsOnly(value).replace(/^55(?=\d{10,11}$)/, '').slice(0, 11);
+  if (digits.length <= 10) {
+    return digits
+      .replace(/^(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/, '($1) $2')
+    .replace(/(\d{5})(\d)/, '$1-$2');
+};
+
+const errorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (error as { response?: { data?: { message?: unknown } } }).response;
+    if (typeof response?.data?.message === 'string') return response.data.message;
+  }
+  return fallback;
+};
+
+const statusLabel: Record<Invoice['status'], string> = {
+  pending: 'Pendente',
+  processing: 'Processando',
+  authorized: 'Autorizada',
+  error: 'Rejeitada',
+  canceled: 'Cancelada',
+};
+
+export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [cpf, setCpf] = useState('');
+  const [whatsAppPhone, setWhatsAppPhone] = useState(() => formatPhone(phone));
+  const [loading, setLoading] = useState(true);
+  const [issuing, setIssuing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const issuingRef = useRef(false);
+
+  const updateInvoice = useCallback((nextInvoice: Invoice) => {
+    setInvoice(nextInvoice);
+    if (nextInvoice.consumerDocument) setCpf(formatCpf(nextInvoice.consumerDocument));
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api.get<Invoice | null>(`/invoices/order/${orderId}`)
+      .then(({ data }) => {
+        if (active) {
+          setInvoice(data);
+          if (data?.consumerDocument) setCpf(formatCpf(data.consumerDocument));
+        }
+      })
+      .catch((error) => {
+        if (active) setMessage(errorMessage(error, 'Não foi possível consultar o cupom fiscal.'));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [orderId]);
+
+  const pollingInvoices = useMemo(() => [invoice], [invoice]);
+  useInvoicePolling(pollingInvoices, updateInvoice);
+
+  const issue = async () => {
+    if (issuingRef.current) return;
+    const document = digitsOnly(cpf);
+    if (document && !isValidCpf(document)) {
+      setMessage('Informe um CPF válido ou deixe o campo em branco.');
+      return;
+    }
+
+    try {
+      issuingRef.current = true;
+      setIssuing(true);
+      setMessage(null);
+      const { data } = await api.post<Invoice>('/invoices/nfce', {
+        orderId,
+        consumerDocument: document || null,
+      });
+      updateInvoice(data);
+      setMessage(
+        data.status === 'authorized' ? 'Cupom fiscal autorizado pela SEFAZ.' : null
+      );
+    } catch (error) {
+      setMessage(errorMessage(error, 'Não foi possível emitir a NFC-e.'));
+    } finally {
+      issuingRef.current = false;
+      setIssuing(false);
+    }
+  };
+
+  const refresh = async () => {
+    if (!invoice || refreshing) return;
+    try {
+      setRefreshing(true);
+      setMessage(null);
+      const { data } = await api.get<Invoice>(`/invoices/${invoice.id}`);
+      updateInvoice(data);
+    } catch (error) {
+      setMessage(errorMessage(error, 'Não foi possível atualizar o status da NFC-e.'));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const copyDanfeLink = async () => {
+    if (!invoice?.danfeUrl) return;
+    try {
+      await navigator.clipboard.writeText(invoice.danfeUrl);
+      setMessage('Link do cupom copiado.');
+    } catch {
+      setMessage('Não foi possível copiar o link do cupom.');
+    }
+  };
+
+  const sendByWhatsApp = () => {
+    if (!invoice?.danfeUrl) return;
+    const phoneDigits = digitsOnly(whatsAppPhone);
+    if (!phoneDigits) {
+      setMessage('Informe um telefone para enviar o cupom.');
+      return;
+    }
+    const targetPhone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`;
+    const text = `Olá! Segue o seu cupom fiscal eletrônico: ${invoice.danfeUrl}`;
+    window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  if (loading) {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500">
+        <Loader2 size={16} className="animate-spin" /> Consultando cupom fiscal...
+      </div>
+    );
+  }
+
+  const isFinalError = invoice?.status === 'error' || invoice?.status === 'canceled';
+  const isInFlight = invoice?.status === 'pending' || invoice?.status === 'processing';
+  const isAuthorized = invoice?.status === 'authorized';
+
+  return (
+    <section className="mt-3 rounded-xl border border-orange-200 bg-orange-50/60 p-4" aria-label="NFC-e do pedido">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <ReceiptText size={18} className="text-orange-600" />
+          <div>
+            <p className="text-sm font-bold text-gray-900">Cupom fiscal (NFC-e)</p>
+            <p className="text-xs text-gray-500">Emissão opcional para o consumidor final</p>
+          </div>
+        </div>
+        {invoice && (
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+            isAuthorized
+              ? 'bg-green-100 text-green-700'
+              : isFinalError
+                ? 'bg-red-100 text-red-700'
+                : 'bg-amber-100 text-amber-700'
+          }`}>
+            {statusLabel[invoice.status]}
+          </span>
+        )}
+      </div>
+
+      {!isAuthorized && !isInFlight && (
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor={`nfce-cpf-${orderId}`}>
+              CPF na nota <span className="font-normal text-gray-400">(opcional)</span>
+            </label>
+            <input
+              id={`nfce-cpf-${orderId}`}
+              type="text"
+              inputMode="numeric"
+              className="input"
+              placeholder="000.000.000-00"
+              value={cpf}
+              onChange={(event) => {
+                setCpf(formatCpf(event.target.value));
+                setMessage(null);
+              }}
+            />
+            <p className="mt-1 text-xs text-gray-500">Em branco, o cupom sai sem consumidor identificado.</p>
+          </div>
+          <button
+            type="button"
+            onClick={issue}
+            disabled={issuing}
+            className="btn-primary inline-flex min-h-10 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {issuing ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
+            {issuing ? 'Emitindo...' : isFinalError ? 'Emitir novamente' : 'Emitir NFC-e'}
+          </button>
+        </div>
+      )}
+
+      {isInFlight && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm text-amber-800">
+          <span className="inline-flex items-center gap-2">
+            <Loader2 size={16} className="animate-spin" /> Aguardando retorno da SEFAZ...
+          </span>
+          <button type="button" onClick={refresh} disabled={refreshing} className="btn-secondary inline-flex items-center gap-2 text-xs">
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            {refreshing ? 'Atualizando...' : 'Atualizar status'}
+          </button>
+        </div>
+      )}
+
+      {isFinalError && invoice?.sefazMessage && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <span>{invoice.sefazMessage}</span>
+        </div>
+      )}
+
+      {isAuthorized && invoice?.danfeUrl && (
+        <div className="mt-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
+            <CheckCircle2 size={17} />
+            NFC-e {invoice.number ? `nº ${invoice.number}` : ''}{invoice.series ? ` · série ${invoice.series}` : ''}
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <div className="border-b border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600">
+              Cupom fiscal com QR Code
+            </div>
+            <iframe
+              title={`Cupom fiscal do pedido ${orderId}`}
+              src={invoice.danfeUrl}
+              className="h-80 w-full bg-white"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => window.open(invoice.danfeUrl!, '_blank')}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              <Printer size={16} /> Imprimir
+            </button>
+            {invoice.xmlUrl && (
+              <a href={invoice.xmlUrl} target="_blank" rel="noreferrer" className="btn-secondary inline-flex items-center gap-2">
+                <ReceiptText size={16} /> Baixar XML
+              </a>
+            )}
+            <button type="button" onClick={copyDanfeLink} className="btn-secondary inline-flex items-center gap-2">
+              <Copy size={16} /> Copiar link
+            </button>
+            {invoice.qrcodeUrl && (
+              <a href={invoice.qrcodeUrl} target="_blank" rel="noreferrer" className="btn-secondary inline-flex items-center gap-2">
+                Consultar QR Code
+              </a>
+            )}
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600" htmlFor={`nfce-phone-${orderId}`}>
+                Telefone para WhatsApp
+              </label>
+              <input
+                id={`nfce-phone-${orderId}`}
+                type="tel"
+                inputMode="tel"
+                className="input"
+                placeholder="(11) 99999-9999"
+                value={whatsAppPhone}
+                onChange={(event) => setWhatsAppPhone(formatPhone(event.target.value))}
+              />
+            </div>
+            <button type="button" onClick={sendByWhatsApp} className="btn-secondary inline-flex min-h-10 items-center justify-center gap-2 text-green-700">
+              <MessageCircle size={16} /> Enviar por WhatsApp
+            </button>
+          </div>
+        </div>
+      )}
+
+      {message && (
+        <p className={`mt-3 text-sm ${isFinalError ? 'text-red-700' : 'text-gray-600'}`} role="status">
+          {message}
+        </p>
+      )}
+    </section>
+  );
+}
