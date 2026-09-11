@@ -50,6 +50,8 @@ export type InvoiceEnvironment = 'homologation' | 'production';
 
 export type InvoiceStatus = 'pending' | 'processing' | 'authorized' | 'error' | 'canceled';
 
+export type InvoiceModel = '55' | '65';
+
 export type CashSessionStatus = 'OPEN' | 'CLOSED';
 
 export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED';
@@ -126,9 +128,11 @@ export interface CreditSettlement {
 
 export interface Invoice {
   id: string;
-  customerId: string;
+  customerId: string | null;
   orderId: string | null;
   creditTransactionId: string | null;
+  model: InvoiceModel;
+  consumerDocument: string | null;
   focusRef: string;
   environment: InvoiceEnvironment;
   status: InvoiceStatus;
@@ -139,6 +143,7 @@ export interface Invoice {
   series: string | null;
   danfeUrl: string | null;
   xmlUrl: string | null;
+  qrcodeUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -391,5 +396,6 @@ export interface RestaurantConfig {
   defaultNcm: string | null;
   defaultOrigin: string | null;
   defaultTaxCode: string | null;
+  nfceEnabled: boolean;
   updatedAt: Date;
 }

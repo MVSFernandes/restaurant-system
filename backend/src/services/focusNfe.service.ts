@@ -1,5 +1,5 @@
 import { DomainError } from '../types/errors';
-import { InvoiceEnvironment, InvoiceStatus } from '../types/domain';
+import { InvoiceEnvironment, InvoiceModel, InvoiceStatus } from '../types/domain';
 
 export type FocusResponse = Record<string, any>;
 
@@ -20,12 +20,18 @@ const statusMap: Record<string, InvoiceStatus> = {
 };
 
 const focusErrorMessages: Record<string, string> = {
-  empresa_nao_habilitada: 'Empresa ainda nao habilitada para emitir NF-e na Focus NFe.',
-  permissao_negada: 'Permissao negada pela Focus NFe. Verifique o token e a conta.',
-  nao_encontrado: 'NF-e nao encontrada na Focus NFe.',
-  nfe_nao_autorizada: 'A NF-e ainda nao esta autorizada pela SEFAZ.',
-  nfe_autorizada: 'Esta NF-e ja foi autorizada e nao pode ser reenviada com a mesma referencia.',
-  em_processamento: 'A NF-e ja esta em processamento.',
+  empresa_nao_habilitada: 'Empresa ainda não habilitada para emitir documentos fiscais na Focus NFe.',
+  permissao_negada: 'Permissão negada pela Focus NFe. Verifique o token e a conta.',
+  nao_encontrado: 'Documento fiscal não encontrado na Focus NFe.',
+  nfe_nao_autorizada: 'O documento fiscal ainda não está autorizado pela SEFAZ.',
+  nfe_autorizada: 'Este documento fiscal já foi autorizado e não pode ser reenviado com a mesma referência.',
+  em_processamento: 'O documento fiscal já está em processamento.',
+  codigo_csc_nao_configurado: 'Código CSC não configurado na Focus NFe.',
+};
+
+const resourceByModel: Record<InvoiceModel, 'nfe' | 'nfce'> = {
+  '55': 'nfe',
+  '65': 'nfce',
 };
 
 export const normalizeFocusStatus = (status?: string | null): InvoiceStatus => {
@@ -42,6 +48,18 @@ const firstPresent = (payload: FocusResponse, keys: string[]) => {
 
 const nullableString = (value: unknown) =>
   value === null || value === undefined || value === '' ? null : String(value);
+
+const getEnvironment = (): InvoiceEnvironment => {
+  const value = process.env.FOCUS_NFE_ENVIRONMENT;
+  return value === 'production' ? 'production' : 'homologation';
+};
+
+const getBaseUrl = () => {
+  if (process.env.FOCUS_NFE_BASE_URL) return process.env.FOCUS_NFE_BASE_URL.replace(/\/$/, '');
+  return getEnvironment() === 'production'
+    ? 'https://api.focusnfe.com.br/v2'
+    : 'https://homologacao.focusnfe.com.br/v2';
+};
 
 const normalizeDownloadUrl = (value: unknown) => {
   const path = nullableString(value);
@@ -66,19 +84,10 @@ export const mapFocusInvoiceFields = (payload: FocusResponse) => ({
   xmlUrl: normalizeDownloadUrl(
     firstPresent(payload, ['caminho_xml_nota_fiscal', 'xml_url', 'url_xml'])
   ),
+  qrcodeUrl: normalizeDownloadUrl(
+    firstPresent(payload, ['qrcode_url', 'url_qrcode', 'qr_code'])
+  ),
 });
-
-const getEnvironment = (): InvoiceEnvironment => {
-  const value = process.env.FOCUS_NFE_ENVIRONMENT;
-  return value === 'production' ? 'production' : 'homologation';
-};
-
-const getBaseUrl = () => {
-  if (process.env.FOCUS_NFE_BASE_URL) return process.env.FOCUS_NFE_BASE_URL.replace(/\/$/, '');
-  return getEnvironment() === 'production'
-    ? 'https://api.focusnfe.com.br/v2'
-    : 'https://homologacao.focusnfe.com.br/v2';
-};
 
 const getAuthHeader = () => {
   const token = process.env.FOCUS_NFE_TOKEN;
@@ -111,11 +120,18 @@ async function requestFocus(path: string, options: { method: string; body?: unkn
   });
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
+  let payload: FocusResponse = {};
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { mensagem: text };
+    }
+  }
 
   if (response.status === 429) {
     const reset = response.headers?.get?.('Rate-Limit-Reset');
-    throw new DomainError('Limite de requisicoes da Focus NFe atingido. Tente novamente em instantes.', {
+    throw new DomainError('Limite de requisições da Focus NFe atingido. Tente novamente em instantes.', {
       code: 'FOCUS_NFE_RATE_LIMIT',
       status: 429,
       details: { reset },
@@ -135,20 +151,41 @@ async function requestFocus(path: string, options: { method: string; body?: unkn
   return payload;
 }
 
+const issueDocument = async (
+  model: InvoiceModel,
+  ref: string,
+  payload: FocusResponse
+): Promise<FocusResponse> => {
+  const search = new URLSearchParams({ ref });
+  return requestFocus(`/${resourceByModel[model]}?${search.toString()}`, {
+    method: 'POST',
+    body: payload,
+  });
+};
+
+const getDocument = async (model: InvoiceModel, ref: string): Promise<FocusResponse> =>
+  requestFocus(`/${resourceByModel[model]}/${encodeURIComponent(ref)}`, {
+    method: 'GET',
+  });
+
 export const focusNfeService = {
   getEnvironment,
+  issueDocument,
+  getDocument,
 
   async issueNfe(ref: string, payload: FocusResponse): Promise<FocusResponse> {
-    const search = new URLSearchParams({ ref });
-    return requestFocus(`/nfe?${search.toString()}`, {
-      method: 'POST',
-      body: payload,
-    });
+    return issueDocument('55', ref, payload);
   },
 
   async getNfe(ref: string): Promise<FocusResponse> {
-    return requestFocus(`/nfe/${encodeURIComponent(ref)}`, {
-      method: 'GET',
-    });
+    return getDocument('55', ref);
+  },
+
+  async issueNfce(ref: string, payload: FocusResponse): Promise<FocusResponse> {
+    return issueDocument('65', ref, payload);
+  },
+
+  async getNfce(ref: string): Promise<FocusResponse> {
+    return getDocument('65', ref);
   },
 };

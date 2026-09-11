@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { Invoice } from '../types/domain';
+import { Invoice, InvoiceModel } from '../types/domain';
 import { mapSupabaseError } from '../middlewares/errorHandler.middleware';
 import { NotFoundError } from '../types/errors';
 import { toInvoiceDomain, toInvoiceInsert, toInvoiceUpdate } from '../mappers/invoice.mapper';
@@ -23,6 +23,23 @@ export const invoiceRepository = {
       .from(TABLE)
       .select('*')
       .eq('focus_ref', focusRef)
+      .maybeSingle();
+
+    if (error) throw mapSupabaseError(error, { entity: 'Invoice' });
+    return data ? toInvoiceDomain(data as any) : null;
+  },
+
+  async findByOrderId(orderId: string, model?: InvoiceModel): Promise<Invoice | null> {
+    let query = supabase
+      .from(TABLE)
+      .select('*')
+      .eq('order_id', orderId);
+
+    if (model) query = query.eq('model', model);
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error) throw mapSupabaseError(error, { entity: 'Invoice' });

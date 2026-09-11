@@ -5,6 +5,7 @@ import { cashRegisterRepository } from '../repositories/cashRegister.repository'
 import { notifyStockChanged } from '../services/stockRealtime.service';
 import { DomainError } from '../types/errors';
 import { productRepository } from '../repositories/product.repository';
+import { paymentRepository } from '../repositories/payment.repository';
 
 type IdempotencyResult = {
   status: number;
@@ -137,7 +138,8 @@ export const getOrders = async (req: Request, res: Response) => {
             return { ...item, product };
           })
         );
-        return { ...o, items: itemsWithProduct };
+        const payments = await paymentRepository.findByOrder(o.id);
+        return { ...o, items: itemsWithProduct, payment: payments[payments.length - 1] ?? null };
       })
     );
 
@@ -176,8 +178,11 @@ export const getOrderById = async (req: Request, res: Response) => {
   try {
     const order = await orderRepository.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Pedido não encontrado' });
-    const items = await getItemsWithProduct(order.id);
-    res.json({ ...order, items });
+    const [items, payments] = await Promise.all([
+      getItemsWithProduct(order.id),
+      paymentRepository.findByOrder(order.id),
+    ]);
+    res.json({ ...order, items, payment: payments[payments.length - 1] ?? null });
   } catch (error) {
     handleError(res, error, 'Erro ao buscar pedido');
   }

@@ -99,6 +99,7 @@ test('maps every authorized field returned by Focus and normalizes download URLs
       series: '1',
       danfeUrl: 'https://focus.example.test/arquivos/danfe.pdf',
       xmlUrl: 'https://focus.example.test/arquivos/nfe.xml',
+      qrcodeUrl: null,
     },
   );
   assert.equal(normalizeFocusStatus('rejeitada'), 'error');
