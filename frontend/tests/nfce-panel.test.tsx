@@ -51,6 +51,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -80,7 +81,8 @@ describe('NFC-e CPF field', () => {
     mocks.get.mockResolvedValue({ data: null });
     render(<NfceReceiptPanel orderId="order-1" />);
 
-    const input = await screen.findByLabelText(/CPF na nota/);
+    fireEvent.click(await screen.findByRole('button', { name: 'Emitir cupom fiscal' }));
+    const input = screen.getByLabelText(/CPF na nota/);
     fireEvent.change(input, { target: { value: '12345678900' } });
     fireEvent.click(screen.getByRole('button', { name: 'Emitir NFC-e' }));
 
@@ -98,7 +100,8 @@ describe('NFC-e issue and delivery actions', () => {
     }));
 
     render(<NfceReceiptPanel orderId="order-1" />);
-    const button = await screen.findByRole('button', { name: 'Emitir NFC-e' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Emitir cupom fiscal' }));
+    const button = screen.getByRole('button', { name: 'Emitir NFC-e' });
     fireEvent.click(button);
     fireEvent.click(button);
 
@@ -125,7 +128,9 @@ describe('NFC-e issue and delivery actions', () => {
     mocks.post.mockResolvedValue({ data: makeInvoice('processing', { id: 'invoice-retry' }) });
 
     render(<NfceReceiptPanel orderId="order-1" />);
-    expect(await screen.findByText('Rejeição de teste')).toBeTruthy();
+    expect(await screen.findByText('NFC-e rejeitada')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Reemitir cupom fiscal' }));
+    expect(screen.getByText('Rejeição de teste')).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/CPF na nota/), {
       target: { value: '52998224725' },
     });
@@ -135,7 +140,7 @@ describe('NFC-e issue and delivery actions', () => {
       orderId: 'order-1',
       consumerDocument: '52998224725',
     });
-    expect(await screen.findByText(/Aguardando retorno/)).toBeTruthy();
+    expect(await screen.findByText(/O status será atualizado automaticamente/)).toBeTruthy();
   });
 
   it('keeps QR, print, XML, copy, and WhatsApp actions available for an authorized receipt', async () => {
@@ -150,7 +155,10 @@ describe('NFC-e issue and delivery actions', () => {
 
     render(<NfceReceiptPanel orderId="order-1" phone="(18) 99999-9999" />);
 
-    const preview = await screen.findByTitle('Cupom fiscal do pedido order-1');
+    expect(await screen.findByText('NFC-e autorizada')).toBeTruthy();
+    expect(screen.queryByTitle('Cupom fiscal do pedido order-1')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver cupom fiscal' }));
+    const preview = screen.getByTitle('Cupom fiscal do pedido order-1');
     expect(preview.getAttribute('src')).toBe(authorized.danfeUrl);
     expect(screen.getByRole('link', { name: 'Baixar XML' }).getAttribute('href')).toBe(authorized.xmlUrl);
     expect(screen.getByRole('link', { name: 'Consultar QR Code' }).getAttribute('href')).toBe(authorized.qrcodeUrl);
@@ -163,5 +171,30 @@ describe('NFC-e issue and delivery actions', () => {
       expect.stringContaining('https://wa.me/5518999999999?text='),
       '_blank',
     );
+  });
+});
+
+
+describe('NFC-e automatic status refresh', () => {
+  it('shows compact progress and polls until authorization without opening the modal', async () => {
+    vi.useFakeTimers();
+    const processing = makeInvoice('processing');
+    const authorized = makeInvoice('authorized', {
+      danfeUrl: 'https://focus.example/danfe.pdf',
+      xmlUrl: 'https://focus.example/nfce.xml',
+    });
+    mocks.get
+      .mockResolvedValueOnce({ data: processing })
+      .mockResolvedValueOnce({ data: authorized });
+
+    render(<NfceReceiptPanel orderId="order-1" />);
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole('button', { name: 'Emitindo cupom...' })).toBeTruthy();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+
+    expect(mocks.get).toHaveBeenLastCalledWith('/invoices/invoice-65');
+    expect(screen.getByText('NFC-e autorizada')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ver cupom fiscal' })).toBeTruthy();
   });
 });
