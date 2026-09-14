@@ -9,6 +9,8 @@ const { stockItemRepository } = require('../src/repositories/stockItem.repositor
 const { stockService } = require('../src/services/domain.services');
 const { orderService } = require('../src/services/order.service');
 const { orderRepository } = require('../src/repositories/order.repository');
+const { paymentRepository } = require('../src/repositories/payment.repository');
+const { cashRegisterRepository } = require('../src/repositories/cashRegister.repository');
 const stockController = require('../src/controllers/stock.controller');
 const orderController = require('../src/controllers/order.controller');
 
@@ -26,9 +28,10 @@ const { notifyStockChanged } = require('../src/services/stockRealtime.service');
 const item = { id: 'rice', name: 'Arroz', quantity: 1, minQuantity: 10, unit: 'kg' };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const response = () => ({
-  code: 200, body: undefined,
+  code: 200, body: undefined, headers: {},
   status(code) { this.code = code; return this; },
   json(body) { this.body = body; return this; },
+  setHeader(name, value) { this.headers[name] = value; return this; },
   send() { return this; },
 });
 
@@ -111,4 +114,88 @@ test('all five order mutation paths preserve notifications while Broadcast is of
   }
   await tick();
   assert.equal(calls.filter(([event]) => event === 'stock_updated').length, 5);
+});
+
+
+test('replays a created order when response enrichment fails after persistence', async () => {
+  let creations = 0;
+  orderService.createOrder = async () => {
+    creations += 1;
+    return { id: 'persisted-order', status: 'NEW' };
+  };
+  orderRepository.findItems = async () => { throw new Error('read after insert failed'); };
+  const req = {
+    body: { idempotencyKey: 'persisted-response-key' },
+    user: { id: 'operator', role: 'ADMIN' },
+    get: () => 'persisted-response-key',
+  };
+
+  const first = response();
+  const replay = response();
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    await orderController.createOrder(req, first);
+    await orderController.createOrder(req, replay);
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(creations, 1);
+  assert.equal(first.code, 201);
+  assert.equal(first.body.id, 'persisted-order');
+  assert.deepEqual(first.body.items, []);
+  assert.equal(replay.code, 201);
+  assert.equal(replay.headers['X-Idempotent-Replay'], 'true');
+});
+
+test('does not execute an ambiguous server failure twice for the same idempotency key', async () => {
+  let creations = 0;
+  orderService.createOrder = async () => {
+    creations += 1;
+    throw new Error('connection lost after insert');
+  };
+  const req = {
+    body: { idempotencyKey: 'ambiguous-failure-key' },
+    user: { id: 'operator', role: 'ADMIN' },
+    get: () => 'ambiguous-failure-key',
+  };
+
+  const first = response();
+  const replay = response();
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    await orderController.createOrder(req, first);
+    await orderController.createOrder(req, replay);
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(creations, 1);
+  assert.equal(first.code, 500);
+  assert.equal(replay.code, 500);
+  assert.equal(replay.headers['X-Idempotent-Replay'], 'true');
+});
+
+
+test('keeps the order list available when optional payment enrichment fails', async () => {
+  cashRegisterRepository.findOpenSession = async () => ({ id: 'session-1' });
+  orderRepository.findBySession = async () => [{ id: 'order-visible', status: 'NEW' }];
+  orderRepository.findItems = async () => [];
+  paymentRepository.findBySession = async () => { throw new Error('payments unavailable'); };
+  const req = { query: {}, user: { id: 'operator', role: 'ADMIN' } };
+  const res = response();
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    await orderController.getOrders(req, res);
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(res.code, 200);
+  assert.equal(res.body.length, 1);
+  assert.equal(res.body[0].id, 'order-visible');
+  assert.equal(res.body[0].payment, null);
 });

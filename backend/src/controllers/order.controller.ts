@@ -6,6 +6,7 @@ import { notifyStockChanged } from '../services/stockRealtime.service';
 import { DomainError } from '../types/errors';
 import { productRepository } from '../repositories/product.repository';
 import { paymentRepository } from '../repositories/payment.repository';
+import type { Order, Payment } from '../types/domain';
 
 type IdempotencyResult = {
   status: number;
@@ -85,8 +86,13 @@ const runIdempotent = async (
     idempotencyStore.set(scopedKey, { createdAt: Date.now(), result });
     sendIdempotencyResult(res, result);
   } catch (error) {
-    if (scopedKey) idempotencyStore.delete(scopedKey);
-    handleError(res, error, fallback);
+    const result = toErrorResult(error, fallback);
+    if (scopedKey && result.status >= 500) {
+      idempotencyStore.set(scopedKey, { createdAt: Date.now(), result });
+    } else if (scopedKey) {
+      idempotencyStore.delete(scopedKey);
+    }
+    sendIdempotencyResult(res, result);
   }
 };
 
@@ -101,10 +107,25 @@ async function getItemsWithProduct(orderId: string) {
   );
 }
 
-const handleError = (res: Response, error: unknown, fallback: string) => {
-  if (error instanceof DomainError) return res.status(error.status).json({ message: error.message });
+async function getCreatedOrderBody(order: Order) {
+  try {
+    return { ...order, items: await getItemsWithProduct(order.id) };
+  } catch (error) {
+    console.error('ORDER RESPONSE ENRICHMENT ERROR:', order.id, error);
+    return { ...order, items: [] };
+  }
+}
+
+const toErrorResult = (error: unknown, fallback: string): IdempotencyResult => {
+  if (error instanceof DomainError) {
+    return { status: error.status, body: { message: error.message } };
+  }
   console.error(error);
-  return res.status(500).json({ message: fallback });
+  return { status: 500, body: { message: fallback } };
+};
+
+const handleError = (res: Response, error: unknown, fallback: string) => {
+  sendIdempotencyResult(res, toErrorResult(error, fallback));
 };
 
 export const getOrders = async (req: Request, res: Response) => {
@@ -129,6 +150,19 @@ export const getOrders = async (req: Request, res: Response) => {
     if (myOrders === 'true' && user?.id) orders = orders.filter((o) => o.waiterId === user.id);
     if (user?.role === 'WAITER' && user?.id) orders = orders.filter((o) => o.waiterId === user.id);
 
+    const latestPaymentByOrderId = new Map<string, Payment>();
+    try {
+      const payments = await paymentRepository.findBySession(session.id);
+      for (const payment of payments) {
+        const current = latestPaymentByOrderId.get(payment.orderId);
+        if (!current || payment.createdAt >= current.createdAt) {
+          latestPaymentByOrderId.set(payment.orderId, payment);
+        }
+      }
+    } catch (error) {
+      console.error('ORDER PAYMENT ENRICHMENT ERROR:', error);
+    }
+
     const enriched = await Promise.all(
       orders.map(async (o) => {
         const items = await orderRepository.findItems(o.id);
@@ -138,8 +172,7 @@ export const getOrders = async (req: Request, res: Response) => {
             return { ...item, product };
           })
         );
-        const payments = await paymentRepository.findByOrder(o.id);
-        return { ...o, items: itemsWithProduct, payment: payments[payments.length - 1] ?? null };
+        return { ...o, items: itemsWithProduct, payment: latestPaymentByOrderId.get(o.id) ?? null };
       })
     );
 
@@ -193,8 +226,7 @@ export const createOrder = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const order = await orderService.createOrder(req.body, { id: user.id, role: user.role });
     void notifyStockChanged();
-    const items = await getItemsWithProduct(order.id);
-    return { status: 201, body: { ...order, items } };
+    return { status: 201, body: await getCreatedOrderBody(order) };
   }, 'Erro ao criar pedido');
 };
 
@@ -202,8 +234,7 @@ export const createPublicOrder = async (req: Request, res: Response) => {
   await runIdempotent(req, res, 'orders:create-public', async () => {
     const order = await orderService.createPublicOrder(req.body);
     void notifyStockChanged();
-    const items = await getItemsWithProduct(order.id);
-    return { status: 201, body: { ...order, items } };
+    return { status: 201, body: await getCreatedOrderBody(order) };
   }, 'Erro ao criar pedido público');
 };
 

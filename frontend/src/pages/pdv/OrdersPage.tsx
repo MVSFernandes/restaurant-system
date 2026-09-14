@@ -687,7 +687,7 @@ const OrdersPage: React.FC = () => {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (options: { silent?: boolean } = {}) => {
     try {
       const [
         ordersRes,
@@ -723,7 +723,7 @@ const OrdersPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      showToast('error', 'Erro ao carregar pedidos.');
+      if (!options.silent) showToast('error', 'Erro ao carregar pedidos.');
     } finally {
       setLoading(false);
     }
@@ -945,7 +945,7 @@ const OrdersPage: React.FC = () => {
       orderSubmittingRef.current = true;
       setOrderSubmitting(true);
       const idempotencyKey = newOrderIdempotencyKey || createIdempotencyKey();
-      await api.post('/orders', {
+      const { data: createdOrder } = await api.post<Order>('/orders', {
         idempotencyKey,
         type: orderType,
         customerName:
@@ -979,8 +979,13 @@ const OrdersPage: React.FC = () => {
         headers: { 'X-Idempotency-Key': idempotencyKey },
       });
 
+      setOrders((current) =>
+        current.some((order) => order.id === createdOrder.id)
+          ? current
+          : [...current, createdOrder]
+      );
       resetOrderForm();
-      fetchData();
+      void fetchData({ silent: true });
       showToast('success', 'Pedido criado com sucesso.');
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
