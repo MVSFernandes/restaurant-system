@@ -18,6 +18,7 @@ const {
   isValidCpf,
   mapNfcePaymentMethod,
   normalizeConsumerCpf,
+  parseTaxRegime,
 } = require('../src/services/invoice.service');
 
 const original = {
@@ -42,7 +43,7 @@ const config = (patch = {}) => ({
   legalName: 'Restaurante LTDA',
   cnpj: '12345678000188',
   stateRegistration: '123456789',
-  taxRegime: '1',
+  taxRegime: '4',
   fiscalStreet: 'Rua B',
   fiscalNumber: '20',
   fiscalNeighborhood: 'Centro',
@@ -138,6 +139,13 @@ beforeEach(() => {
   global.fetch = original.fetch;
 });
 
+test('uses the configured CRT 4 and rejects missing or invalid tax regimes', () => {
+  assert.equal(parseTaxRegime(config({ taxRegime: '4' })), 4);
+  assert.equal(parseTaxRegime(config({ taxRegime: 'SIMPLES_NACIONAL_MEI' })), 4);
+  assert.throws(() => parseTaxRegime(config({ taxRegime: null })), /CRT 1, 2, 3 ou 4/);
+  assert.throws(() => parseTaxRegime(config({ taxRegime: '5' })), /CRT 1, 2, 3 ou 4/);
+});
+
 test('maps every supported paid-at-checkout method to the NFC-e tPag code', () => {
   assert.equal(mapNfcePaymentMethod('CASH'), '01');
   assert.equal(mapNfcePaymentMethod('PIX'), '17');
@@ -164,6 +172,7 @@ test('builds an unidentified-consumer payload without CPF fields', () => {
     null,
   );
 
+  assert.equal(payload.regime_tributario_emitente, 4);
   assert.equal(payload.presenca_comprador, 1);
   assert.equal(payload.formas_pagamento[0].forma_pagamento, '01');
   assert.equal(payload.formas_pagamento[0].valor_pagamento, 25);

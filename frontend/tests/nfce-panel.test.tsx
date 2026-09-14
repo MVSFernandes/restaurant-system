@@ -6,12 +6,14 @@ import type { Invoice } from '../src/types';
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
+  put: vi.fn(),
 }));
 
 vi.mock('../src/services/api', () => ({ default: mocks }));
 
 import { NfceReceiptPanel } from '../src/components/fiscal/NfceReceiptPanel';
 import { formatCpf, isValidCpf } from '../src/lib/cpf';
+import SettingsPage from '../src/pages/SettingsPage';
 
 const makeInvoice = (status: Invoice['status'], patch: Partial<Invoice> = {}): Invoice => ({
   id: 'invoice-65',
@@ -39,6 +41,7 @@ const makeInvoice = (status: Invoice['status'], patch: Partial<Invoice> = {}): I
 beforeEach(() => {
   mocks.get.mockReset();
   mocks.post.mockReset();
+  mocks.put.mockReset();
   vi.spyOn(window, 'open').mockImplementation(() => null);
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -49,6 +52,21 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+
+describe('fiscal settings', () => {
+  it('shows and persists CRT 4 for MEI', async () => {
+    mocks.get.mockResolvedValue({
+      data: { id: 'config-1', name: 'Restaurante', taxRegime: '4', nfceEnabled: true },
+    });
+    mocks.put.mockResolvedValue({ data: {} });
+
+    render(<SettingsPage />);
+    expect(await screen.findByDisplayValue('4 - Simples Nacional (MEI)')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(mocks.put).toHaveBeenCalledWith('/config', expect.objectContaining({ taxRegime: '4' }));
+  });
 });
 
 describe('NFC-e CPF field', () => {

@@ -239,8 +239,9 @@ const SettingsPage: React.FC = () => {
                 <option value="1">1 - Simples Nacional</option>
                 <option value="2">2 - Simples excesso</option>
                 <option value="3">3 - Regime Normal</option>
+                <option value="4">4 - Simples Nacional (MEI)</option>
               </select>
-              <p className="mt-1 text-xs text-gray-500">Regime fiscal usado na emissão da NF-e.</p>
+              <p className="mt-1 text-xs text-gray-500">Regime fiscal usado na emissão da NF-e e da NFC-e.</p>
             </div>
 
             {fiscalTextFields.map(({ field, label, helper, placeholder, maxLength, inputMode }) => (

@@ -44,18 +44,24 @@ const requireValue = (value: string | null | undefined, field: string) => {
   return String(value).trim();
 };
 
-const parseTaxRegime = (config: RestaurantConfig) => {
-  const raw = String(config.taxRegime ?? 'SIMPLES_NACIONAL').trim();
-  const numeric = Number(raw);
-  if ([1, 2, 3].includes(numeric)) return numeric;
-
-  const map: Record<string, number> = {
+export const parseTaxRegime = (config: RestaurantConfig) => {
+  const raw = String(config.taxRegime ?? '').trim();
+  const legacyAliases: Record<string, number> = {
     SIMPLES_NACIONAL: 1,
     SIMPLES_NACIONAL_EXCESSO: 2,
     REGIME_NORMAL: 3,
+    SIMPLES_NACIONAL_MEI: 4,
   };
+  const numeric = legacyAliases[raw.toUpperCase()] ?? Number(raw);
 
-  return map[raw.toUpperCase()] ?? 1;
+  if (!Number.isInteger(numeric) || ![1, 2, 3, 4].includes(numeric)) {
+    throw new ValidationError(
+      'taxRegime',
+      'Informe um regime tributário válido nas configurações fiscais (CRT 1, 2, 3 ou 4)'
+    );
+  }
+
+  return numeric;
 };
 
 const buildEmitterFields = (config: RestaurantConfig) => {
