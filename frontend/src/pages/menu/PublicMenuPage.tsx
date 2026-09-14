@@ -1,3 +1,4 @@
+import { orderErrorMessage } from '../../lib/orderErrors';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import type { Category, Product, RestaurantConfig } from '../../types';
@@ -14,6 +15,7 @@ const createIdempotencyKey = () =>
 
 const PublicMenuPage: React.FC = () => {
   useMenuViewers(true);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [config, setConfig] = useState<RestaurantConfig | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -45,7 +47,11 @@ const PublicMenuPage: React.FC = () => {
     fetchData();
   }, []);
 
+  const productAvailable = (product: Product) =>
+    (categories.flatMap((category) => category.products ?? []).find((current) => current.id === product.id) ?? product).available !== false;
+
   const addToCart = (product: Product) => {
+    if (!productAvailable(product)) return;
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
       if (existing) return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
@@ -70,7 +76,9 @@ const PublicMenuPage: React.FC = () => {
     try {
       checkoutSubmittingRef.current = true;
       setCheckoutSubmitting(true);
+      setOrderError(null);
       const idempotencyKey = checkoutIdempotencyKey || createIdempotencyKey();
+      setCheckoutIdempotencyKey(idempotencyKey);
       // Cria ou busca o cliente
       await api.post('/orders/public', {
         idempotencyKey,
@@ -87,6 +95,10 @@ const PublicMenuPage: React.FC = () => {
       setCheckoutIdempotencyKey('');
     } catch (error) {
       console.error(error);
+      setOrderError(orderErrorMessage(error));
+      void api.get<Category[]>('/categories?includeProducts=true')
+        .then(({ data }) => setCategories(data))
+        .catch(() => {});
     } finally {
       checkoutSubmittingRef.current = false;
       setCheckoutSubmitting(false);
@@ -123,9 +135,10 @@ const PublicMenuPage: React.FC = () => {
           </div>
           <button
             onClick={() => {
-              setCheckoutIdempotencyKey(createIdempotencyKey());
+              setCheckoutIdempotencyKey((current) => current || createIdempotencyKey());
               setShowCart(true);
             }}
+            aria-label="Abrir carrinho"
             className="relative btn-primary p-3"
           >
             <ShoppingCart size={20} />
@@ -187,14 +200,16 @@ const PublicMenuPage: React.FC = () => {
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-primary-600 font-bold">R$ {product.price.toFixed(2)}{product.isByWeight ? '/kg' : ''}</span>
-                      {cartItem ? (
+                      {!productAvailable(product) ? (
+                        <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">Sem estoque</span>
+                      ) : cartItem ? (
                         <div className="flex items-center gap-2">
                           <button onClick={() => removeFromCart(product.id)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"><Minus size={14} /></button>
                           <span className="font-bold w-5 text-center text-sm">{cartItem.quantity}</span>
-                          <button onClick={() => addToCart(product)} className="w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center hover:bg-primary-700 transition-colors"><Plus size={14} /></button>
+                          <button disabled={!productAvailable(product)} onClick={() => addToCart(product)} className="w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center hover:bg-primary-700 transition-colors"><Plus size={14} /></button>
                         </div>
                       ) : (
-                        <button onClick={() => addToCart(product)} className="btn-primary py-1.5 px-4 text-sm flex items-center gap-1 rounded-full shadow-sm">
+                        <button disabled={!productAvailable(product)} onClick={() => addToCart(product)} className="btn-primary py-1.5 px-4 text-sm flex items-center gap-1 rounded-full shadow-sm">
                           <Plus size={14} /> Adicionar
                         </button>
                       )}
@@ -226,7 +241,7 @@ const PublicMenuPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button onClick={() => removeFromCart(item.product.id)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={14} /></button>
                     <span className="font-bold">{item.quantity}</span>
-                    <button onClick={() => addToCart(item.product)} className="w-7 h-7 bg-primary-100 rounded-full flex items-center justify-center"><Plus size={14} /></button>
+                    <button disabled={!productAvailable(item.product)} onClick={() => addToCart(item.product)} className="w-7 h-7 bg-primary-100 rounded-full flex items-center justify-center"><Plus size={14} /></button>
                     <button onClick={() => setCart(c => c.filter(i => i.product.id !== item.product.id))} className="w-7 h-7 text-red-500 hover:bg-red-50 rounded-full flex items-center justify-center"><Trash2 size={14} /></button>
                   </div>
                 </div>
@@ -268,6 +283,7 @@ const PublicMenuPage: React.FC = () => {
                   <span>Total</span>
                   <span>R$ {cartTotal.toFixed(2)}</span>
                 </div>
+                {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
                 <button onClick={handleCheckout} disabled={!customerName || checkoutSubmitting} className="btn-primary w-full py-4 text-lg">
                   {checkoutSubmitting ? (
                     <span className="inline-flex items-center justify-center gap-2">

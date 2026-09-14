@@ -30,6 +30,7 @@ export interface Product {
   categoryId: string;
   category?: Category;
   stockItems?: ProductStockLink[];
+  available?: boolean;
   ncm?: string | null;
   cfop?: string | null;
   origin?: string | null;

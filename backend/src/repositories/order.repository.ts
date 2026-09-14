@@ -1,5 +1,7 @@
+import { toPaymentInsert } from '../mappers/payment.mapper';
+import type { Database, Json } from '../types/database';
 import { supabase } from '../lib/supabase';
-import { Order, OrderItem, OrderStatus, OrderType } from '../types/domain';
+import { Order, OrderItem, OrderStatus, OrderType, Payment } from '../types/domain';
 import { mapSupabaseError } from '../middlewares/errorHandler.middleware';
 import { toOrderDomain, toOrderInsert, toOrderUpdate } from '../mappers/order.mapper';
 import { toOrderItemDomain, toOrderItemInsert } from '../mappers/orderItem.mapper';
@@ -46,6 +48,16 @@ const tableNumberFromRelation = (relation: RecentOrderRow['tables']) => {
 };
 
 export const orderRepository = {
+  async createWithStock(order: Order, items: OrderItem[], payment?: Payment): Promise<Order> {
+    const { data, error } = await supabase.rpc('create_order_with_stock', {
+      p_order: toOrderInsert(order) as Json,
+      p_items: items.map(toOrderItemInsert) as Json,
+      p_payment: payment ? toPaymentInsert(payment) as Json : null,
+    });
+    if (error) throw mapSupabaseError(error, { entity: 'Order' });
+    return toOrderDomain(data as unknown as Database['public']['Tables']['orders']['Row']);
+  },
+
   async findById(id: string): Promise<Order | null> {
     const { data, error } = await supabase
       .from(TABLE)

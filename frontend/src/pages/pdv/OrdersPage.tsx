@@ -1,3 +1,4 @@
+import { orderErrorMessage } from '../../lib/orderErrors';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../services/api';
 import type {
@@ -128,6 +129,7 @@ const parseNotesAndExtras = (originalNotes: string) => {
 const OrdersPage: React.FC = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [waiters, setWaiters] = useState<User[]>([]);
@@ -743,7 +745,11 @@ const OrdersPage: React.FC = () => {
     return categoryName.includes('MARMITA') || productName.includes('MARMITA');
   };
 
+  const productAvailable = (product: Product) =>
+    (categories.flatMap((category) => category.products ?? []).find((current) => current.id === product.id) ?? product).available !== false;
+
   const addToCart = async (product: Product) => {
+    if (!productAvailable(product)) return;
     if (isMarmitaProduct(product)) {
       try {
         const res = await api.get(`/marmita-menu/day/${getCurrentWeekDay()}`);
@@ -865,6 +871,7 @@ const OrdersPage: React.FC = () => {
     }, 0) + currentDeliveryFee;
 
   const resetOrderForm = () => {
+    setOrderError(null);
     setCart([]);
     setManualPriceEditors({});
     orderSubmittingRef.current = false;
@@ -944,7 +951,9 @@ const OrdersPage: React.FC = () => {
     try {
       orderSubmittingRef.current = true;
       setOrderSubmitting(true);
+      setOrderError(null);
       const idempotencyKey = newOrderIdempotencyKey || createIdempotencyKey();
+      setNewOrderIdempotencyKey(idempotencyKey);
       const { data: createdOrder } = await api.post<Order>('/orders', {
         idempotencyKey,
         type: orderType,
@@ -989,7 +998,8 @@ const OrdersPage: React.FC = () => {
       showToast('success', 'Pedido criado com sucesso.');
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
-      showToast('error', 'Erro ao criar pedido.');
+      setOrderError(orderErrorMessage(error));
+      void fetchData({ silent: true });
     } finally {
       orderSubmittingRef.current = false;
       setOrderSubmitting(false);
@@ -2045,10 +2055,11 @@ const OrdersPage: React.FC = () => {
                   {currentCategoryProducts.map((product) => (
                     <button
                       key={product.id}
-                      onClick={() => addToCart(product)}
-                      className="text-left p-3 border rounded-xl hover:border-primary-400 hover:bg-primary-50 transition-colors"
+                      disabled={!productAvailable(product)} onClick={() => addToCart(product)}
+                      className="text-left p-3 border rounded-xl enabled:hover:border-primary-400 enabled:hover:bg-primary-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <p className="font-medium text-gray-900">{product.name}</p>
+                      {!productAvailable(product) && <span className="text-xs font-semibold text-red-700">Sem estoque</span>}
                       <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">
                         {product.description}
                       </p>
@@ -2307,7 +2318,7 @@ const OrdersPage: React.FC = () => {
                                       {item.quantity}
                                     </span>
                                     <button
-                                      onClick={() => addToCart(item.product)}
+                                      disabled={!productAvailable(item.product)} onClick={() => addToCart(item.product)}
                                       className="p-1 rounded hover:bg-gray-100"
                                     >
                                       <Plus size={14} />
@@ -2429,6 +2440,7 @@ const OrdersPage: React.FC = () => {
                     <span>R$ {cartTotal.toFixed(2)}</span>
                   </div>
 
+                  {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
                   <button
                     onClick={handleCreateOrder}
                     disabled={cart.length === 0 || !isCashOpen || orderSubmitting}

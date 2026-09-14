@@ -135,8 +135,8 @@ export class InsufficientCreditError extends DomainError {
 export class InsufficientStockError extends DomainError {
   constructor(stockItemName: string, productName?: string) {
     const message = productName
-      ? `Insufficient stock of "${stockItemName}" for product "${productName}".`
-      : `Insufficient stock of "${stockItemName}".`;
+      ? `Estoque insuficiente de "${stockItemName}" para o produto "${productName}".`
+      : `Estoque insuficiente de "${stockItemName}".`;
     super(message, {
       code: 'INSUFFICIENT_STOCK',
       status: 400,

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createId } from '@paralleldrive/cuid2';
 import { orderRepository } from '../repositories/order.repository';
 import { productRepository } from '../repositories/product.repository';
@@ -10,6 +11,7 @@ import { creditTransactionRepository } from '../repositories/creditTransaction.r
 import { userRepository } from '../repositories/user.repository';
 import {
   Order,
+  OrderItem,
   OrderStatus,
   OrderType,
   Payment,
@@ -169,10 +171,19 @@ async function releaseTableIfEmpty(tableId: string | null): Promise<void> {
 // Service público
 // ---------------------------------------------------------------------------
 
+function creationOrderId(key?: string): string {
+  return key ? createHash('sha256').update(key).digest('hex') : createId();
+}
+
+function creationItems(orderId: string, items: ResolvedItemPricing[]): OrderItem[] {
+  return items.map((item) => ({ ...item, id: createId(), orderId }));
+}
+
 export const orderService = {
   async createOrder(
     input: CreateOrderInput,
-    actingUser: { id: string; role: UserRole }
+    actingUser: { id: string; role: UserRole },
+    idempotencyKey?: string
   ): Promise<Order> {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
@@ -197,8 +208,8 @@ export const orderService = {
     const deliveryFee = input.type === 'DELIVERY' ? (input.deliveryFee ?? 0) : 0;
     total += deliveryFee;
 
-    const orderId = createId();
-    const order = await orderRepository.create({
+    const orderId = creationOrderId(idempotencyKey);
+    const order: Order = {
       id: orderId,
       type: input.type,
       status: 'NEW',
@@ -219,41 +230,17 @@ export const orderService = {
       deliveryNotes: input.deliveryNotes ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+    };
 
-    for (const item of resolvedItems) {
-      await orderRepository.addItem({
-        id: createId(),
-        orderId,
-        productId: item.productId,
-        quantity: item.quantity,
-        weight: item.weight,
-        price: item.price,
-        unitPrice: item.unitPrice,
-        manualPrice: item.manualPrice,
-        saleType: item.saleType,
-        notes: item.notes,
-      });
-    }
-
-    // Passa product_id + quantity + weight — a RPC calcula o consumo de insumos internamente
-    const stockPayload = toStockRpcItems(resolvedItems);
-    if (stockPayload.length > 0) {
-      await orderRepository.consumeStock(stockPayload);
-    }
-
-    if (input.type === 'DINE_IN' && input.tableId) {
-      await tableRepository.update(input.tableId, { status: 'OCCUPIED' });
-    }
-
-    return order;
+    return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems));
   },
 
   async createPublicOrder(
     input: Omit<CreateOrderInput, 'waiterId'> & {
       customerPhone?: string | null;
       paymentMethod?: string | null;
-    }
+    },
+    idempotencyKey?: string
   ): Promise<Order> {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
@@ -308,8 +295,8 @@ export const orderService = {
     const deliveryFee = type === 'DELIVERY' ? (input.deliveryFee ?? 0) : 0;
     total += deliveryFee;
 
-    const orderId = createId();
-    const order = await orderRepository.create({
+    const orderId = creationOrderId(idempotencyKey);
+    const order: Order = {
       id: orderId,
       type,
       status: 'NEW',
@@ -330,41 +317,13 @@ export const orderService = {
       deliveryNotes: input.deliveryNotes ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+    };
 
-    for (const item of resolvedItems) {
-      await orderRepository.addItem({
-        id: createId(),
-        orderId,
-        productId: item.productId,
-        quantity: item.quantity,
-        weight: item.weight,
-        price: item.price,
-        unitPrice: item.unitPrice,
-        manualPrice: item.manualPrice,
-        saleType: item.saleType,
-        notes: item.notes,
-      });
-    }
-
-    const stockPayload = toStockRpcItems(resolvedItems);
-    if (stockPayload.length > 0) {
-      await orderRepository.consumeStock(stockPayload);
-    }
-
-    if (input.paymentMethod) {
-      await paymentRepository.create({
-        id: createId(),
-        orderId,
-        method: input.paymentMethod as any,
-        amount: total,
-        status: 'PENDING',
-        transactionId: null,
-        createdAt: new Date(),
-      });
-    }
-
-    return order;
+    const payment: Payment | undefined = input.paymentMethod ? {
+      id: createId(), orderId, method: input.paymentMethod as Payment['method'],
+      amount: total, status: 'PENDING', transactionId: null, createdAt: new Date(),
+    } : undefined;
+    return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems), payment);
   },
 
   async updateStatus(

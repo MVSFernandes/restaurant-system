@@ -224,7 +224,7 @@ export const getOrderById = async (req: Request, res: Response) => {
 export const createOrder = async (req: Request, res: Response) => {
   await runIdempotent(req, res, 'orders:create', async () => {
     const user = (req as any).user;
-    const order = await orderService.createOrder(req.body, { id: user.id, role: user.role });
+    const order = await orderService.createOrder(req.body, { id: user.id, role: user.role }, getScopedIdempotencyKey(req, 'orders:create'));
     void notifyStockChanged();
     return { status: 201, body: await getCreatedOrderBody(order) };
   }, 'Erro ao criar pedido');
@@ -232,7 +232,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
 export const createPublicOrder = async (req: Request, res: Response) => {
   await runIdempotent(req, res, 'orders:create-public', async () => {
-    const order = await orderService.createPublicOrder(req.body);
+    const order = await orderService.createPublicOrder(req.body, getScopedIdempotencyKey(req, 'orders:create-public'));
     void notifyStockChanged();
     return { status: 201, body: await getCreatedOrderBody(order) };
   }, 'Erro ao criar pedido público');
