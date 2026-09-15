@@ -1,3 +1,4 @@
+import { orderErrorMessage } from '../../lib/orderErrors';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../services/api';
 import type {
@@ -34,6 +35,7 @@ import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
 import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
 import { useAuth } from '../../hooks/useAuth';
+import { NfceReceiptPanel } from '../../components/fiscal/NfceReceiptPanel';
 
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
 const statusLabels = ORDER_STATUS_LABELS;
@@ -127,6 +129,7 @@ const parseNotesAndExtras = (originalNotes: string) => {
 const OrdersPage: React.FC = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [waiters, setWaiters] = useState<User[]>([]);
@@ -686,7 +689,7 @@ const OrdersPage: React.FC = () => {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (options: { silent?: boolean } = {}) => {
     try {
       const [
         ordersRes,
@@ -722,7 +725,7 @@ const OrdersPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      showToast('error', 'Erro ao carregar pedidos.');
+      if (!options.silent) showToast('error', 'Erro ao carregar pedidos.');
     } finally {
       setLoading(false);
     }
@@ -742,7 +745,11 @@ const OrdersPage: React.FC = () => {
     return categoryName.includes('MARMITA') || productName.includes('MARMITA');
   };
 
+  const productAvailable = (product: Product) =>
+    (categories.flatMap((category) => category.products ?? []).find((current) => current.id === product.id) ?? product).available !== false;
+
   const addToCart = async (product: Product) => {
+    if (!productAvailable(product)) return;
     if (isMarmitaProduct(product)) {
       try {
         const res = await api.get(`/marmita-menu/day/${getCurrentWeekDay()}`);
@@ -864,6 +871,7 @@ const OrdersPage: React.FC = () => {
     }, 0) + currentDeliveryFee;
 
   const resetOrderForm = () => {
+    setOrderError(null);
     setCart([]);
     setManualPriceEditors({});
     orderSubmittingRef.current = false;
@@ -943,8 +951,10 @@ const OrdersPage: React.FC = () => {
     try {
       orderSubmittingRef.current = true;
       setOrderSubmitting(true);
+      setOrderError(null);
       const idempotencyKey = newOrderIdempotencyKey || createIdempotencyKey();
-      await api.post('/orders', {
+      setNewOrderIdempotencyKey(idempotencyKey);
+      const { data: createdOrder } = await api.post<Order>('/orders', {
         idempotencyKey,
         type: orderType,
         customerName:
@@ -978,12 +988,18 @@ const OrdersPage: React.FC = () => {
         headers: { 'X-Idempotency-Key': idempotencyKey },
       });
 
+      setOrders((current) =>
+        current.some((order) => order.id === createdOrder.id)
+          ? current
+          : [...current, createdOrder]
+      );
       resetOrderForm();
-      fetchData();
+      void fetchData({ silent: true });
       showToast('success', 'Pedido criado com sucesso.');
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
-      showToast('error', 'Erro ao criar pedido.');
+      setOrderError(orderErrorMessage(error));
+      void fetchData({ silent: true });
     } finally {
       orderSubmittingRef.current = false;
       setOrderSubmitting(false);
@@ -1926,6 +1942,14 @@ const OrdersPage: React.FC = () => {
                     </p>
                   </div>
                 )}
+
+                {config?.nfceEnabled &&
+                  (user?.role === 'ADMIN' || user?.role === 'CASHIER') &&
+                  order.status === 'FINISHED' &&
+                  order.payment?.status === 'PAID' &&
+                  order.payment.method !== 'CREDIT' && (
+                    <NfceReceiptPanel orderId={order.id} phone={order.deliveryPhone} />
+                  )}
               </div>
             </div>
           </div>
@@ -2031,10 +2055,11 @@ const OrdersPage: React.FC = () => {
                   {currentCategoryProducts.map((product) => (
                     <button
                       key={product.id}
-                      onClick={() => addToCart(product)}
-                      className="text-left p-3 border rounded-xl hover:border-primary-400 hover:bg-primary-50 transition-colors"
+                      disabled={!productAvailable(product)} onClick={() => addToCart(product)}
+                      className="text-left p-3 border rounded-xl enabled:hover:border-primary-400 enabled:hover:bg-primary-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <p className="font-medium text-gray-900">{product.name}</p>
+                      {!productAvailable(product) && <span className="text-xs font-semibold text-red-700">Sem estoque</span>}
                       <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">
                         {product.description}
                       </p>
@@ -2293,7 +2318,7 @@ const OrdersPage: React.FC = () => {
                                       {item.quantity}
                                     </span>
                                     <button
-                                      onClick={() => addToCart(item.product)}
+                                      disabled={!productAvailable(item.product)} onClick={() => addToCart(item.product)}
                                       className="p-1 rounded hover:bg-gray-100"
                                     >
                                       <Plus size={14} />
@@ -2415,6 +2440,7 @@ const OrdersPage: React.FC = () => {
                     <span>R$ {cartTotal.toFixed(2)}</span>
                   </div>
 
+                  {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
                   <button
                     onClick={handleCreateOrder}
                     disabled={cart.length === 0 || !isCashOpen || orderSubmitting}

@@ -1,3 +1,4 @@
+import { productStockAvailability } from '../services/productAvailability.service';
 import { Request, Response } from 'express';
 import { productService } from '../services/domain.services';
 import { categoryRepository } from '../repositories/category.repository';
@@ -25,7 +26,7 @@ async function enrichProducts(products: Awaited<ReturnType<typeof productService
     products.map(async (p) => ({
       ...p,
       category: catMap.get(p.categoryId) ?? null,
-      stockItems: await productStockItemRepository.findByProduct(p.id),
+      ...await productStockAvailability(p.id),
     }))
   );
 }

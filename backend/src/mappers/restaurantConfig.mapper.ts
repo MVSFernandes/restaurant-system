@@ -33,6 +33,7 @@ export function toRestaurantConfigDomain(row: ConfigRow): RestaurantConfig {
     defaultNcm: row.default_ncm ?? null,
     defaultOrigin: row.default_origin ?? null,
     defaultTaxCode: row.default_tax_code ?? null,
+    nfceEnabled: row.nfce_enabled ?? false,
     updatedAt: new Date(row.updated_at),
   };
 }
@@ -66,6 +67,7 @@ export function toRestaurantConfigInsert(domain: RestaurantConfig): ConfigInsert
     default_ncm: domain.defaultNcm,
     default_origin: domain.defaultOrigin,
     default_tax_code: domain.defaultTaxCode,
+    nfce_enabled: domain.nfceEnabled,
   };
 }
 
@@ -97,5 +99,6 @@ export function toRestaurantConfigUpdate(patch: Partial<RestaurantConfig>): Conf
   if (patch.defaultNcm !== undefined) update.default_ncm = patch.defaultNcm;
   if (patch.defaultOrigin !== undefined) update.default_origin = patch.defaultOrigin;
   if (patch.defaultTaxCode !== undefined) update.default_tax_code = patch.defaultTaxCode;
+  if (patch.nfceEnabled !== undefined) update.nfce_enabled = patch.nfceEnabled;
   return update;
 }

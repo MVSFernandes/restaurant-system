@@ -1,7 +1,7 @@
+import { productStockAvailability } from '../services/productAvailability.service';
 import { Request, Response } from 'express';
 import { categoryService } from '../services/domain.services';
 import { productRepository } from '../repositories/product.repository';
-import { productStockItemRepository } from '../repositories/productStockItem.repository';
 import { DomainError } from '../types/errors';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
@@ -22,7 +22,7 @@ export const getCategories = async (req: Request, res: Response) => {
           products.map(async (p) => ({
             ...p,
             category: cat,
-            stockItems: await productStockItemRepository.findByProduct(p.id),
+            ...await productStockAvailability(p.id),
           }))
         );
         return { ...cat, products: productsWithStock };

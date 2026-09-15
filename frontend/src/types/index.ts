@@ -30,6 +30,7 @@ export interface Product {
   categoryId: string;
   category?: Category;
   stockItems?: ProductStockLink[];
+  available?: boolean;
   ncm?: string | null;
   cfop?: string | null;
   origin?: string | null;
@@ -132,9 +133,11 @@ export interface CreditTransaction {
 
 export interface Invoice {
   id: string;
-  customerId: string;
+  customerId?: string | null;
   orderId?: string | null;
   creditTransactionId?: string | null;
+  model: '55' | '65';
+  consumerDocument?: string | null;
   focusRef: string;
   environment: 'homologation' | 'production';
   status: 'pending' | 'processing' | 'authorized' | 'error' | 'canceled';
@@ -145,6 +148,7 @@ export interface Invoice {
   series?: string | null;
   danfeUrl?: string | null;
   xmlUrl?: string | null;
+  qrcodeUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -258,6 +262,7 @@ export interface RestaurantConfig {
   defaultNcm?: string | null;
   defaultOrigin?: string | null;
   defaultTaxCode?: string | null;
+  nfceEnabled?: boolean;
 }
 
 export type MarmitaGroup = 'GUARNICAO' | 'CARNE' | 'EXTRA';

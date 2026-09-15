@@ -99,6 +99,7 @@ test('maps every authorized field returned by Focus and normalizes download URLs
       series: '1',
       danfeUrl: 'https://focus.example.test/arquivos/danfe.pdf',
       xmlUrl: 'https://focus.example.test/arquivos/nfe.xml',
+      qrcodeUrl: null,
     },
   );
   assert.equal(normalizeFocusStatus('rejeitada'), 'error');
@@ -242,7 +243,7 @@ test('re-issues a rejected invoice as a new row with a fresh Focus ref', async (
     legalName: 'Restaurante LTDA',
     cnpj: '12345678000188',
     stateRegistration: '123456789',
-    taxRegime: '1',
+    taxRegime: '4',
     fiscalStreet: 'Rua B',
     fiscalNumber: '20',
     fiscalNeighborhood: 'Centro',
@@ -261,6 +262,7 @@ test('re-issues a rejected invoice as a new row with a fresh Focus ref', async (
   assert.notEqual(created.focusRef, rejected.focusRef);
   assert.equal(created.creditTransactionId, rejected.creditTransactionId);
   assert.equal(submitted.ref, created.focusRef);
+  assert.equal(submitted.payload.regime_tributario_emitente, 4);
   assert.equal(submitted.payload.indicador_inscricao_estadual_destinatario, 9);
   assert.equal('inscricao_estadual_destinatario' in submitted.payload, false);
   assert.equal(result.status, 'processing');

@@ -1,3 +1,4 @@
+import { orderErrorMessage } from '../../lib/orderErrors';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../services/api';
 import type { Table, Order, Product, Category, MarmitaMenuItem, CashRegisterSession } from '../../types';
@@ -34,6 +35,7 @@ const statusColors = ORDER_STATUS_BADGE_CLASSES;
 
 const WaiterTablesPage: React.FC = () => {
   const [tables, setTables] = useState<Table[]>([]);
+  const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [tableOrders, setTableOrders] = useState<Order[]>([]);
@@ -155,7 +157,11 @@ const showToast = (type: 'success' | 'error', message: string) => {
     return categoryName.includes('MARMITA') || productName.includes('MARMITA');
   };
 
+  const productAvailable = (product: Product) =>
+    (categories.flatMap((category) => category.products ?? []).find((current) => current.id === product.id) ?? product).available !== false;
+
   const addToCart = (product: Product) => {
+    if (!productAvailable(product)) return;
     if (isMarmitaProduct(product)) {
       setMarmitaProduct(product);
       return;
@@ -210,6 +216,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
   };
 
   const resetOrderModal = () => {
+    setOrderError(null);
     setCart([]);
     setCustomerName('');
     setMarmitaProduct(null);
@@ -234,7 +241,9 @@ const showToast = (type: 'success' | 'error', message: string) => {
     try {
       orderSubmittingRef.current = true;
       setSaving(true);
+      setOrderError(null);
       const idempotencyKey = orderIdempotencyKey || createIdempotencyKey();
+      setOrderIdempotencyKey(idempotencyKey);
       await api.post('/orders', {
         idempotencyKey,
         type: 'DINE_IN',
@@ -264,7 +273,8 @@ const showToast = (type: 'success' | 'error', message: string) => {
       showToast('success', 'Pedido enviado com sucesso.');
     } catch (error) {
       console.error(error);
-      showToast('error', 'Erro ao enviar pedido.');
+      setOrderError(orderErrorMessage(error));
+      void fetchTables();
     } finally {
       orderSubmittingRef.current = false;
       setSaving(false);
@@ -437,9 +447,10 @@ const showToast = (type: 'success' | 'error', message: string) => {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {currentCategoryProducts.map((product) => (
-                    <button key={product.id} onClick={() => addToCart(product)}
-                      className="text-left p-3 border rounded-xl hover:border-primary-400 hover:bg-primary-50 transition-colors">
+                    <button key={product.id} disabled={!productAvailable(product)} onClick={() => addToCart(product)}
+                      className="text-left p-3 border rounded-xl enabled:hover:border-primary-400 enabled:hover:bg-primary-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                       <p className="font-medium">{product.name}</p>
+                      {!productAvailable(product) && <span className="text-xs font-semibold text-red-700">Sem estoque</span>}
                       <p className="text-primary-600 font-bold mt-1">{product.isByWeight && getCategoryForProduct(product)?.isMealCategory ? `Peso R$ ${Number(getCategoryForProduct(product)?.pricePerKg || product.price).toFixed(2)}/kg` : `R$ ${product.price.toFixed(2)}${product.isByWeight ? '/kg' : ''}`}</p>
                     </button>
                   ))}
@@ -462,7 +473,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
                             <>
                               <button onClick={() => removeFromCart(item.product.id, index)} className="p-1 rounded hover:bg-gray-100"><Minus size={14} /></button>
                               <span className="w-6 text-center text-sm font-bold">{item.quantity}</span>
-                              <button onClick={() => addToCart(item.product)} className="p-1 rounded hover:bg-gray-100"><Plus size={14} /></button>
+                              <button disabled={!productAvailable(item.product)} onClick={() => addToCart(item.product)} className="p-1 rounded hover:bg-gray-100"><Plus size={14} /></button>
                             </>
                           )}
                           <button onClick={() => removeFromCart(item.product.id, index)} className="p-1 rounded hover:bg-red-100 text-red-500"><Trash2 size={14} /></button>
@@ -517,6 +528,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
                     <span>Total</span>
                     <span>R$ {cartTotal.toFixed(2)}</span>
                   </div>
+                  {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
                   <button onClick={handleSendToKitchen} disabled={cart.length === 0 || saving} className="btn-primary w-full py-3 flex items-center justify-center gap-2">
                     {saving ? (
                       <>

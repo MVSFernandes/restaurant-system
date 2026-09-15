@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { cashRegisterService } from '../services/cashRegister.service';
 import { orderRepository } from '../repositories/order.repository';
+import { paymentRepository } from '../repositories/payment.repository';
 import { DomainError } from '../types/errors';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
@@ -111,10 +112,17 @@ export const getClosedOrdersHistory = async (req: Request, res: Response) => {
 
         // Enriquece cada pedido com seus itens (frontend usa order.items.map)
         const enrichedOrders = await Promise.all(
-          nonCanceled.map(async (o) => ({
-            ...o,
-            items: await orderRepository.findItems(o.id),
-          }))
+          nonCanceled.map(async (o) => {
+            const [items, payments] = await Promise.all([
+              orderRepository.findItems(o.id),
+              paymentRepository.findByOrder(o.id),
+            ]);
+            return {
+              ...o,
+              items,
+              payment: payments[payments.length - 1] ?? null,
+            };
+          })
         );
 
         return {

@@ -412,6 +412,7 @@ export const configService = {
     defaultNcm?: string | null;
     defaultOrigin?: string | null;
     defaultTaxCode?: string | null;
+    nfceEnabled?: boolean;
   }) {
     const config = await restaurantConfigRepository.get();
     return restaurantConfigRepository.update(config.id, {
@@ -440,6 +441,7 @@ export const configService = {
       defaultNcm: input.defaultNcm,
       defaultOrigin: input.defaultOrigin,
       defaultTaxCode: input.defaultTaxCode,
+      nfceEnabled: input.nfceEnabled,
     });
   },
 };
