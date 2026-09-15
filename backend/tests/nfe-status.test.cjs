@@ -58,6 +58,7 @@ const invoice = (patch = {}) => ({
 });
 
 beforeEach(() => {
+  invoiceRepository.findActiveByOrderId = async () => null;
   Object.assign(invoiceRepository, {
     findById: original.findInvoiceById,
     findByCreditTransactionId: original.findInvoiceByCredit,

@@ -35,7 +35,7 @@ import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
 import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
 import { useAuth } from '../../hooks/useAuth';
-import { NfceReceiptPanel } from '../../components/fiscal/NfceReceiptPanel';
+import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
 
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
 const statusLabels = ORDER_STATUS_LABELS;
@@ -1943,12 +1943,11 @@ const OrdersPage: React.FC = () => {
                   </div>
                 )}
 
-                {config?.nfceEnabled &&
+                {
                   (user?.role === 'ADMIN' || user?.role === 'CASHIER') &&
                   order.status === 'FINISHED' &&
-                  order.payment?.status === 'PAID' &&
-                  order.payment.method !== 'CREDIT' && (
-                    <NfceReceiptPanel orderId={order.id} phone={order.deliveryPhone} />
+                  order.payment?.status === 'PAID' && (
+                    <OrderFiscalDocumentPanel orderId={order.id} phone={order.deliveryPhone} nfceEnabled={!!config?.nfceEnabled && order.payment.method !== 'CREDIT'} />
                   )}
               </div>
             </div>

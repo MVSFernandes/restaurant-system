@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import type { CashRegisterSession, Order, RestaurantConfig } from '../../types';
-import { NfceReceiptPanel } from '../../components/fiscal/NfceReceiptPanel';
+import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
 import { CalendarDays, History, Search, UserRound, ShoppingBag, RotateCcw } from 'lucide-react';
 
 interface HistorySession extends CashRegisterSession {
@@ -408,11 +408,10 @@ const HistoryPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {config?.nfceEnabled &&
+                    {
                       order.status === 'FINISHED' &&
-                      order.payment?.status === 'PAID' &&
-                      order.payment.method !== 'CREDIT' && (
-                        <NfceReceiptPanel orderId={order.id} phone={order.deliveryPhone} />
+                      order.payment?.status === 'PAID' && (
+                        <OrderFiscalDocumentPanel orderId={order.id} phone={order.deliveryPhone} nfceEnabled={!!config?.nfceEnabled && order.payment.method !== 'CREDIT'} />
                       )}
                   </article>
                 ))}

@@ -24,6 +24,15 @@ export const createInvoice = async (req: Request, res: Response) => {
   }
 };
 
+export const createOrderInvoice = async (req: Request, res: Response) => {
+  try {
+    const invoice = await invoiceService.issueOrderInvoice(req.body.orderId, req.body.customerId);
+    res.status(201).json(invoice);
+  } catch (error) {
+    handleError(res, error, 'Erro ao emitir NF-e do pedido');
+  }
+};
+
 export const createNfce = async (req: Request, res: Response) => {
   try {
     const { orderId, order_id, consumerDocument, consumer_document } = req.body;
@@ -46,12 +55,12 @@ export const getInvoice = async (req: Request, res: Response) => {
   }
 };
 
-export const getOrderNfce = async (req: Request, res: Response) => {
+export const getOrderInvoice = async (req: Request, res: Response) => {
   try {
-    const invoice = await invoiceService.getOrderNfce(req.params.orderId);
+    const invoice = await invoiceService.getOrderInvoice(req.params.orderId);
     res.json(invoice);
   } catch (error) {
-    handleError(res, error, 'Erro ao consultar NFC-e do pedido');
+    handleError(res, error, 'Erro ao consultar documento fiscal do pedido');
   }
 };
 

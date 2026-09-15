@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { Invoice, InvoiceModel } from '../types/domain';
 import { mapSupabaseError } from '../middlewares/errorHandler.middleware';
-import { NotFoundError } from '../types/errors';
+import { DomainError, NotFoundError } from '../types/errors';
 import { toInvoiceDomain, toInvoiceInsert, toInvoiceUpdate } from '../mappers/invoice.mapper';
 
 const TABLE = 'invoices';
@@ -25,6 +25,14 @@ export const invoiceRepository = {
       .eq('focus_ref', focusRef)
       .maybeSingle();
 
+    if (error) throw mapSupabaseError(error, { entity: 'Invoice' });
+    return data ? toInvoiceDomain(data as any) : null;
+  },
+
+  async findActiveByOrderId(orderId: string): Promise<Invoice | null> {
+    const { data, error } = await supabase.from(TABLE).select('*').eq('order_id', orderId)
+      .in('status', ['pending', 'processing', 'authorized']).order('created_at', { ascending: false })
+      .limit(1).maybeSingle();
     if (error) throw mapSupabaseError(error, { entity: 'Invoice' });
     return data ? toInvoiceDomain(data as any) : null;
   },
@@ -80,6 +88,11 @@ export const invoiceRepository = {
       .select()
       .single();
 
+    if (error?.code === '23505') {
+      throw new DomainError('Este pedido já possui documento fiscal autorizado ou em processamento. Atualize o status antes de tentar novamente.', {
+        code: 'FISCAL_DOCUMENT_CONFLICT', status: 409,
+      });
+    }
     if (error) throw mapSupabaseError(error, { entity: 'Invoice' });
     return toInvoiceDomain(data as any);
   },
