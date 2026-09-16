@@ -397,5 +397,7 @@ export interface RestaurantConfig {
   defaultOrigin: string | null;
   defaultTaxCode: string | null;
   nfceEnabled: boolean;
+  nfceGroupItems: boolean;
+  nfceGroupedItemDescription: string;
   updatedAt: Date;
 }

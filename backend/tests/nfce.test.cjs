@@ -12,7 +12,10 @@ const { paymentRepository } = require('../src/repositories/payment.repository');
 const { productRepository } = require('../src/repositories/product.repository');
 const { restaurantConfigRepository } = require('../src/repositories/restaurantConfig.repository');
 const { focusNfeService } = require('../src/services/focusNfe.service');
+const { configService } = require('../src/services/domain.services');
 const {
+  buildFocusItems,
+  buildNfceItems,
   buildNfcePayload,
   invoiceService,
   isValidCpf,
@@ -31,6 +34,7 @@ const original = {
   updateInvoice: invoiceRepository.update,
   findProduct: productRepository.findById,
   getConfig: restaurantConfigRepository.get,
+  updateConfig: restaurantConfigRepository.update,
   issueNfce: focusNfeService.issueNfce,
   getNfce: focusNfeService.getNfce,
   getNfe: focusNfeService.getNfe,
@@ -56,6 +60,8 @@ const config = (patch = {}) => ({
   defaultOrigin: '0',
   defaultTaxCode: '102',
   nfceEnabled: true,
+  nfceGroupItems: false,
+  nfceGroupedItemDescription: 'REFEICAO',
   ...patch,
 });
 
@@ -100,6 +106,38 @@ const fiscalItems = [{
   },
 }];
 
+const multipleFiscalItems = [
+  {
+    ...fiscalItems[0],
+    id: 'item-meal',
+    quantity: 2,
+    unitPrice: 10.005,
+    price: 20.01,
+    product: {
+      ...fiscalItems[0].product,
+      id: 'product-meal',
+      name: 'Almoço',
+      ncm: '99999999',
+      cfop: '5949',
+      origin: '1',
+      taxCode: '400',
+    },
+  },
+  {
+    ...fiscalItems[0],
+    id: 'item-drink',
+    productId: 'product-drink',
+    quantity: 3,
+    unitPrice: 6.666,
+    price: 20,
+    product: {
+      ...fiscalItems[0].product,
+      id: 'product-drink',
+      name: 'Coca Lata',
+    },
+  },
+];
+
 const invoice = (patch = {}) => ({
   id: 'invoice-1',
   customerId: null,
@@ -134,6 +172,7 @@ beforeEach(() => {
   invoiceRepository.update = original.updateInvoice;
   productRepository.findById = original.findProduct;
   restaurantConfigRepository.get = original.getConfig;
+  restaurantConfigRepository.update = original.updateConfig;
   focusNfeService.issueNfce = original.issueNfce;
   focusNfeService.getNfce = original.getNfce;
   focusNfeService.getNfe = original.getNfe;
@@ -195,6 +234,115 @@ test('builds an identified-consumer payload with CPF and card integration', () =
   assert.equal(payload.indicador_inscricao_estadual_destinatario, 9);
   assert.equal(payload.formas_pagamento[0].forma_pagamento, '03');
   assert.equal(payload.formas_pagamento[0].tipo_integracao, 2);
+});
+
+test('validates, trims and persists grouped NFC-e configuration', async () => {
+  let savedPatch;
+  restaurantConfigRepository.get = async () => config();
+  restaurantConfigRepository.update = async (_id, patch) => {
+    savedPatch = patch;
+    return config(patch);
+  };
+
+  const updated = await configService.update({
+    nfceGroupItems: true,
+    nfceGroupedItemDescription: '  REFEICAO ESPECIAL  ',
+  });
+  assert.equal(updated.nfceGroupItems, true);
+  assert.equal(updated.nfceGroupedItemDescription, 'REFEICAO ESPECIAL');
+  assert.equal(savedPatch.nfceGroupedItemDescription, 'REFEICAO ESPECIAL');
+
+  await assert.rejects(
+    configService.update({
+      nfceGroupItems: true,
+      nfceGroupedItemDescription: '   ',
+    }),
+    /entre 1 e 120 caracteres/,
+  );
+});
+
+test('keeps individual NFC-e items when grouping is disabled', () => {
+  const items = buildNfceItems(multipleFiscalItems, config({ nfceGroupItems: false }));
+  assert.equal(items.length, 2);
+  assert.equal(items[0].descricao, 'Almoço');
+  assert.equal(items[1].descricao, 'Coca Lata');
+});
+
+test('groups meals, drinks and quantities into one configured NFC-e item', () => {
+  const items = buildNfceItems(multipleFiscalItems, config({
+    nfceGroupItems: true,
+    nfceGroupedItemDescription: ' REFEICAO COMPLETA ',
+  }));
+
+  assert.equal(items.length, 1);
+  assert.deepEqual(items[0], {
+    numero_item: 1,
+    codigo_produto: 'REFEICAO',
+    descricao: 'REFEICAO COMPLETA',
+    cfop: '5102',
+    unidade_comercial: 'un',
+    quantidade_comercial: 1,
+    valor_unitario_comercial: 40.01,
+    valor_unitario_tributavel: 40.01,
+    unidade_tributavel: 'un',
+    codigo_ncm: '21069090',
+    quantidade_tributavel: 1,
+    valor_bruto: 40.01,
+    icms_situacao_tributaria: 102,
+    icms_origem: 0,
+    pis_situacao_tributaria: '07',
+    cofins_situacao_tributaria: '07',
+  });
+});
+
+test('keeps NF-e item generation individual when NFC-e grouping is enabled', () => {
+  const items = buildFocusItems(multipleFiscalItems, config({ nfceGroupItems: true }));
+  assert.equal(items.length, 2);
+  assert.equal(items[0].codigo_produto, 'product-meal');
+  assert.equal(items[1].codigo_produto, 'product-drink');
+});
+
+test('validates grouped totals with delivery fee and cent rounding', () => {
+  const payload = buildNfcePayload(
+    invoice(),
+    order({ total: 45.02, deliveryFee: 5.01 }),
+    payment('PIX', { amount: 45.02 }),
+    multipleFiscalItems,
+    config({ nfceGroupItems: true }),
+    null,
+  );
+
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.valor_produtos, 40.01);
+  assert.equal(payload.valor_outras_despesas, 5.01);
+  assert.equal(payload.valor_desconto, 0);
+  assert.equal(payload.valor_total, 45.02);
+
+  assert.throws(
+    () => buildNfcePayload(
+      invoice(),
+      order({ total: 44.02, deliveryFee: 5.01 }),
+      payment('PIX', { amount: 44.02 }),
+      multipleFiscalItems,
+      config({ nfceGroupItems: true }),
+      null,
+    ),
+    /diverge do total do pedido/,
+  );
+});
+
+test('rejects an empty or zero-value NFC-e item set', () => {
+  assert.throws(
+    () => buildNfceItems([], config({ nfceGroupItems: true })),
+    /Pedido sem itens/,
+  );
+  assert.throws(
+    () => buildNfceItems(
+      [{ ...fiscalItems[0], price: 0 }],
+      config({ nfceGroupItems: true }),
+    ),
+    /subtotal dos produtos deve ser maior que zero/,
+  );
 });
 
 test('uses the NFC-e Focus resource for issue and status requests', async () => {
@@ -309,6 +457,22 @@ test('reissues a rejected NFC-e with a fresh ref and persists the synchronous re
   assert.equal(submitted.payload.formas_pagamento[0].forma_pagamento, '17');
   assert.equal(result.status, 'authorized');
   assert.equal(result.qrcodeUrl, 'https://sefaz.example/consulta?p=123');
+});
+
+test('blocks a divergent NFC-e total before persistence and before calling Focus', async () => {
+  orderRepository.findById = async () => order({ total: 24.99 });
+  restaurantConfigRepository.get = async () => config({ nfceGroupItems: true });
+  paymentRepository.findByOrder = async () => [payment('PIX', { amount: 24.99 })];
+  invoiceRepository.findByOrderId = async () => null;
+  orderRepository.findItems = async () => fiscalItems.map(({ product: _product, ...item }) => item);
+  productRepository.findById = async () => fiscalItems[0].product;
+  invoiceRepository.create = async () => assert.fail('must not persist a divergent NFC-e');
+  focusNfeService.issueNfce = async () => assert.fail('must not submit a divergent NFC-e');
+
+  await assert.rejects(
+    invoiceService.issueNfce('order-1'),
+    /diverge do total do pedido/,
+  );
 });
 
 const { customerRepository } = require('../src/repositories/customer.repository');
