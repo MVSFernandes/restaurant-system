@@ -31,6 +31,7 @@ const original = {
   issueNfe: focusNfeService.issueNfe,
   findCharge: creditTransactionRepository.findById,
   findCustomer: customerRepository.findById,
+  findOrder: orderRepository.findById,
   findItems: orderRepository.findItems,
   findProduct: productRepository.findById,
   getConfig: restaurantConfigRepository.get,
@@ -69,6 +70,7 @@ beforeEach(() => {
   focusNfeService.issueNfe = original.issueNfe;
   creditTransactionRepository.findById = original.findCharge;
   customerRepository.findById = original.findCustomer;
+  orderRepository.findById = original.findOrder;
   orderRepository.findItems = original.findItems;
   productRepository.findById = original.findProduct;
   restaurantConfigRepository.get = original.getConfig;
@@ -204,6 +206,12 @@ test('re-issues a rejected invoice as a new row with a fresh Focus ref', async (
     if (id === rejected.id) oldUpdates += 1;
     return { ...created, ...patch };
   };
+  orderRepository.findById = async () => ({
+    id: 'order-1',
+    status: 'FINISHED',
+    total: 30,
+    deliveryFee: 5,
+  });
   orderRepository.findItems = async () => [{
     id: 'item-1',
     orderId: 'order-1',
@@ -266,6 +274,9 @@ test('re-issues a rejected invoice as a new row with a fresh Focus ref', async (
   assert.equal(submitted.payload.regime_tributario_emitente, 4);
   assert.equal(submitted.payload.indicador_inscricao_estadual_destinatario, 9);
   assert.equal('inscricao_estadual_destinatario' in submitted.payload, false);
+  assert.equal(submitted.payload.valor_outras_despesas, 5);
+  assert.equal(submitted.payload.items[0].valor_outras_despesas, 5);
+  assert.equal(submitted.payload.valor_total, 30);
   assert.equal(result.status, 'processing');
   assert.equal(oldUpdates, 0);
 });

@@ -138,6 +138,19 @@ const multipleFiscalItems = [
   },
 ];
 
+const threeFiscalItems = ['Prato', 'Bebida', 'Sobremesa'].map((name, index) => ({
+  ...fiscalItems[0],
+  id: 'item-' + (index + 1),
+  productId: 'product-' + (index + 1),
+  unitPrice: (index + 1) * 10,
+  price: (index + 1) * 10,
+  product: {
+    ...fiscalItems[0].product,
+    id: 'product-' + (index + 1),
+    name,
+  },
+}));
+
 const invoice = (patch = {}) => ({
   id: 'invoice-1',
   customerId: null,
@@ -313,6 +326,7 @@ test('validates grouped totals with delivery fee and cent rounding', () => {
   );
 
   assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0].valor_outras_despesas, 5.01);
   assert.equal(payload.valor_produtos, 40.01);
   assert.equal(payload.valor_outras_despesas, 5.01);
   assert.equal(payload.valor_desconto, 0);
@@ -329,6 +343,33 @@ test('validates grouped totals with delivery fee and cent rounding', () => {
     ),
     /diverge do total do pedido/,
   );
+});
+
+test('distributes delivery fee in cents across grouped and individual NFC-e items', () => {
+  for (const [grouped, expectedExpenses] of [
+    [true, [5]],
+    [false, [0.83, 1.67, 2.5]],
+  ]) {
+    const payload = buildNfcePayload(
+      invoice(),
+      order({ total: 65, deliveryFee: 5 }),
+      payment('PIX', { amount: 65 }),
+      threeFiscalItems,
+      config({ nfceGroupItems: grouped }),
+      null,
+    );
+
+    assert.deepEqual(
+      payload.items.map((item) => item.valor_outras_despesas),
+      expectedExpenses,
+    );
+    assert.equal(
+      payload.items.reduce((sum, item) => sum + Math.round(item.valor_outras_despesas * 100), 0),
+      500,
+    );
+    assert.equal(payload.valor_outras_despesas, 5);
+    assert.equal(payload.valor_total, 65);
+  }
 });
 
 test('rejects an empty or zero-value NFC-e item set', () => {
@@ -556,6 +597,28 @@ test('issues paid-upfront NF-e with full PJ data for every checkout payment meth
     assert.equal(payload.formas_pagamento[0].forma_pagamento, code);
     assert.equal(payload.formas_pagamento[0].valor_pagamento, 30);
   }
+});
+
+test('distributes delivery fee proportionally across NF-e items with remainder on the last item', async () => {
+  const { submissions } = setupPaidSale();
+  orderRepository.findById = async () => order({ deliveryFee: 5, total: 65 });
+  paymentRepository.findByOrder = async () => [payment('PIX', { amount: 65 })];
+  orderRepository.findItems = async () => threeFiscalItems.map(({ product: _product, ...item }) => item);
+  productRepository.findById = async id => threeFiscalItems.find(item => item.productId === id).product;
+
+  await invoiceService.issueOrderInvoice('order-1', 'pj-1');
+  const payload = submissions[0].payload;
+
+  assert.deepEqual(
+    payload.items.map((item) => item.valor_outras_despesas),
+    [0.83, 1.67, 2.5],
+  );
+  assert.equal(
+    payload.items.reduce((sum, item) => sum + Math.round(item.valor_outras_despesas * 100), 0),
+    500,
+  );
+  assert.equal(payload.valor_outras_despesas, 5);
+  assert.equal(payload.valor_total, 65);
 });
 
 test('rejects missing recipient, PF, incomplete fiscal data, unpaid and unfinished orders before persistence', async () => {
