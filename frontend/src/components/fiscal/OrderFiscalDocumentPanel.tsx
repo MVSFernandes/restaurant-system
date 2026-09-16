@@ -122,7 +122,9 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
   }, [modalOpen, model]);
 
   const pollingInvoices = useMemo(() => [invoice], [invoice]);
-  useInvoicePolling(pollingInvoices, updateInvoice);
+  const invoicePolling = useInvoicePolling(pollingInvoices, updateInvoice, {
+    enabled: modalOpen,
+  });
 
   const issue = async () => {
     if (issuingRef.current) return;
@@ -195,10 +197,15 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
   const isFinalError = invoice?.status === 'error' || invoice?.status === 'canceled';
   const isInFlight = invoice?.status === 'pending' || invoice?.status === 'processing';
   const isAuthorized = invoice?.status === 'authorized';
+  const pollingTimedOut = !!invoice && invoicePolling.timedOutIds.has(invoice.id);
+  const pollingFailed = !!invoice && invoicePolling.failedIds.has(invoice.id);
+  const isAwaitingSefaz = isInFlight && modalOpen && !pollingTimedOut && !pollingFailed;
   const launcherLabel = loading
     ? 'Consultando cupom...'
-    : issuing || isInFlight
+    : issuing || isAwaitingSefaz
       ? progressLabel
+      : isInFlight
+        ? 'Acompanhar ' + documentName
       : isAuthorized
         ? `Ver ${documentName}`
         : isFinalError
@@ -213,7 +220,7 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
         disabled={loading}
         className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-wait disabled:opacity-70"
       >
-        {loading || issuing || isInFlight ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
+        {loading || issuing || isAwaitingSefaz ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
         {launcherLabel}
       </button>
 
@@ -332,13 +339,33 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
                 </div>
               )}
 
-              {isInFlight && (
+              {isAwaitingSefaz && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-800">
                   <div className="flex items-center gap-2 font-semibold">
                     <Loader2 size={18} className="animate-spin" /> {progressLabel}
                   </div>
                   <p className="mt-1 text-sm">O status será atualizado automaticamente após o retorno da SEFAZ.</p>
                   <button type="button" onClick={refresh} disabled={refreshing} className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-amber-900 underline disabled:opacity-60">
+                    <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                    {refreshing ? 'Atualizando...' : 'Atualizar agora'}
+                  </button>
+                </div>
+              )}
+
+              {isInFlight && pollingTimedOut && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-800">
+                  <p className="font-semibold">A SEFAZ ainda está processando. Use o botão para atualizar.</p>
+                  <button type="button" onClick={refresh} disabled={refreshing} className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-amber-900 underline disabled:opacity-60">
+                    <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+                    {refreshing ? 'Atualizando...' : 'Atualizar agora'}
+                  </button>
+                </div>
+              )}
+
+              {isInFlight && pollingFailed && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-red-700">
+                  <p className="font-semibold">Não foi possível consultar a SEFAZ automaticamente.</p>
+                  <button type="button" onClick={refresh} disabled={refreshing} className="mt-3 inline-flex items-center gap-2 text-xs font-semibold underline disabled:opacity-60">
                     <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
                     {refreshing ? 'Atualizando...' : 'Atualizar agora'}
                   </button>

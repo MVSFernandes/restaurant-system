@@ -122,6 +122,52 @@ describe('NFC-e issue and delivery actions', () => {
     expect(await screen.findByText('Autorizada')).toBeTruthy();
   });
 
+  it('refreshes a processing receipt automatically and reveals delivery actions', async () => {
+    const processing = makeInvoice('processing');
+    const authorized = makeInvoice('authorized', {
+      danfeUrl: 'https://focus.example/danfe.pdf',
+      xmlUrl: 'https://focus.example/nfce.xml',
+      qrcodeUrl: 'https://sefaz.example/consulta',
+    });
+    mocks.get.mockImplementation(async (url: string) => {
+      if (url === '/invoices/order/order-1') return { data: null };
+      if (url === '/invoices/invoice-65') return { data: authorized };
+      throw new Error('Unexpected GET ' + url);
+    });
+    mocks.post.mockResolvedValue({ data: processing });
+
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Emitir cupom fiscal' }));
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole('button', { name: 'Emitir NFC-e' }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText(/O status será atualizado automaticamente/)).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(screen.getByText('Autorizada')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Baixar XML' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Consultar QR Code' })).toBeTruthy();
+  });
+
+  it('stops automatic requests when the fiscal modal closes', async () => {
+    mocks.get.mockResolvedValue({ data: makeInvoice('processing') });
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
+    const launcher = await screen.findByRole('button', { name: 'Acompanhar cupom fiscal' });
+    mocks.get.mockClear();
+    vi.useFakeTimers();
+    fireEvent.click(launcher);
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar cupom fiscal' }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(mocks.get).not.toHaveBeenCalled();
+  });
+
   it('shows a rejected message and retries with the informed CPF', async () => {
     mocks.get.mockResolvedValue({
       data: makeInvoice('error', { sefazMessage: 'Rejeição de teste' }),
@@ -177,7 +223,7 @@ describe('NFC-e issue and delivery actions', () => {
 
 
 describe('NFC-e automatic status refresh', () => {
-  it('shows compact progress and polls until authorization without opening the modal', async () => {
+  it('resumes polling when a processing document is opened', async () => {
     vi.useFakeTimers();
     const processing = makeInvoice('processing');
     const authorized = makeInvoice('authorized', {
@@ -190,11 +236,15 @@ describe('NFC-e automatic status refresh', () => {
 
     render(<OrderFiscalDocumentPanel orderId="order-1" />);
     await act(async () => { await Promise.resolve(); });
-    expect(screen.getByRole('button', { name: 'Emitindo cupom...' })).toBeTruthy();
+    const launcher = screen.getByRole('button', { name: 'Acompanhar cupom fiscal' });
+    fireEvent.click(launcher);
+    expect(screen.getByText(/O status será atualizado automaticamente/)).toBeTruthy();
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
 
-    expect(mocks.get).toHaveBeenLastCalledWith('/invoices/invoice-65');
+    expect(mocks.get).toHaveBeenLastCalledWith('/invoices/invoice-65', {
+      signal: expect.anything(),
+    });
     expect(screen.getByText('NFC-e autorizada')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Ver cupom fiscal' })).toBeTruthy();
   });
