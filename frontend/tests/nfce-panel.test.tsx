@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/services/api', () => ({ default: mocks }));
+vi.mock('../src/services/orderInvoices', () => ({ loadOrderInvoice: (id: string) => mocks.get('/invoices/order/' + id).then((response: { data: Invoice | null }) => response.data) }));
 
 import { OrderFiscalDocumentPanel } from '../src/components/fiscal/OrderFiscalDocumentPanel';
 import { formatCpf, isValidCpf, formatConsumerDocument, isValidConsumerDocument } from '../src/lib/cpf';
@@ -261,4 +262,30 @@ describe('fiscal document options', () => {
     expect(screen.queryByLabelText('Documento fiscal')).toBeNull();
     expect(mocks.post).not.toHaveBeenCalled();
   });
+});
+
+it('registers a PJ inside the NF-e modal and continues with the same order and new recipient', async () => {
+  mocks.get.mockImplementation(async (url: string) => ({ data: url === '/customers' ? [] : null }));
+  mocks.post.mockImplementation(async (url: string, payload: Record<string, unknown>) => ({ data: url === '/customers'
+    ? { ...payload, id: 'new-pj', creditUsed: 0 }
+    : makeInvoice('processing', { model: '55', customerId: 'new-pj' }) }));
+  render(<OrderFiscalDocumentPanel orderId="order-context" nfceEnabled={false} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Emitir NF-e' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cadastrar cliente' }));
+  const form = within(screen.getByRole('dialog', { name: 'Cadastrar cliente PJ' }));
+  fireEvent.click(form.getByRole('button', { name: 'Salvar cliente' }));
+  expect(form.getByRole('alert').textContent).toContain('Informe o nome');
+  expect(mocks.post).not.toHaveBeenCalled();
+  for (const [label, value] of [['Nome *', 'Empresa Nova'], ['CNPJ', '11222333000181'], ['CEP', '16000000'], ['Logradouro', 'Rua A'], ['Número', '10'], ['Bairro', 'Centro'], ['Cidade', 'Araçatuba'], ['Código IBGE', '3502804'], ['UF', 'SP']]) {
+    fireEvent.change(form.getByLabelText(label), { target: { value } });
+  }
+  fireEvent.click(form.getByRole('button', { name: 'Salvar cliente' }));
+  fireEvent.click(form.getByRole('button', { name: 'Salvando...' }));
+  const option = await screen.findByRole('option', { name: /Empresa Nova/ });
+  expect((option as HTMLOptionElement).selected).toBe(true);
+  expect(mocks.post.mock.calls.filter(([url]) => url === '/customers')).toHaveLength(1);
+  expect(mocks.post).toHaveBeenCalledWith('/customers', expect.objectContaining({ personType: 'PJ', creditLimit: 0 }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Emitir NF-e' }));
+  expect(mocks.post).toHaveBeenCalledWith('/invoices/nfe', { orderId: 'order-context', customerId: 'new-pj' });
+  await screen.findByText(/O status será atualizado automaticamente/);
 });

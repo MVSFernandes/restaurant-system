@@ -1,3 +1,4 @@
+import { invoiceRepository } from '../repositories/invoice.repository';
 import { Request, Response } from 'express';
 import { invoiceService } from '../services/invoice.service';
 import { DomainError } from '../types/errors';
@@ -53,6 +54,13 @@ export const getInvoice = async (req: Request, res: Response) => {
   } catch (error) {
     handleError(res, error, 'Erro ao consultar documento fiscal');
   }
+};
+
+export const getOrderInvoices = async (req: Request, res: Response) => {
+  const ids = typeof req.query.ids === 'string' ? [...new Set(req.query.ids.split(',').filter(Boolean))] : [];
+  if (!ids.length || ids.length > 100) { res.status(400).json({ message: 'Informe de 1 a 100 pedidos' }); return; }
+  try { res.json(await invoiceRepository.findForOrders(ids)); }
+  catch (error) { handleError(res, error, 'Erro ao consultar documentos fiscais'); }
 };
 
 export const getOrderInvoice = async (req: Request, res: Response) => {

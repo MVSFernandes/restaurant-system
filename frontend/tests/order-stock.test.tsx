@@ -95,3 +95,22 @@ describe('stock race at confirmation', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('Estoque insuficiente de "Água".');
   });
 });
+
+describe('payment request volume', () => {
+  it.each(['PIX', 'Dinheiro', 'Crédito', 'Débito'])('payment %s performs one write and only three refresh reads', async label => {
+    const previousGet = mocks.get.getMockImplementation()!;
+    let paid = false;
+    const sale = { id: 'short-order', type: 'TAKE_AWAY', status: 'DELIVERED', total: 10, items: [], createdAt: new Date().toISOString(), customerName: 'Cliente' };
+    mocks.get.mockImplementation(async (url: string) => url.startsWith('/orders?') ? { data: [{ ...sale, ...(paid ? { status: 'FINISHED', payment: { status: 'PAID', method: 'PIX' } } : {}) }] } : previousGet(url));
+    mocks.post.mockImplementation(async () => { paid = true; return { data: {} }; });
+    render(<OrdersPage />);
+    const button = await screen.findByRole('button', { name: label });
+    mocks.get.mockClear();
+    fireEvent.click(button);
+    await waitFor(() => expect(mocks.get.mock.calls.filter(([url]) => url === '/cash-register/current')).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByRole('button', { name: label, exact: true })).toBeNull());
+    expect(mocks.post).toHaveBeenCalledTimes(1);
+    // Three payment reads plus one coalesced fiscal batch for the newly finalized order.
+    expect(mocks.get.mock.calls.filter(([url]) => url !== '/invoices/orders')).toHaveLength(3);
+  });
+});

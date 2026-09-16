@@ -1,3 +1,5 @@
+import { emptyForm, customerPayload } from '../../lib/customerForm';
+import { CustomerFormFields, Field } from '../../components/customers/CustomerFormFields';
 import { getMissingFiscalFields } from '../../lib/fiscalCustomer';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { clsx } from 'clsx';
@@ -33,25 +35,6 @@ type NoticeState = {
   variant?: 'error' | 'info';
 };
 
-const emptyForm = {
-  name: '',
-  phone: '',
-  email: '',
-  address: '',
-  creditLimit: '500',
-  personType: 'PF' as 'PF' | 'PJ',
-  document: '',
-  legalName: '',
-  stateRegistration: '',
-  fiscalZipCode: '',
-  fiscalStreet: '',
-  fiscalNumber: '',
-  fiscalNeighborhood: '',
-  fiscalCity: '',
-  fiscalCityIbgeCode: '',
-  fiscalState: '',
-};
-
 const formatMoney = (value: number) =>
   Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -73,21 +56,6 @@ const formatDocument = (value?: string | null) => {
   return value || '';
 };
 
-const formatCpf = (value: string) =>
-  digitsOnly(value)
-    .slice(0, 11)
-    .replace(/^(\d{3})(\d)/, '$1.$2')
-    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1-$2');
-
-const formatCnpj = (value: string) =>
-  digitsOnly(value)
-    .slice(0, 14)
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1/$2')
-    .replace(/(\d{4})(\d)/, '$1-$2');
-
 const formatPhone = (value: string) => {
   const digits = digitsOnly(value).slice(0, 11);
   if (digits.length <= 10) {
@@ -100,13 +68,6 @@ const formatPhone = (value: string) => {
     .replace(/^(\d{2})(\d)/, '($1) $2')
     .replace(/(\d{5})(\d)/, '$1-$2');
 };
-
-const formatZipCode = (value: string) =>
-  digitsOnly(value).slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2');
-
-const formatIbgeCode = (value: string) => digitsOnly(value).slice(0, 7);
-
-const formatUf = (value: string) => value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2);
 
 const formatPhoneForWhatsApp = (phone?: string | null) => {
   const digits = digitsOnly(phone);
@@ -373,23 +334,7 @@ const CreditPage: React.FC = () => {
   const handleSaveCustomer = async () => {
     if (!form.name.trim()) return;
 
-    const payload = {
-      ...form,
-      creditLimit: Number.parseFloat(form.creditLimit || '0'),
-      document: digitsOnly(form.document) || null,
-      phone: form.phone || null,
-      email: form.email || null,
-      address: form.address || null,
-      legalName: form.legalName || null,
-      stateRegistration: form.stateRegistration || null,
-      fiscalZipCode: digitsOnly(form.fiscalZipCode) || null,
-      fiscalStreet: form.fiscalStreet || null,
-      fiscalNumber: form.fiscalNumber || null,
-      fiscalNeighborhood: form.fiscalNeighborhood || null,
-      fiscalCity: form.fiscalCity || null,
-      fiscalCityIbgeCode: digitsOnly(form.fiscalCityIbgeCode) || null,
-      fiscalState: form.fiscalState.toUpperCase() || null,
-    };
+    const payload = customerPayload(form);
 
     try {
       if (editingCustomer) await api.put(`/customers/${editingCustomer.id}`, payload);
@@ -672,110 +617,7 @@ const CreditPage: React.FC = () => {
           }}
           maxWidth="max-w-3xl"
         >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field label="Nome *" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Tipo</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(['PF', 'PJ'] as const).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setForm({ ...form, personType: type })}
-                    className={clsx(
-                      'rounded-lg border px-3 py-2 text-sm font-semibold',
-                      form.personType === type
-                        ? 'border-[#ea580c] bg-orange-50 text-[#c2410c]'
-                        : 'border-slate-200 bg-white text-slate-600'
-                    )}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Field
-              label="Telefone"
-              value={form.phone}
-              onChange={(value) => setForm({ ...form, phone: formatPhone(value) })}
-              placeholder="(11) 98765-4321"
-              inputMode="numeric"
-            />
-            <Field
-              label={form.personType === 'PJ' ? 'CNPJ' : 'CPF'}
-              value={form.document}
-              onChange={(value) => setForm({ ...form, document: form.personType === 'PJ' ? formatCnpj(value) : formatCpf(value) })}
-              placeholder={form.personType === 'PJ' ? '12.345.678/0001-90' : '123.456.789-00'}
-              inputMode="numeric"
-            />
-            <Field label="E-mail" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
-            <Field
-              label="Limite de crédito (R$)"
-              type="number"
-              value={form.creditLimit}
-              onChange={(value) => setForm({ ...form, creditLimit: value })}
-            />
-            <div className="md:col-span-2">
-              <Field label="Endereço" value={form.address} onChange={(value) => setForm({ ...form, address: value })} />
-            </div>
-
-            {form.personType === 'PJ' && (
-              <>
-                <div className="md:col-span-2 border-t border-slate-100 pt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#94a3b8]">
-                  Dados fiscais
-                </div>
-                <Field
-                  label="Razão social"
-                  value={form.legalName}
-                  onChange={(value) => setForm({ ...form, legalName: value })}
-                />
-                <Field
-                  label="Inscrição estadual"
-                  value={form.stateRegistration}
-                  onChange={(value) => setForm({ ...form, stateRegistration: value })}
-                />
-                <Field
-                  label="CEP"
-                  value={form.fiscalZipCode}
-                  onChange={(value) => setForm({ ...form, fiscalZipCode: formatZipCode(value) })}
-                  placeholder="00000-000"
-                  inputMode="numeric"
-                />
-                <Field
-                  label="Logradouro"
-                  value={form.fiscalStreet}
-                  onChange={(value) => setForm({ ...form, fiscalStreet: value })}
-                />
-                <Field
-                  label="Número"
-                  value={form.fiscalNumber}
-                  onChange={(value) => setForm({ ...form, fiscalNumber: value })}
-                />
-                <Field
-                  label="Bairro"
-                  value={form.fiscalNeighborhood}
-                  onChange={(value) => setForm({ ...form, fiscalNeighborhood: value })}
-                />
-                <Field
-                  label="Cidade"
-                  value={form.fiscalCity}
-                  onChange={(value) => setForm({ ...form, fiscalCity: value })}
-                />
-                <Field
-                  label="Código IBGE"
-                  value={form.fiscalCityIbgeCode}
-                  onChange={(value) => setForm({ ...form, fiscalCityIbgeCode: formatIbgeCode(value) })}
-                  placeholder="0000000"
-                  inputMode="numeric"
-                />
-                <Field
-                  label="UF"
-                  value={form.fiscalState}
-                  onChange={(value) => setForm({ ...form, fiscalState: formatUf(value) })}
-                  placeholder="SP"
-                />
-              </>
-            )}
-          </div>
+          <CustomerFormFields form={form} setForm={setForm} />
 
           <div className="mt-5 flex gap-3">
             <button onClick={handleSaveCustomer} className="btn-primary flex-1">
@@ -1383,26 +1225,5 @@ const CreditRow: React.FC<{
     </div>
   );
 };
-
-const Field: React.FC<{
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  placeholder?: string;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
-}> = ({ label, value, onChange, type = 'text', placeholder, inputMode }) => (
-  <div>
-    <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
-    <input
-      type={type}
-      value={value}
-      placeholder={placeholder}
-      inputMode={inputMode}
-      onChange={(event) => onChange(event.target.value)}
-      className="input"
-    />
-  </div>
-);
 
 export default CreditPage;

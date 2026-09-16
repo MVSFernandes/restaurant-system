@@ -11,7 +11,7 @@ const fiscalFields: Array<{ key: keyof Customer; label: string }> = [
   { key: 'fiscalState', label: 'UF' },
 ];
 
-export const getMissingFiscalFields = (customer: Customer) =>
+export const getMissingFiscalFields = (customer: Partial<Record<keyof Customer, unknown>>) =>
   fiscalFields
     .filter(({ key }) => !String(customer[key] ?? '').trim())
     .map(({ label }) => label);

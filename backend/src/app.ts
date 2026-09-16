@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { rateLimit } from 'express-rate-limit';
+import { createApiRateLimiter } from './middlewares/rateLimit.middleware';
 import routes from './routes';
 import dotenv from 'dotenv';
 
@@ -19,19 +19,14 @@ app.use(cors({
     'https://4000-i8m1vcfofrs090wfzygp3-3e064326.us1.manus.computer',
   ],
   credentials: true,
+  exposedHeaders: ['Retry-After', 'RateLimit-Reset', 'X-RateLimit-Scope'],
 }));
 
 app.use(express.json());
 app.use(cookieParser());
 
-// Rate Limiter
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 500,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use(limiter);
+// Independent budgets prevent fiscal polling from blocking payments or other screens.
+app.use('/api', createApiRateLimiter());
 
 // Routes
 app.use('/api', routes);

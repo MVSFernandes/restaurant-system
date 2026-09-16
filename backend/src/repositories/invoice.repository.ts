@@ -37,6 +37,22 @@ export const invoiceRepository = {
     return data ? toInvoiceDomain(data as any) : null;
   },
 
+  async findForOrders(orderIds: string[]): Promise<Invoice[]> {
+    if (!orderIds.length) return [];
+    const { data, error } = await supabase.from(TABLE).select('*').in('order_id', orderIds)
+      .order('created_at', { ascending: false });
+    if (error) throw mapSupabaseError(error, { entity: 'Invoice' });
+    const selected = new Map<string, Invoice>();
+    for (const row of data ?? []) {
+      const invoice = toInvoiceDomain(row as any);
+      if (!invoice.orderId) continue;
+      const current = selected.get(invoice.orderId);
+      const active = ['pending', 'processing', 'authorized'];
+      if (!current || (!active.includes(current.status) && active.includes(invoice.status))) selected.set(invoice.orderId, invoice);
+    }
+    return [...selected.values()];
+  },
+
   async findByOrderId(orderId: string, model?: InvoiceModel): Promise<Invoice | null> {
     let query = supabase
       .from(TABLE)

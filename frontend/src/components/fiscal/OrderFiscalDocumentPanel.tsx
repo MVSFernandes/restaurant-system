@@ -1,3 +1,5 @@
+import { CreateFiscalCustomerModal } from '../customers/CreateFiscalCustomerModal';
+import { loadOrderInvoice } from '../../services/orderInvoices';
 import { getMissingFiscalFields } from '../../lib/fiscalCustomer';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -54,6 +56,7 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
   const [model, setModel] = useState<'55' | '65'>(nfceEnabled ? '65' : '55');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState('');
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
   const selectedCustomer = customers.find(customer => customer.id === customerId);
   const missingFields = selectedCustomer ? getMissingFiscalFields(selectedCustomer) : [];
@@ -78,8 +81,8 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
   useEffect(() => {
     let active = true;
     setLoading(true);
-    api.get<Invoice | null>(`/invoices/order/${orderId}`)
-      .then(({ data }) => {
+    loadOrderInvoice(orderId)
+      .then((data) => {
         if (!active) return;
         setInvoice(data);
         if (data) {
@@ -98,20 +101,20 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
   }, [orderId]);
 
   useEffect(() => {
-    if (!modalOpen) return;
+    if (!modalOpen || creatingCustomer) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setModalOpen(false);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [modalOpen]);
+  }, [modalOpen, creatingCustomer]);
 
   useEffect(() => {
     if (!modalOpen || model !== '55') return;
     let active = true;
     setCustomersLoading(true);
     api.get<Customer[]>('/customers').then(({ data }) => {
-      if (active) setCustomers(data.filter(customer => customer.personType === 'PJ'));
+      if (active) setCustomers(current => [...new Map([...current, ...data.filter(customer => customer.personType === 'PJ')].map(customer => [customer.id, customer])).values()]);
     }).catch(error => {
       if (active) setMessage(errorMessage(error, 'Não foi possível carregar os clientes PJ.'));
     }).finally(() => { if (active) setCustomersLoading(false); });
@@ -228,6 +231,13 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
         <span className="text-xs text-red-700" role="status">{message}</span>
       )}
 
+      {creatingCustomer && <CreateFiscalCustomerModal onClose={() => setCreatingCustomer(false)} onCreated={customer => {
+        setCustomers(current => [...current.filter(item => item.id !== customer.id), customer]);
+        setCustomerId(customer.id);
+        if (customer.phone) setWhatsAppPhone(formatPhone(customer.phone));
+        setCreatingCustomer(false);
+        setMessage(null);
+      }} />}
       {modalOpen && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
@@ -238,7 +248,9 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
         >
           <div
             role="dialog"
-            aria-modal="true"
+            aria-modal={!creatingCustomer}
+            aria-hidden={creatingCustomer || undefined}
+            inert={creatingCustomer}
             aria-labelledby={`nfce-title-${orderId}`}
             className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
           >
@@ -290,6 +302,7 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
                         <option value="">{customersLoading ? 'Carregando clientes...' : 'Selecione um cliente PJ'}</option>
                         {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.legalName || customer.name} — {customer.document}</option>)}
                       </select>
+                      <button type="button" className="mt-2 text-sm font-semibold text-orange-700 underline" disabled={issuing} onClick={() => setCreatingCustomer(true)}>Cadastrar cliente</button>
                       {selectedCustomer && missingFields.length > 0 && <p className="mt-2 text-sm text-red-700">Dados fiscais incompletos: {missingFields.join(', ')}. Atualize o cadastro do cliente.</p>}
                       {selectedCustomer && missingFields.length === 0 && <p className="mt-2 text-xs text-gray-500">{selectedCustomer.fiscalStreet}, {selectedCustomer.fiscalNumber} · {selectedCustomer.fiscalCity}/{selectedCustomer.fiscalState} · CEP {selectedCustomer.fiscalZipCode} · IBGE {selectedCustomer.fiscalCityIbgeCode}</p>}
                     </div>

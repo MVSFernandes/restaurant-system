@@ -22,3 +22,17 @@ Migration: node tests/fiscal-document-sql.cjs <path-to-@electric-sql/pglite> (is
 The automated tests mock Focus responses. Real authorization must still be checked in homologation with the configured issuer and PJ recipient.
 
 Focus recipient fields: https://doc.focusnfe.com.br/reference/emitir_nfce
+
+## Checkout fixes
+
+Apply backend/supabase/migrations/20260915150000_separate_order_idempotency_key.sql before updating the backend. New orders use 24-character CUIDs. The normalized, scoped idempotency key is stored separately in orders.idempotency_key, with a unique index and transaction lock. Existing 64-character order IDs are preserved and backfilled as their stored key so old retries still resolve. Failed creation rolls back all order and stock writes.
+
+The former limiter shared 500 requests per IP over 15 minutes across the entire API. No payment-dependent effect loop was found; payment confirmation refreshed nine resources and each paid-order row separately queried its invoice. Payment confirmation now refreshes only orders, tables and cash; invoice rows share sequential batches of up to 100 orders.
+
+Verified internal users have separate one-minute budgets per resource and read/write class (300 reads, 60 writes). Public/unverified requests retain an IP budget of 120 per minute. Health checks are outside these budgets. A fiscal polling limit cannot consume the orders or cash-register budget. The client shows a Portuguese warning, respects Retry-After, spaces resumed reads and retries safe reads at most twice; payments and fiscal issues are never automatically retried on 429. Token refresh is shared across concurrent 401s and a temporary rate limit does not log the operator out.
+
+The NF-e modal now offers Cadastrar cliente using the same customer fields and serialization as the credit page. It starts with PJ selected, validates the fiscal fields, and selects the saved recipient while keeping the order modal open.
+
+Additional checks: node --test -r ts-node/register/transpile-only tests/rate-limit.test.cjs tests/order-stock.test.cjs; node tests/order-stock-sql.cjs; npm exec vitest -- run.
+
+Manual regression: receive payments through PIX, cash and cards; trigger a read limit and wait for automatic recovery; create a PJ inside the invoice modal and issue against that recipient; retry an order with the same key and verify a single short-ID order and one stock deduction.
