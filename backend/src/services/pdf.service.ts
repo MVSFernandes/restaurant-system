@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { Order, OrderItem, Product, Table, User, RestaurantConfig } from '../types/domain';
+import { formatBRL } from '../utils/currency';
 
 // Tipos locais para o PDF — usa domain.ts em vez de @prisma/client
 type OrderWithDetails = Order & {
@@ -95,7 +96,7 @@ export class PdfService {
     order.items.forEach((item) => {
       const name = item.product?.name ?? 'Produto';
       const qty = item.weight ? `${(item.weight / 1000).toFixed(3)}kg` : `${item.quantity}x`;
-      const price = `R$ ${Number(item.price).toFixed(2)}`;
+      const price = formatBRL(item.price);
 
       doc.text(name, margin, y, { maxWidth: 35 });
       doc.text(qty, 45, y);
@@ -115,7 +116,7 @@ export class PdfService {
 
     if (order.deliveryFee && Number(order.deliveryFee) > 0) {
       doc.text('Taxa de entrega', margin, y);
-      doc.text(`R$ ${Number(order.deliveryFee).toFixed(2)}`, 75, y, { align: 'right' });
+      doc.text(formatBRL(order.deliveryFee), 75, y, { align: 'right' });
       y += 5;
       doc.line(margin, y, 75, y);
       y += 5;
@@ -127,7 +128,7 @@ export class PdfService {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL:', margin, y);
-    doc.text(`R$ ${Number(order.total).toFixed(2)}`, 75, y, { align: 'right' });
+    doc.text(formatBRL(order.total), 75, y, { align: 'right' });
 
     y += 10;
     doc.setFontSize(8);
