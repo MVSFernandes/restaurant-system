@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../src/services/api', () => ({ default: mocks }));
 
-import { useInvoiceStatusPolling } from '../src/hooks/useInvoiceStatusPolling';
+import {
+  useInvoicePolling,
+  useInvoiceStatusPolling,
+} from '../src/hooks/useInvoiceStatusPolling';
 import CreditPage from '../src/pages/finance/CreditPage';
 
 const makeInvoice = (status: Invoice['status'], patch: Partial<Invoice> = {}): Invoice => ({
@@ -72,7 +75,7 @@ const makeCustomer = (currentInvoice: Invoice): Customer => ({
 
 const advancePoll = async () => {
   await act(async () => {
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(3_000);
   });
 };
 
@@ -89,7 +92,7 @@ afterEach(() => {
 });
 
 describe('invoice status polling', () => {
-  it('checks an in-flight invoice after ten seconds and emits the update', async () => {
+  it('checks an in-flight invoice after three seconds and emits the update', async () => {
     vi.useFakeTimers();
     const authorized = makeInvoice('authorized');
     mocks.get.mockResolvedValue({ data: authorized });
@@ -101,7 +104,9 @@ describe('invoice status polling', () => {
 
     expect(mocks.get).not.toHaveBeenCalled();
     await advancePoll();
-    expect(mocks.get).toHaveBeenCalledWith('/invoices/invoice-1');
+    expect(mocks.get).toHaveBeenCalledWith('/invoices/invoice-1', {
+      signal: expect.anything(),
+    });
     expect(onUpdate).toHaveBeenCalledWith(authorized);
 
     customers = [makeCustomer(authorized)];
@@ -111,18 +116,73 @@ describe('invoice status polling', () => {
     unmount();
   });
 
-  it('stops after twelve failed attempts and cleans up on unmount', async () => {
+  it('stops on a failed request and exposes the failure state', async () => {
     vi.useFakeTimers();
     mocks.get.mockRejectedValue(new Error('offline'));
-    const { unmount } = renderHook(() =>
+    const { result, unmount } = renderHook(() =>
       useInvoiceStatusPolling([makeCustomer(makeInvoice('pending'))], vi.fn())
     );
 
-    for (let attempt = 0; attempt < 13; attempt += 1) await advancePoll();
-    expect(mocks.get).toHaveBeenCalledTimes(12);
+    await advancePoll();
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+    expect(result.current.failedIds.has('invoice-1')).toBe(true);
+    expect(result.current.pollingIds.has('invoice-1')).toBe(false);
     unmount();
     await advancePoll();
-    expect(mocks.get).toHaveBeenCalledTimes(12);
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+  });
+
+  it('never overlaps requests for the same invoice', async () => {
+    vi.useFakeTimers();
+    let resolveRequest!: (value: { data: Invoice }) => void;
+    mocks.get.mockReturnValue(new Promise((resolve) => {
+      resolveRequest = resolve;
+    }));
+    const onUpdate = vi.fn();
+    renderHook(() =>
+      useInvoiceStatusPolling([makeCustomer(makeInvoice('processing'))], onUpdate)
+    );
+
+    await advancePoll();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRequest({ data: makeInvoice('processing') });
+      await Promise.resolve();
+    });
+    await advancePoll();
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops after two minutes and exposes the timeout state', async () => {
+    vi.useFakeTimers();
+    mocks.get.mockResolvedValue({ data: makeInvoice('processing') });
+    const { result } = renderHook(() =>
+      useInvoiceStatusPolling([makeCustomer(makeInvoice('processing'))], vi.fn())
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(result.current.timedOutIds.has('invoice-1')).toBe(true);
+    expect(result.current.pollingIds.has('invoice-1')).toBe(false);
+  });
+
+  it('cleans pending timers when polling is disabled', async () => {
+    vi.useFakeTimers();
+    let enabled = true;
+    const pendingInvoice = makeInvoice('processing');
+    const { rerender } = renderHook(() =>
+      useInvoicePolling([pendingInvoice], vi.fn(), { enabled })
+    );
+
+    enabled = false;
+    rerender();
+    await advancePoll();
+    expect(mocks.get).not.toHaveBeenCalled();
   });
 
   it('does not poll final invoices', async () => {

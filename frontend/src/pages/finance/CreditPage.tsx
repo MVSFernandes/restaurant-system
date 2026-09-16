@@ -25,7 +25,10 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import type { CreditEntry, Customer, Invoice } from '../../types';
-import { useInvoiceStatusPolling } from '../../hooks/useInvoiceStatusPolling';
+import {
+  useInvoiceStatusPolling,
+  type InvoicePollingState,
+} from '../../hooks/useInvoiceStatusPolling';
 
 type FilterMode = 'all' | 'open' | 'paid';
 
@@ -473,7 +476,7 @@ const CreditPage: React.FC = () => {
     );
   }, []);
 
-  useInvoiceStatusPolling(customers, updateInvoice);
+  const invoicePolling = useInvoiceStatusPolling(customers, updateInvoice);
 
   const handleRefreshInvoice = async (invoice: Invoice) => {
     setInvoiceRefreshingIds((current) => new Set(current).add(invoice.id));
@@ -603,6 +606,7 @@ const CreditPage: React.FC = () => {
               onRefreshInvoice={handleRefreshInvoice}
               invoiceLoadingId={invoiceLoadingId}
               invoiceRefreshingIds={invoiceRefreshingIds}
+              invoicePolling={invoicePolling}
             />
           ))}
         </section>
@@ -828,6 +832,7 @@ const CustomerCard: React.FC<{
   onRefreshInvoice: (invoice: Invoice) => void;
   invoiceLoadingId: string | null;
   invoiceRefreshingIds: Set<string>;
+  invoicePolling: InvoicePollingState;
 }> = ({
   customer,
   expandedRows,
@@ -841,6 +846,7 @@ const CustomerCard: React.FC<{
   onRefreshInvoice,
   invoiceLoadingId,
   invoiceRefreshingIds,
+  invoicePolling,
 }) => {
   const openRows = customer.openRows ?? [];
   const paidRows = customer.paidRows ?? [];
@@ -940,6 +946,7 @@ const CustomerCard: React.FC<{
                   onEditCustomer={onEdit}
                   invoiceLoading={invoiceLoadingId === row.id}
                   invoiceRefreshing={!!row.invoice && invoiceRefreshingIds.has(row.invoice.id)}
+                  invoicePolling={invoicePolling}
                   showCollectionActions
                 />
               ))}
@@ -986,6 +993,7 @@ const CustomerCard: React.FC<{
                 onEditCustomer={onEdit}
                 invoiceLoading={invoiceLoadingId === row.id}
                 invoiceRefreshing={!!row.invoice && invoiceRefreshingIds.has(row.invoice.id)}
+                invoicePolling={invoicePolling}
                 showCollectionActions={false}
               />
             ))}
@@ -1008,6 +1016,7 @@ const CreditRow: React.FC<{
   onEditCustomer: () => void;
   invoiceLoading: boolean;
   invoiceRefreshing: boolean;
+  invoicePolling: InvoicePollingState;
   showCollectionActions?: boolean;
 }> = ({
   customer,
@@ -1021,6 +1030,7 @@ const CreditRow: React.FC<{
   onEditCustomer,
   invoiceLoading,
   invoiceRefreshing,
+  invoicePolling,
   showCollectionActions = true,
 }) => {
   const status = getRowStatus(row);
@@ -1032,6 +1042,9 @@ const CreditRow: React.FC<{
   const displayAmount = row.status === 'PAID' ? row.amount : row.openAmount;
   const invoiceCanBeReissued = ['error', 'canceled'].includes(row.invoice?.status ?? '') && hasLinkedOrder;
   const invoiceCanBeRefreshed = ['pending', 'processing'].includes(row.invoice?.status ?? '');
+  const invoicePollingActive = !!row.invoice && invoicePolling.pollingIds.has(row.invoice.id);
+  const invoicePollingTimedOut = !!row.invoice && invoicePolling.timedOutIds.has(row.invoice.id);
+  const invoicePollingFailed = !!row.invoice && invoicePolling.failedIds.has(row.invoice.id);
 
   return (
     <div className="overflow-hidden rounded-[10px] border border-[#e2e8f0]">
@@ -1156,6 +1169,21 @@ const CreditRow: React.FC<{
                 </span>
                 {!invoiceCanBeReissued && invoiceMeta.text && (
                   <span className="text-[12.5px] text-[#94a3b8]">{invoiceMeta.text}</span>
+                )}
+                {invoicePollingActive && (
+                  <span className="inline-flex items-center gap-1.5 text-[12.5px] text-amber-700">
+                    <Loader2 size={13} className="animate-spin" /> Consultando SEFAZ...
+                  </span>
+                )}
+                {invoicePollingTimedOut && (
+                  <span className="text-[12.5px] text-amber-700">
+                    A SEFAZ ainda está processando. Use o botão para atualizar.
+                  </span>
+                )}
+                {invoicePollingFailed && (
+                  <span className="text-[12.5px] text-red-700">
+                    Não foi possível consultar a SEFAZ automaticamente.
+                  </span>
                 )}
                 {row.invoice && invoiceCanBeRefreshed && (
                   <button
