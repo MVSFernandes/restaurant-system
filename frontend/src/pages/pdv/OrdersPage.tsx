@@ -35,7 +35,7 @@ import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
 import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
 import { useAuth } from '../../hooks/useAuth';
-import { NfceReceiptPanel } from '../../components/fiscal/NfceReceiptPanel';
+import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
 
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
 const statusLabels = ORDER_STATUS_LABELS;
@@ -689,8 +689,18 @@ const OrdersPage: React.FC = () => {
     }
   };
 
-  const fetchData = async (options: { silent?: boolean } = {}) => {
+  const fetchData = async (options: { silent?: boolean; paymentOnly?: boolean } = {}) => {
     try {
+      if (options.paymentOnly) {
+        const [ordersRes, tablesRes, cashRes] = await Promise.all([
+          api.get('/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED'),
+          api.get('/tables'), api.get('/cash-register/current'),
+        ]);
+        setOrders(ordersRes.data);
+        setTables(tablesRes.data.filter((table: Table) => table.status === 'OCCUPIED'));
+        setCurrentCash(cashRes.data);
+        return;
+      }
       const [
         ordersRes,
         categoriesRes,
@@ -1033,7 +1043,7 @@ const OrdersPage: React.FC = () => {
         amount: null,
         ...(extraPayload || {}),
       });
-      fetchData();
+      void fetchData({ silent: true, paymentOnly: true });
       showToast(
         'success',
         method === 'CREDIT'
@@ -1043,7 +1053,7 @@ const OrdersPage: React.FC = () => {
       return true;
     } catch (error) {
       console.error('Erro ao processar pagamento:', error);
-      showToast('error', 'Erro ao processar pagamento.');
+      showToast('error', (error as { response?: { data?: { message?: string } } }).response?.data?.message || 'Erro ao processar pagamento.');
       return false;
     } finally {
       paymentSubmittingRef.current = null;
@@ -1943,12 +1953,11 @@ const OrdersPage: React.FC = () => {
                   </div>
                 )}
 
-                {config?.nfceEnabled &&
+                {
                   (user?.role === 'ADMIN' || user?.role === 'CASHIER') &&
                   order.status === 'FINISHED' &&
-                  order.payment?.status === 'PAID' &&
-                  order.payment.method !== 'CREDIT' && (
-                    <NfceReceiptPanel orderId={order.id} phone={order.deliveryPhone} />
+                  order.payment?.status === 'PAID' && (
+                    <OrderFiscalDocumentPanel orderId={order.id} phone={order.deliveryPhone} nfceEnabled={!!config?.nfceEnabled && order.payment.method !== 'CREDIT'} />
                   )}
               </div>
             </div>

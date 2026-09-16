@@ -20,6 +20,13 @@ export const creditTransactionRepository = {
     return data ? toCreditTransactionDomain(data) : null;
   },
 
+  async findChargeByOrder(orderId: string): Promise<CreditTransaction | null> {
+    const { data, error } = await supabase.from(TABLE).select('*').eq('order_id', orderId)
+      .eq('type', 'CHARGE').maybeSingle();
+    if (error) throw mapSupabaseError(error, { entity: 'CreditTransaction' });
+    return data ? toCreditTransactionDomain(data) : null;
+  },
+
   async findByCustomer(customerId: string): Promise<CreditTransaction[]> {
     const { data, error } = await supabase
       .from(TABLE)

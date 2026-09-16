@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Invoice } from '../src/types';
 
@@ -10,9 +10,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/services/api', () => ({ default: mocks }));
+vi.mock('../src/services/orderInvoices', () => ({ loadOrderInvoice: (id: string) => mocks.get('/invoices/order/' + id).then((response: { data: Invoice | null }) => response.data) }));
 
-import { NfceReceiptPanel } from '../src/components/fiscal/NfceReceiptPanel';
-import { formatCpf, isValidCpf } from '../src/lib/cpf';
+import { OrderFiscalDocumentPanel } from '../src/components/fiscal/OrderFiscalDocumentPanel';
+import { formatCpf, isValidCpf, formatConsumerDocument, isValidConsumerDocument } from '../src/lib/cpf';
 import SettingsPage from '../src/pages/SettingsPage';
 
 const makeInvoice = (status: Invoice['status'], patch: Partial<Invoice> = {}): Invoice => ({
@@ -79,14 +80,14 @@ describe('NFC-e CPF field', () => {
 
   it('blocks an invalid CPF before calling the backend', async () => {
     mocks.get.mockResolvedValue({ data: null });
-    render(<NfceReceiptPanel orderId="order-1" />);
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Emitir cupom fiscal' }));
-    const input = screen.getByLabelText(/CPF na nota/);
+    const input = screen.getByLabelText(/CPF\/CNPJ na nota/);
     fireEvent.change(input, { target: { value: '12345678900' } });
     fireEvent.click(screen.getByRole('button', { name: 'Emitir NFC-e' }));
 
-    expect(await screen.findByText(/Informe um CPF válido/)).toBeTruthy();
+    expect(await screen.findByText(/Informe um CPF ou CNPJ válido/)).toBeTruthy();
     expect(mocks.post).not.toHaveBeenCalled();
   });
 });
@@ -99,7 +100,7 @@ describe('NFC-e issue and delivery actions', () => {
       resolvePost = resolve;
     }));
 
-    render(<NfceReceiptPanel orderId="order-1" />);
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Emitir cupom fiscal' }));
     const button = screen.getByRole('button', { name: 'Emitir NFC-e' });
     fireEvent.click(button);
@@ -127,11 +128,11 @@ describe('NFC-e issue and delivery actions', () => {
     });
     mocks.post.mockResolvedValue({ data: makeInvoice('processing', { id: 'invoice-retry' }) });
 
-    render(<NfceReceiptPanel orderId="order-1" />);
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
     expect(await screen.findByText('NFC-e rejeitada')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Reemitir cupom fiscal' }));
     expect(screen.getByText('Rejeição de teste')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText(/CPF na nota/), {
+    fireEvent.change(screen.getByLabelText(/CPF\/CNPJ na nota/), {
       target: { value: '52998224725' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Emitir novamente' }));
@@ -153,7 +154,7 @@ describe('NFC-e issue and delivery actions', () => {
     });
     mocks.get.mockResolvedValue({ data: authorized });
 
-    render(<NfceReceiptPanel orderId="order-1" phone="(18) 99999-9999" />);
+    render(<OrderFiscalDocumentPanel orderId="order-1" phone="(18) 99999-9999" />);
 
     expect(await screen.findByText('NFC-e autorizada')).toBeTruthy();
     expect(screen.queryByTitle('Cupom fiscal do pedido order-1')).toBeNull();
@@ -187,7 +188,7 @@ describe('NFC-e automatic status refresh', () => {
       .mockResolvedValueOnce({ data: processing })
       .mockResolvedValueOnce({ data: authorized });
 
-    render(<NfceReceiptPanel orderId="order-1" />);
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByRole('button', { name: 'Emitindo cupom...' })).toBeTruthy();
 
@@ -197,4 +198,94 @@ describe('NFC-e automatic status refresh', () => {
     expect(screen.getByText('NFC-e autorizada')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Ver cupom fiscal' })).toBeTruthy();
   });
+});
+
+const pjCustomer = {
+  id: 'pj-1', name: 'Empresa', legalName: 'Empresa LTDA', personType: 'PJ', document: '11222333000181',
+  fiscalStreet: 'Rua A', fiscalNumber: '10', fiscalNeighborhood: 'Centro', fiscalCity: 'Araçatuba',
+  fiscalState: 'SP', fiscalZipCode: '16000000', fiscalCityIbgeCode: '3502804',
+};
+
+describe('fiscal document options', () => {
+  it('detects CPF/CNPJ masks and validates check digits', () => {
+    expect(formatConsumerDocument('52998224725')).toBe('529.982.247-25');
+    expect(formatConsumerDocument('11222333000181')).toBe('11.222.333/0001-81');
+    expect(isValidConsumerDocument('11.222.333/0001-81')).toBe(true);
+    expect(isValidConsumerDocument('11.222.333/0001-80')).toBe(false);
+  });
+
+  it.each(['52998224725', '11222333000181'])('issues a receipt with consumer document %s', async document => {
+    mocks.get.mockResolvedValue({ data: null });
+    mocks.post.mockResolvedValue({ data: makeInvoice('processing') });
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Emitir cupom fiscal' }));
+    fireEvent.change(screen.getByLabelText(/CPF\/CNPJ na nota/), { target: { value: document } });
+    fireEvent.click(screen.getByRole('button', { name: 'Emitir NFC-e' }));
+    expect(mocks.post).toHaveBeenCalledWith('/invoices/nfce', { orderId: 'order-1', consumerDocument: document });
+    await screen.findByText(/O status será atualizado automaticamente/);
+  });
+
+  it('offers NF-e even when NFC-e is disabled and uses the selected PJ recipient', async () => {
+    mocks.get.mockImplementation(async (url: string) => ({ data: url === '/customers' ? [pjCustomer, { id: 'pf-1', name: 'Pessoa física', personType: 'PF' }] : null }));
+    mocks.post.mockResolvedValue({ data: makeInvoice('authorized', { model: '55', customerId: 'pj-1', danfeUrl: 'https://focus.example/nfe.pdf', xmlUrl: 'https://focus.example/nfe.xml' }) });
+    render(<OrderFiscalDocumentPanel orderId="order-1" nfceEnabled={false} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Emitir NF-e' }));
+    await screen.findByRole('option', { name: /Empresa LTDA/ });
+    expect(screen.queryByRole('option', { name: /Pessoa física/ })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Cliente PJ destinatário'), { target: { value: 'pj-1' } });
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Emitir NF-e' }));
+    expect(mocks.post).toHaveBeenCalledWith('/invoices/nfe', { orderId: 'order-1', customerId: 'pj-1' });
+    expect(await screen.findByText('NF-e autorizada')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Baixar XML' }).getAttribute('href')).toBe('https://focus.example/nfe.xml');
+    expect(screen.getByRole('button', { name: 'Imprimir' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Enviar por WhatsApp' })).toBeTruthy();
+    expect(screen.queryByLabelText('Documento fiscal')).toBeNull();
+  });
+
+  it('shows incomplete fiscal fields and prevents submitting a PJ with no IBGE code', async () => {
+    mocks.get.mockImplementation(async (url: string) => ({ data: url === '/customers' ? [{ ...pjCustomer, fiscalCityIbgeCode: '' }] : null }));
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Emitir cupom fiscal' }));
+    fireEvent.change(screen.getByLabelText('Documento fiscal'), { target: { value: '55' } });
+    await screen.findByRole('option', { name: /Empresa LTDA/ });
+    fireEvent.change(screen.getByLabelText('Cliente PJ destinatário'), { target: { value: 'pj-1' } });
+    expect(screen.getByText(/Dados fiscais incompletos: Código IBGE/)).toBeTruthy();
+    expect(within(screen.getByRole('dialog')).getByRole<HTMLButtonElement>('button', { name: 'Emitir NF-e' }).disabled).toBe(true);
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it.each(['55', '65'] as const)('locks the model selector after model %s authorization', async model => {
+    mocks.get.mockImplementation(async (url: string) => ({ data: url === '/customers' ? [pjCustomer] : makeInvoice('authorized', { model }) }));
+    render(<OrderFiscalDocumentPanel orderId="order-1" />);
+    fireEvent.click(await screen.findByRole('button', { name: model === '55' ? 'Ver NF-e' : 'Ver cupom fiscal' }));
+    expect(screen.getByText(/Não é possível emitir outro documento fiscal para a mesma venda/)).toBeTruthy();
+    expect(screen.queryByLabelText('Documento fiscal')).toBeNull();
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+});
+
+it('registers a PJ inside the NF-e modal and continues with the same order and new recipient', async () => {
+  mocks.get.mockImplementation(async (url: string) => ({ data: url === '/customers' ? [] : null }));
+  mocks.post.mockImplementation(async (url: string, payload: Record<string, unknown>) => ({ data: url === '/customers'
+    ? { ...payload, id: 'new-pj', creditUsed: 0 }
+    : makeInvoice('processing', { model: '55', customerId: 'new-pj' }) }));
+  render(<OrderFiscalDocumentPanel orderId="order-context" nfceEnabled={false} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Emitir NF-e' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cadastrar cliente' }));
+  const form = within(screen.getByRole('dialog', { name: 'Cadastrar cliente PJ' }));
+  fireEvent.click(form.getByRole('button', { name: 'Salvar cliente' }));
+  expect(form.getByRole('alert').textContent).toContain('Informe o nome');
+  expect(mocks.post).not.toHaveBeenCalled();
+  for (const [label, value] of [['Nome *', 'Empresa Nova'], ['CNPJ', '11222333000181'], ['CEP', '16000000'], ['Logradouro', 'Rua A'], ['Número', '10'], ['Bairro', 'Centro'], ['Cidade', 'Araçatuba'], ['Código IBGE', '3502804'], ['UF', 'SP']]) {
+    fireEvent.change(form.getByLabelText(label), { target: { value } });
+  }
+  fireEvent.click(form.getByRole('button', { name: 'Salvar cliente' }));
+  fireEvent.click(form.getByRole('button', { name: 'Salvando...' }));
+  const option = await screen.findByRole('option', { name: /Empresa Nova/ });
+  expect((option as HTMLOptionElement).selected).toBe(true);
+  expect(mocks.post.mock.calls.filter(([url]) => url === '/customers')).toHaveLength(1);
+  expect(mocks.post).toHaveBeenCalledWith('/customers', expect.objectContaining({ personType: 'PJ', creditLimit: 0 }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Emitir NF-e' }));
+  expect(mocks.post).toHaveBeenCalledWith('/invoices/nfe', { orderId: 'order-context', customerId: 'new-pj' });
+  await screen.findByText(/O status será atualizado automaticamente/);
 });

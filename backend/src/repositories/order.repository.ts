@@ -48,14 +48,20 @@ const tableNumberFromRelation = (relation: RecentOrderRow['tables']) => {
 };
 
 export const orderRepository = {
-  async createWithStock(order: Order, items: OrderItem[], payment?: Payment): Promise<Order> {
+  async createWithStock(order: Order, items: OrderItem[], payment?: Payment, idempotencyKey?: string): Promise<Order> {
     const { data, error } = await supabase.rpc('create_order_with_stock', {
-      p_order: toOrderInsert(order) as Json,
+      p_order: { ...toOrderInsert(order), idempotency_key: idempotencyKey ?? null } as Json,
       p_items: items.map(toOrderItemInsert) as Json,
       p_payment: payment ? toPaymentInsert(payment) as Json : null,
     });
     if (error) throw mapSupabaseError(error, { entity: 'Order' });
     return toOrderDomain(data as unknown as Database['public']['Tables']['orders']['Row']);
+  },
+
+  async findByIdempotencyKey(key: string): Promise<Order | null> {
+    const { data, error } = await supabase.from(TABLE).select('*').eq('idempotency_key', key).maybeSingle();
+    if (error) throw mapSupabaseError(error, { entity: 'Order' });
+    return data ? toOrderDomain(data) : null;
   },
 
   async findById(id: string): Promise<Order | null> {

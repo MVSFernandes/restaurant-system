@@ -1,3 +1,4 @@
+import { invoiceRepository } from '../repositories/invoice.repository';
 import { Request, Response } from 'express';
 import { invoiceService } from '../services/invoice.service';
 import { DomainError } from '../types/errors';
@@ -24,6 +25,15 @@ export const createInvoice = async (req: Request, res: Response) => {
   }
 };
 
+export const createOrderInvoice = async (req: Request, res: Response) => {
+  try {
+    const invoice = await invoiceService.issueOrderInvoice(req.body.orderId, req.body.customerId);
+    res.status(201).json(invoice);
+  } catch (error) {
+    handleError(res, error, 'Erro ao emitir NF-e do pedido');
+  }
+};
+
 export const createNfce = async (req: Request, res: Response) => {
   try {
     const { orderId, order_id, consumerDocument, consumer_document } = req.body;
@@ -46,12 +56,19 @@ export const getInvoice = async (req: Request, res: Response) => {
   }
 };
 
-export const getOrderNfce = async (req: Request, res: Response) => {
+export const getOrderInvoices = async (req: Request, res: Response) => {
+  const ids = typeof req.query.ids === 'string' ? [...new Set(req.query.ids.split(',').filter(Boolean))] : [];
+  if (!ids.length || ids.length > 100) { res.status(400).json({ message: 'Informe de 1 a 100 pedidos' }); return; }
+  try { res.json(await invoiceRepository.findForOrders(ids)); }
+  catch (error) { handleError(res, error, 'Erro ao consultar documentos fiscais'); }
+};
+
+export const getOrderInvoice = async (req: Request, res: Response) => {
   try {
-    const invoice = await invoiceService.getOrderNfce(req.params.orderId);
+    const invoice = await invoiceService.getOrderInvoice(req.params.orderId);
     res.json(invoice);
   } catch (error) {
-    handleError(res, error, 'Erro ao consultar NFC-e do pedido');
+    handleError(res, error, 'Erro ao consultar documento fiscal do pedido');
   }
 };
 

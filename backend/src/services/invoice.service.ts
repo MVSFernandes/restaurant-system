@@ -122,7 +122,8 @@ export const buildFocusItems = (items: FiscalItem[], config: RestaurantConfig) =
 const buildNfePayload = async (
   invoice: Invoice,
   items: FiscalItem[],
-  config: RestaurantConfig
+  config: RestaurantConfig,
+  sale?: { order: Order; payment: Payment }
 ) => {
   if (!invoice.customerId) {
     throw new ValidationError('customerId', 'A NF-e exige um cliente vinculado');
@@ -132,7 +133,7 @@ const buildNfePayload = async (
   if (!customer) throw new NotFoundError('Customer', invoice.customerId);
 
   if (customer.personType !== 'PJ') {
-    throw new ValidationError('personType', 'NF-e de fiado está disponível apenas para cliente PJ');
+    throw new ValidationError('personType', 'A NF-e está disponível apenas para cliente PJ');
   }
 
   const customerDocument = digitsOnly(customer.document);
@@ -170,12 +171,15 @@ const buildNfePayload = async (
     valor_frete: 0,
     valor_seguro: 0,
     valor_desconto: 0,
-    valor_outras_despesas: 0,
-    valor_total: total,
+    valor_outras_despesas: Number(sale?.order.deliveryFee || 0),
+    valor_total: sale ? Number(sale.order.total) : total,
     valor_produtos: total,
     modalidade_frete: 9,
     items: focusItems,
-    informacoes_adicionais_contribuinte: `NF-e emitida para cobrança de fiado. Ref interna: ${invoice.focusRef}`,
+    ...(sale ? { formas_pagamento: [buildPaymentFields(sale.order, sale.payment)] } : {}),
+    informacoes_adicionais_contribuinte: invoice.creditTransactionId
+      ? `NF-e emitida para cobrança de fiado. Ref interna: ${invoice.focusRef}`
+      : `NF-e do pedido ${invoice.orderId}. Ref interna: ${invoice.focusRef}`,
   };
 };
 
@@ -206,6 +210,30 @@ export const normalizeConsumerCpf = (value?: string | null) => {
   return cpf;
 };
 
+export const isValidCnpj = (value?: string | null) => {
+  const cnpj = digitsOnly(value);
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const digit = (length: number) => {
+    let weight = length - 7;
+    let sum = 0;
+    for (let i = 0; i < length; i++) {
+      sum += Number(cnpj[i]) * weight;
+      weight = weight === 2 ? 9 : weight - 1;
+    }
+    return sum % 11 < 2 ? 0 : 11 - sum % 11;
+  };
+  return digit(12) === Number(cnpj[12]) && digit(13) === Number(cnpj[13]);
+};
+
+export const normalizeConsumerDocument = (value?: string | null) => {
+  if (!String(value ?? '').trim()) return null;
+  const document = digitsOnly(value);
+  if (!/^[\d.\-/\s]+$/.test(String(value)) || !(isValidCpf(document) || isValidCnpj(document))) {
+    throw new ValidationError('consumerDocument', 'Informe um CPF ou CNPJ válido ou deixe o campo em branco');
+  }
+  return document;
+};
+
 const nfcePaymentCodes: Partial<Record<PaymentMethod, string>> = {
   CASH: '01',
   CREDIT_CARD: '03',
@@ -225,6 +253,13 @@ export const mapNfcePaymentMethod = (method: PaymentMethod | string) => {
   return code;
 };
 
+const buildPaymentFields = (order: Order, payment: Payment) => ({
+  indicador_pagamento: 0,
+  forma_pagamento: mapNfcePaymentMethod(payment.method),
+  valor_pagamento: Number(payment.amount || order.total),
+  ...(['CREDIT_CARD', 'DEBIT_CARD'].includes(payment.method) ? { tipo_integracao: 2 } : {}),
+});
+
 export const buildNfcePayload = (
   invoice: Invoice,
   order: Order,
@@ -235,8 +270,7 @@ export const buildNfcePayload = (
 ) => {
   const focusItems = buildFocusItems(items, config);
   const productsTotal = focusItems.reduce((sum, item) => sum + Number(item.valor_bruto || 0), 0);
-  const paymentCode = mapNfcePaymentMethod(payment.method);
-  const isCard = payment.method === 'CREDIT_CARD' || payment.method === 'DEBIT_CARD';
+  mapNfcePaymentMethod(payment.method);
 
   return {
     natureza_operacao: 'VENDA AO CONSUMIDOR',
@@ -249,7 +283,7 @@ export const buildNfcePayload = (
     ...buildEmitterFields(config),
     ...(consumerDocument
       ? {
-          cpf_destinatario: consumerDocument,
+          ...(consumerDocument.length === 14 ? { cnpj_destinatario: consumerDocument } : { cpf_destinatario: consumerDocument }),
           indicador_inscricao_estadual_destinatario: 9,
         }
       : {}),
@@ -261,14 +295,7 @@ export const buildNfcePayload = (
     valor_produtos: productsTotal,
     modalidade_frete: 9,
     items: focusItems,
-    formas_pagamento: [
-      {
-        indicador_pagamento: 0,
-        forma_pagamento: paymentCode,
-        valor_pagamento: Number(payment.amount || order.total),
-        ...(isCard ? { tipo_integracao: 2 } : {}),
-      },
-    ],
+    formas_pagamento: [buildPaymentFields(order, payment)],
     informacoes_adicionais_contribuinte: `NFC-e do pedido ${order.id}. Ref interna: ${invoice.focusRef}`,
   };
 };
@@ -325,6 +352,40 @@ const saveIssueError = async (invoice: Invoice, error: unknown, fallback: string
   throw new DomainError(message, { code: 'FOCUS_NFE_ISSUE_ERROR', status: 500 });
 };
 
+const submitInvoice = async (invoice: Invoice, submit: () => Promise<Record<string, unknown>>) => {
+  let response;
+  try {
+    response = await submit();
+  } catch (error) {
+    // A timeout/5xx may follow acceptance by Focus. Keep the reservation and reconcile by ref.
+    if (error instanceof DomainError && (
+      ['FOCUS_NFE_NOT_CONFIGURED', 'FOCUS_NFE_FETCH_UNAVAILABLE'].includes(error.code) ||
+      (error.status >= 400 && error.status < 500 && ![408, 409, 429].includes(error.status) &&
+        !['EM_PROCESSAMENTO', 'NFE_AUTORIZADA'].includes(error.code))
+    )) {
+      return saveIssueError(invoice, error, 'Erro ao emitir documento fiscal');
+    }
+    return invoiceRepository.update(invoice.id, {
+      status: 'processing',
+      sefazMessage: 'Envio em confirmação. Aguarde a consulta de status antes de emitir novamente.',
+    });
+  }
+  // Failure to save a successful response must never release the sale for another document.
+  return invoiceRepository.update(invoice.id, mapFocusInvoiceFields(response));
+};
+
+const activeInvoiceForOrder = async (orderId: string | null, model: '55' | '65') => {
+  if (!orderId) return null;
+  const active = await invoiceRepository.findActiveByOrderId(orderId);
+  if (active && (active.model ?? '55') !== model) {
+    const label = active.model === '65' ? 'NFC-e' : 'NF-e';
+    throw new DomainError(`Este pedido já possui ${label} ${active.status === 'authorized' ? 'autorizada' : 'em processamento'}. Não é possível emitir outro documento fiscal para a mesma venda.`, {
+      code: 'FISCAL_DOCUMENT_CONFLICT', status: 409,
+    });
+  }
+  return active;
+};
+
 export const invoiceService = {
   async issueCreditInvoice(creditTransactionId: string): Promise<Invoice> {
     const charge = await creditTransactionRepository.findById(creditTransactionId);
@@ -332,6 +393,9 @@ export const invoiceService = {
     if (charge.type !== 'CHARGE') {
       throw new ValidationError('creditTransactionId', 'Informe uma cobrança de fiado');
     }
+
+    const active = await activeInvoiceForOrder(charge.orderId, '55');
+    if (active) return active;
 
     const previousInvoice = await invoiceRepository.findByCreditTransactionId(
       creditTransactionId
@@ -344,7 +408,7 @@ export const invoiceService = {
       return previousInvoice;
     }
 
-    let invoice = await invoiceRepository.create(createInvoiceAttempt({
+    const invoice = await invoiceRepository.create(createInvoiceAttempt({
       customerId: charge.customerId,
       orderId: charge.orderId,
       creditTransactionId: charge.id,
@@ -359,11 +423,41 @@ export const invoiceService = {
         restaurantConfigRepository.get(),
       ]);
       const payload = await buildNfePayload(invoice, items, config);
-      const focusResponse = await focusNfeService.issueNfe(invoice.focusRef, payload);
-      return invoiceRepository.update(invoice.id, mapFocusInvoiceFields(focusResponse));
+      return submitInvoice(invoice, () => focusNfeService.issueNfe(invoice.focusRef, payload));
     } catch (error) {
       return saveIssueError(invoice, error, 'Erro ao emitir NF-e');
     }
+  },
+
+  async issueOrderInvoice(orderId: string, customerId: string): Promise<Invoice> {
+    if (!String(orderId ?? '').trim()) throw new ValidationError('orderId', 'Informe o pedido');
+    if (!String(customerId ?? '').trim()) throw new ValidationError('customerId', 'Selecione um cliente PJ');
+    const order = await orderRepository.findById(orderId);
+    if (!order) throw new NotFoundError('Order', orderId);
+    if (order.status !== 'FINISHED') throw new ValidationError('status', 'A NF-e só pode ser emitida para pedido finalizado');
+    const payments = await paymentRepository.findByOrder(orderId);
+    const payment = [...payments].reverse().find(candidate => candidate.status === 'PAID');
+    if (!payment) throw new ValidationError('payment', 'A NF-e só pode ser emitida para pedido pago');
+    if (payment.method === 'CREDIT') {
+      const charge = await creditTransactionRepository.findChargeByOrder(orderId);
+      if (!charge || charge.customerId !== customerId) {
+        throw new ValidationError('customerId', 'Selecione o cliente vinculado à cobrança de fiado');
+      }
+      return this.issueCreditInvoice(charge.id);
+    }
+    const active = await activeInvoiceForOrder(orderId, '55');
+    if (active) return active;
+    const attempt = createInvoiceAttempt({
+      customerId, orderId, creditTransactionId: null, model: '55',
+      consumerDocument: null, focusRef: `nfe_${createId()}`,
+    });
+    const [items, config] = await Promise.all([
+      loadFiscalItems(orderId, 'a NF-e'), restaurantConfigRepository.get(),
+    ]);
+    // Validate the same recipient and product fields used by credit NF-e before reserving the sale.
+    const payload = await buildNfePayload(attempt, items, config, { order, payment });
+    const invoice = await invoiceRepository.create(attempt);
+    return submitInvoice(invoice, () => focusNfeService.issueNfe(invoice.focusRef, payload));
   },
 
   async issueNfce(orderId: string, consumerDocument?: string | null): Promise<Invoice> {
@@ -390,6 +484,9 @@ export const invoiceService = {
     }
     mapNfcePaymentMethod(payment.method);
 
+    const active = await activeInvoiceForOrder(orderId, '65');
+    if (active) return active;
+
     const previousInvoice = await invoiceRepository.findByOrderId(orderId, '65');
     if (
       previousInvoice &&
@@ -398,8 +495,8 @@ export const invoiceService = {
       return previousInvoice;
     }
 
-    const normalizedConsumerDocument = normalizeConsumerCpf(consumerDocument);
-    let invoice = await invoiceRepository.create(createInvoiceAttempt({
+    const normalizedConsumerDocument = normalizeConsumerDocument(consumerDocument);
+    const invoice = await invoiceRepository.create(createInvoiceAttempt({
       customerId: order.customerId,
       orderId: order.id,
       creditTransactionId: null,
@@ -418,8 +515,7 @@ export const invoiceService = {
         config,
         normalizedConsumerDocument
       );
-      const focusResponse = await focusNfeService.issueNfce(invoice.focusRef, payload);
-      return invoiceRepository.update(invoice.id, mapFocusInvoiceFields(focusResponse));
+      return submitInvoice(invoice, () => focusNfeService.issueNfce(invoice.focusRef, payload));
     } catch (error) {
       return saveIssueError(invoice, error, 'Erro ao emitir NFC-e');
     }
@@ -437,8 +533,9 @@ export const invoiceService = {
     return invoiceRepository.update(invoice.id, mapFocusInvoiceFields(focusResponse));
   },
 
-  async getOrderNfce(orderId: string): Promise<Invoice | null> {
-    const invoice = await invoiceRepository.findByOrderId(orderId, '65');
+  async getOrderInvoice(orderId: string): Promise<Invoice | null> {
+    const invoice = await invoiceRepository.findActiveByOrderId(orderId)
+      ?? await invoiceRepository.findByOrderId(orderId);
     if (!invoice) return null;
     return ['pending', 'processing'].includes(invoice.status)
       ? this.getInvoiceStatus(invoice.id)

@@ -1,3 +1,6 @@
+import { CreateFiscalCustomerModal } from '../customers/CreateFiscalCustomerModal';
+import { loadOrderInvoice } from '../../services/orderInvoices';
+import { getMissingFiscalFields } from '../../lib/fiscalCustomer';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -11,13 +14,14 @@ import {
   X,
 } from 'lucide-react';
 import api from '../../services/api';
-import type { Invoice } from '../../types';
+import type { Customer, Invoice } from '../../types';
 import { useInvoicePolling } from '../../hooks/useInvoiceStatusPolling';
-import { formatCpf, isValidCpf } from '../../lib/cpf';
+import { formatConsumerDocument, isValidConsumerDocument } from '../../lib/cpf';
 
-interface NfceReceiptPanelProps {
+interface OrderFiscalDocumentPanelProps {
   orderId: string;
   phone?: string | null;
+  nfceEnabled?: boolean;
 }
 
 const digitsOnly = (value?: string | null) => String(value ?? '').replace(/\D/g, '');
@@ -46,9 +50,19 @@ const statusLabel: Record<Invoice['status'], string> = {
   canceled: 'Cancelada',
 };
 
-export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
+export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }: OrderFiscalDocumentPanelProps) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const [cpf, setCpf] = useState('');
+  const [consumerDocument, setConsumerDocument] = useState('');
+  const [model, setModel] = useState<'55' | '65'>(nfceEnabled ? '65' : '55');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState('');
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const selectedCustomer = customers.find(customer => customer.id === customerId);
+  const missingFields = selectedCustomer ? getMissingFiscalFields(selectedCustomer) : [];
+  const documentLabel = model === '55' ? 'NF-e' : 'NFC-e';
+  const documentName = model === '55' ? 'NF-e' : 'cupom fiscal';
+  const progressLabel = model === '55' ? 'Emitindo NF-e...' : 'Emitindo cupom...';
   const [whatsAppPhone, setWhatsAppPhone] = useState(() => formatPhone(phone));
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -59,17 +73,23 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
 
   const updateInvoice = useCallback((nextInvoice: Invoice) => {
     setInvoice(nextInvoice);
-    if (nextInvoice.consumerDocument) setCpf(formatCpf(nextInvoice.consumerDocument));
+    setModel(nextInvoice.model);
+    if (nextInvoice.customerId) setCustomerId(nextInvoice.customerId);
+    if (nextInvoice.consumerDocument) setConsumerDocument(formatConsumerDocument(nextInvoice.consumerDocument));
   }, []);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    api.get<Invoice | null>(`/invoices/order/${orderId}`)
-      .then(({ data }) => {
+    loadOrderInvoice(orderId)
+      .then((data) => {
         if (!active) return;
         setInvoice(data);
-        if (data?.consumerDocument) setCpf(formatCpf(data.consumerDocument));
+        if (data) {
+          setModel(data.model);
+          if (data.customerId) setCustomerId(data.customerId);
+        }
+        if (data?.consumerDocument) setConsumerDocument(formatConsumerDocument(data.consumerDocument));
       })
       .catch((error) => {
         if (active) setMessage(errorMessage(error, 'Não foi possível consultar o cupom fiscal.'));
@@ -81,36 +101,55 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
   }, [orderId]);
 
   useEffect(() => {
-    if (!modalOpen) return;
+    if (!modalOpen || creatingCustomer) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setModalOpen(false);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [modalOpen]);
+  }, [modalOpen, creatingCustomer]);
+
+  useEffect(() => {
+    if (!modalOpen || model !== '55') return;
+    let active = true;
+    setCustomersLoading(true);
+    api.get<Customer[]>('/customers').then(({ data }) => {
+      if (active) setCustomers(current => [...new Map([...current, ...data.filter(customer => customer.personType === 'PJ')].map(customer => [customer.id, customer])).values()]);
+    }).catch(error => {
+      if (active) setMessage(errorMessage(error, 'Não foi possível carregar os clientes PJ.'));
+    }).finally(() => { if (active) setCustomersLoading(false); });
+    return () => { active = false; };
+  }, [modalOpen, model]);
 
   const pollingInvoices = useMemo(() => [invoice], [invoice]);
   useInvoicePolling(pollingInvoices, updateInvoice);
 
   const issue = async () => {
     if (issuingRef.current) return;
-    const document = digitsOnly(cpf);
-    if (document && !isValidCpf(document)) {
-      setMessage('Informe um CPF válido ou deixe o campo em branco.');
+    const document = digitsOnly(consumerDocument);
+    if (model === '65' && document && !isValidConsumerDocument(document)) {
+      setMessage('Informe um CPF ou CNPJ válido ou deixe o campo em branco.');
+      return;
+    }
+    if (model === '55' && (!selectedCustomer || missingFields.length > 0)) {
+      setMessage(selectedCustomer ? `Dados fiscais incompletos: ${missingFields.join(', ')}. Atualize o cadastro do cliente.` : 'Selecione um cliente PJ.');
       return;
     }
     try {
       issuingRef.current = true;
       setIssuing(true);
       setMessage(null);
-      const { data } = await api.post<Invoice>('/invoices/nfce', {
-        orderId,
-        consumerDocument: document || null,
-      });
+      const { data } = await api.post<Invoice>(model === '55' ? '/invoices/nfe' : '/invoices/nfce',
+        model === '55' ? { orderId, customerId } : { orderId, consumerDocument: document || null });
       updateInvoice(data);
-      setMessage(data.status === 'authorized' ? 'Cupom fiscal autorizado pela SEFAZ.' : null);
+      setMessage(data.status === 'authorized' ? `${documentLabel} autorizada pela SEFAZ.` : null);
     } catch (error) {
-      setMessage(errorMessage(error, 'Não foi possível emitir a NFC-e.'));
+      setMessage(errorMessage(error, `Não foi possível emitir a ${documentLabel}.`));
+      // Another terminal or a lost response may have already reserved/authorized this sale.
+      try {
+        const { data } = await api.get<Invoice | null>(`/invoices/order/${orderId}`);
+        if (data) updateInvoice(data);
+      } catch { /* Preserve the original error; a retry remains guarded by the backend. */ }
     } finally {
       issuingRef.current = false;
       setIssuing(false);
@@ -125,7 +164,7 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
       const { data } = await api.get<Invoice>(`/invoices/${invoice.id}`);
       updateInvoice(data);
     } catch (error) {
-      setMessage(errorMessage(error, 'Não foi possível atualizar o status da NFC-e.'));
+      setMessage(errorMessage(error, `Não foi possível atualizar o status da ${documentLabel}.`));
     } finally {
       setRefreshing(false);
     }
@@ -135,9 +174,9 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
     if (!invoice?.danfeUrl) return;
     try {
       await navigator.clipboard.writeText(invoice.danfeUrl);
-      setMessage('Link do cupom copiado.');
+      setMessage('Link do documento copiado.');
     } catch {
-      setMessage('Não foi possível copiar o link do cupom.');
+      setMessage('Não foi possível copiar o link do documento.');
     }
   };
 
@@ -145,11 +184,11 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
     if (!invoice?.danfeUrl) return;
     const phoneDigits = digitsOnly(whatsAppPhone);
     if (!phoneDigits) {
-      setMessage('Informe um telefone para enviar o cupom.');
+      setMessage('Informe um telefone para enviar o documento.');
       return;
     }
     const targetPhone = phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`;
-    const text = `Olá! Segue o seu cupom fiscal eletrônico: ${invoice.danfeUrl}`;
+    const text = `Olá! Segue o seu documento fiscal: ${invoice.danfeUrl}`;
     window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -159,15 +198,15 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
   const launcherLabel = loading
     ? 'Consultando cupom...'
     : issuing || isInFlight
-      ? 'Emitindo cupom...'
+      ? progressLabel
       : isAuthorized
-        ? 'Ver cupom fiscal'
+        ? `Ver ${documentName}`
         : isFinalError
-          ? 'Reemitir cupom fiscal'
-          : 'Emitir cupom fiscal';
+          ? `Reemitir ${documentName}`
+          : `Emitir ${documentName}`;
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="NFC-e do pedido">
+    <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Documento fiscal do pedido">
       <button
         type="button"
         onClick={() => setModalOpen(true)}
@@ -180,18 +219,25 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
 
       {isAuthorized && (
         <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-          <CheckCircle2 size={14} /> NFC-e autorizada
+          <CheckCircle2 size={14} /> {documentLabel} autorizada
         </span>
       )}
       {isFinalError && (
         <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
-          NFC-e {invoice?.status === 'canceled' ? 'cancelada' : 'rejeitada'}
+          {documentLabel} {invoice?.status === 'canceled' ? 'cancelada' : 'rejeitada'}
         </span>
       )}
       {message && !modalOpen && !isAuthorized && (
         <span className="text-xs text-red-700" role="status">{message}</span>
       )}
 
+      {creatingCustomer && <CreateFiscalCustomerModal onClose={() => setCreatingCustomer(false)} onCreated={customer => {
+        setCustomers(current => [...current.filter(item => item.id !== customer.id), customer]);
+        setCustomerId(customer.id);
+        if (customer.phone) setWhatsAppPhone(formatPhone(customer.phone));
+        setCreatingCustomer(false);
+        setMessage(null);
+      }} />}
       {modalOpen && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
@@ -202,7 +248,9 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
         >
           <div
             role="dialog"
-            aria-modal="true"
+            aria-modal={!creatingCustomer}
+            aria-hidden={creatingCustomer || undefined}
+            inert={creatingCustomer}
             aria-labelledby={`nfce-title-${orderId}`}
             className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
           >
@@ -210,7 +258,7 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
               <div className="flex items-center gap-3">
                 <span className="rounded-lg bg-orange-100 p-2 text-orange-700"><ReceiptText size={20} /></span>
                 <div>
-                  <h2 id={`nfce-title-${orderId}`} className="font-bold text-gray-900">Cupom fiscal (NFC-e)</h2>
+                  <h2 id={`nfce-title-${orderId}`} className="font-bold text-gray-900">{model === '55' ? 'Nota fiscal (NF-e)' : 'Cupom fiscal (NFC-e)'}</h2>
                   <p className="text-xs text-gray-500">Emissão e documentos do consumidor</p>
                 </div>
               </div>
@@ -228,29 +276,58 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
                 </span>
               )}
 
+              {(isAuthorized || isInFlight) && (
+                <p className="text-sm text-gray-600">Este pedido já possui {documentLabel} {isAuthorized ? 'autorizada' : 'em processamento'}. Não é possível emitir outro documento fiscal para a mesma venda.</p>
+              )}
+              {!isAuthorized && !isInFlight && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium" htmlFor={`fiscal-model-${orderId}`}>Documento fiscal</label>
+                  <select id={`fiscal-model-${orderId}`} className="input" value={model} disabled={issuing} onChange={event => { setModel(event.target.value as '55' | '65'); setInvoice(null); setMessage(null); }}>
+                    <option value="65" disabled={!nfceEnabled}>NFC-e — cupom com CPF/CNPJ ou sem identificação{!nfceEnabled ? " (desabilitada)" : ""}</option>
+                    <option value="55">NF-e — nota completa para empresa</option>
+                  </select>
+                </div>
+              )}
               {!isAuthorized && !isInFlight && (
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                  <div>
+                  {model === '55' ? (
+                    <div>
+                      <label className="mb-1 block text-sm font-medium" htmlFor={`fiscal-customer-${orderId}`}>Cliente PJ destinatário</label>
+                      <select id={`fiscal-customer-${orderId}`} className="input" value={customerId} disabled={issuing || customersLoading} onChange={event => {
+                        setCustomerId(event.target.value);
+                        const customer = customers.find(candidate => candidate.id === event.target.value);
+                        if (customer?.phone) setWhatsAppPhone(formatPhone(customer.phone));
+                        setMessage(null);
+                      }}>
+                        <option value="">{customersLoading ? 'Carregando clientes...' : 'Selecione um cliente PJ'}</option>
+                        {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.legalName || customer.name} — {customer.document}</option>)}
+                      </select>
+                      <button type="button" className="mt-2 text-sm font-semibold text-orange-700 underline" disabled={issuing} onClick={() => setCreatingCustomer(true)}>Cadastrar cliente</button>
+                      {selectedCustomer && missingFields.length > 0 && <p className="mt-2 text-sm text-red-700">Dados fiscais incompletos: {missingFields.join(', ')}. Atualize o cadastro do cliente.</p>}
+                      {selectedCustomer && missingFields.length === 0 && <p className="mt-2 text-xs text-gray-500">{selectedCustomer.fiscalStreet}, {selectedCustomer.fiscalNumber} · {selectedCustomer.fiscalCity}/{selectedCustomer.fiscalState} · CEP {selectedCustomer.fiscalZipCode} · IBGE {selectedCustomer.fiscalCityIbgeCode}</p>}
+                    </div>
+                  ) : <div>
                     <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor={`nfce-cpf-${orderId}`}>
-                      CPF na nota <span className="font-normal text-gray-400">(opcional)</span>
+                      CPF/CNPJ na nota <span className="font-normal text-gray-400">(opcional)</span>
                     </label>
                     <input
                       id={`nfce-cpf-${orderId}`}
                       type="text"
                       inputMode="numeric"
                       className="input"
-                      placeholder="000.000.000-00"
-                      value={cpf}
+                      placeholder="CPF ou CNPJ"
+                      value={consumerDocument}
+                      disabled={issuing}
                       onChange={(event) => {
-                        setCpf(formatCpf(event.target.value));
+                        setConsumerDocument(formatConsumerDocument(event.target.value));
                         setMessage(null);
                       }}
                     />
                     <p className="mt-1 text-xs text-gray-500">Em branco, o cupom sai sem consumidor identificado.</p>
-                  </div>
-                  <button type="button" onClick={issue} disabled={issuing} className="btn-primary inline-flex min-h-10 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
+                  </div>}
+                  <button type="button" onClick={issue} disabled={issuing || (model === '65' && !nfceEnabled) || (model === '55' && (customersLoading || !selectedCustomer || missingFields.length > 0))} className="btn-primary inline-flex min-h-10 items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60">
                     {issuing ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
-                    {issuing ? 'Emitindo cupom...' : isFinalError ? 'Emitir novamente' : 'Emitir NFC-e'}
+                    {issuing ? progressLabel : isFinalError ? 'Emitir novamente' : `Emitir ${documentLabel}`}
                   </button>
                 </div>
               )}
@@ -258,7 +335,7 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
               {isInFlight && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-800">
                   <div className="flex items-center gap-2 font-semibold">
-                    <Loader2 size={18} className="animate-spin" /> Emitindo cupom...
+                    <Loader2 size={18} className="animate-spin" /> {progressLabel}
                   </div>
                   <p className="mt-1 text-sm">O status será atualizado automaticamente após o retorno da SEFAZ.</p>
                   <button type="button" onClick={refresh} disabled={refreshing} className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-amber-900 underline disabled:opacity-60">
@@ -278,10 +355,10 @@ export function NfceReceiptPanel({ orderId, phone }: NfceReceiptPanelProps) {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
                     <CheckCircle2 size={17} />
-                    NFC-e {invoice.number ? `nº ${invoice.number}` : ''}{invoice.series ? ` · série ${invoice.series}` : ''}
+                    {documentLabel} {invoice.number ? `nº ${invoice.number}` : ''}{invoice.series ? ` · série ${invoice.series}` : ''}
                   </div>
                   <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                    <div className="border-b border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600">Cupom fiscal com QR Code</div>
+                    <div className="border-b border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600">{model === '55' ? 'DANFE' : 'Cupom fiscal com QR Code'}</div>
                     <iframe title={`Cupom fiscal do pedido ${orderId}`} src={invoice.danfeUrl} className="h-80 w-full bg-white" />
                   </div>
                   <div className="flex flex-wrap gap-2">
