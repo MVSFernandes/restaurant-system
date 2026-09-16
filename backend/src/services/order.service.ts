@@ -171,8 +171,8 @@ async function releaseTableIfEmpty(tableId: string | null): Promise<void> {
 // Service público
 // ---------------------------------------------------------------------------
 
-function creationOrderId(key?: string): string {
-  return key ? createHash('sha256').update(key).digest('hex') : createId();
+function normalizedIdempotencyKey(key?: string): string | undefined {
+  return key ? createHash('sha256').update(key).digest('hex') : undefined;
 }
 
 function creationItems(orderId: string, items: ResolvedItemPricing[]): OrderItem[] {
@@ -185,6 +185,11 @@ export const orderService = {
     actingUser: { id: string; role: UserRole },
     idempotencyKey?: string
   ): Promise<Order> {
+    const storedKey = normalizedIdempotencyKey(idempotencyKey);
+    if (storedKey) {
+      const existing = await orderRepository.findByIdempotencyKey(storedKey);
+      if (existing) return existing;
+    }
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
 
@@ -208,7 +213,7 @@ export const orderService = {
     const deliveryFee = input.type === 'DELIVERY' ? (input.deliveryFee ?? 0) : 0;
     total += deliveryFee;
 
-    const orderId = creationOrderId(idempotencyKey);
+    const orderId = createId();
     const order: Order = {
       id: orderId,
       type: input.type,
@@ -232,7 +237,7 @@ export const orderService = {
       updatedAt: new Date(),
     };
 
-    return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems));
+    return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems), undefined, storedKey);
   },
 
   async createPublicOrder(
@@ -242,6 +247,11 @@ export const orderService = {
     },
     idempotencyKey?: string
   ): Promise<Order> {
+    const storedKey = normalizedIdempotencyKey(idempotencyKey);
+    if (storedKey) {
+      const existing = await orderRepository.findByIdempotencyKey(storedKey);
+      if (existing) return existing;
+    }
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
 
@@ -295,7 +305,7 @@ export const orderService = {
     const deliveryFee = type === 'DELIVERY' ? (input.deliveryFee ?? 0) : 0;
     total += deliveryFee;
 
-    const orderId = creationOrderId(idempotencyKey);
+    const orderId = createId();
     const order: Order = {
       id: orderId,
       type,
@@ -323,7 +333,7 @@ export const orderService = {
       id: createId(), orderId, method: input.paymentMethod as Payment['method'],
       amount: total, status: 'PENDING', transactionId: null, createdAt: new Date(),
     } : undefined;
-    return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems), payment);
+    return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems), payment, storedKey);
   },
 
   async updateStatus(

@@ -16,6 +16,7 @@ const input = { type: 'TAKE_AWAY', customerName: 'Teste', items: [{ productId: '
 let requests;
 beforeEach(() => {
   requests = [];
+  orderRepository.findByIdempotencyKey = async () => null;
   cashRegisterRepository.findOpenSession = async () => ({ id: 'session' });
   productRepository.findById = async () => ({ id: 'drink', price: 5, categoryId: 'drinks', isByWeight: false });
   categoryRepository.findById = async () => ({ id: 'drinks' });
@@ -28,13 +29,16 @@ beforeEach(() => {
     return { data: { ...args.p_order, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, error: null };
   };
 });
-test('private creation sends the entire order to one transaction with a stable retry ID', async () => {
+test('private creation sends the entire order to one transaction with short IDs and a separate stable retry key', async () => {
   const actor = { id: 'admin', role: 'ADMIN' };
   await orderService.createOrder(input, actor, 'orders:create:admin:key');
   await orderService.createOrder(input, actor, 'orders:create:admin:key');
   await orderService.createOrder(input, actor, 'orders:create:other:key');
   assert.ok(requests.every(r => r.name === 'create_order_with_stock'));
-  assert.equal(requests[0].args.p_order.id, requests[1].args.p_order.id);
+  assert.equal(requests[0].args.p_order.id.length, 24);
+  assert.notEqual(requests[0].args.p_order.id, requests[1].args.p_order.id);
+  assert.equal(requests[0].args.p_order.idempotency_key, requests[1].args.p_order.idempotency_key);
+  assert.notEqual(requests[0].args.p_order.idempotency_key, requests[2].args.p_order.idempotency_key);
   assert.notEqual(requests[0].args.p_order.id, requests[2].args.p_order.id);
   assert.equal(requests[0].args.p_items[0].order_id, requests[0].args.p_order.id);
   assert.equal(requests[0].args.p_items[0].quantity, 2);
@@ -60,4 +64,13 @@ test('availability requires every linked ingredient to cover one unit', async ()
   assert.equal((await productStockAvailability('drink')).available, false);
   productStockItemRepository.findByProduct = async () => [];
   assert.equal((await productStockAvailability('uncontrolled')).available, true);
+});
+
+test('replays by stored key before validating cash or stock after a restart', async () => {
+  const existing = { id: 'existing-short-order-id' };
+  orderRepository.findByIdempotencyKey = async () => existing;
+  cashRegisterRepository.findOpenSession = async () => assert.fail('replay must not depend on current cash session');
+  assert.equal(await orderService.createOrder(input, { id: 'admin', role: 'ADMIN' }, 'orders:create:admin:key'), existing);
+  assert.equal(await orderService.createPublicOrder(input, 'public:key'), existing);
+  assert.equal(requests.length, 0);
 });

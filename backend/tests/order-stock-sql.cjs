@@ -47,11 +47,15 @@ async function main() {
       insert into tables(id,status) values ('table','AVAILABLE');
     `);
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260914200000_atomic_order_creation.sql'), 'utf8'));
+    await db.exec("insert into orders(id,status) values (repeat('a',64),'NEW')");
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260915150000_separate_order_idempotency_key.sql'), 'utf8'));
+    assert.equal((await db.query("select idempotency_key from orders where id=repeat('a',64)")).rows[0].idempotency_key, 'a'.repeat(64));
+    await db.exec("delete from orders where id=repeat('a',64)");
     const order = id => ({ id, type: 'DINE_IN', status: 'NEW', total: 10, delivery_fee: 0, table_id: 'table', user_id: 'operator' });
     const item = (id, patch = {}) => ({ id: `item-${id}`, order_id: id, product_id: 'drink', quantity: 1, price: 10, weight: null, ...patch });
-    const issue = (id, items = [item(id)], payment = null) => db.query(
+    const issue = (id, items = [item(id)], payment = null, key = null) => db.query(
       'select public.create_order_with_stock($1::jsonb,$2::jsonb,$3::jsonb) result',
-      [JSON.stringify(order(id)), JSON.stringify(items), payment && JSON.stringify(payment)],
+      [JSON.stringify({ ...order(id), idempotency_key: key }), JSON.stringify(items), payment && JSON.stringify(payment)],
     );
     const state = async () => (await db.query(`select
       (select count(*)::int from orders) orders,
@@ -82,6 +86,16 @@ async function main() {
     assert.equal((await state()).orders, 3);
     assert.equal((await state()).quantity, 0);
     console.log('PASS: last unit cannot be oversold; unlinked products remain sellable');
+    const beforeReplay = await state();
+    const [first, second] = await Promise.all([
+      issue('short-a', [item('short-a', { product_id: 'no-stock-links' })], null, 'scoped-key'),
+      issue('short-b', [item('short-b', { product_id: 'no-stock-links' })], null, 'scoped-key'),
+    ]);
+    assert.equal(first.rows[0].result.id, second.rows[0].result.id);
+    assert.equal((await state()).orders, beforeReplay.orders + 1);
+    assert.equal((await state()).items, beforeReplay.items + 1);
+    assert.equal((await state()).quantity, beforeReplay.quantity);
+    console.log('PASS: independent candidate IDs with the same key replay one atomic order');
   } finally { await db.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
