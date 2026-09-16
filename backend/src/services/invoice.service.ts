@@ -119,11 +119,104 @@ export const buildFocusItems = (items: FiscalItem[], config: RestaurantConfig) =
     };
   });
 
+const toCents = (value: number | string | null | undefined, field: string) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    throw new ValidationError(field, 'Valor monetário inválido');
+  }
+  return Math.round(numeric * 100);
+};
+
+const fromCents = (value: number) => value / 100;
+
+export const distributeAdditionalExpenses = <T extends { valor_bruto?: number }>(
+  items: T[],
+  additionalExpensesCents: number
+) => {
+  if (!Number.isInteger(additionalExpensesCents) || additionalExpensesCents < 0) {
+    throw new ValidationError('additionalExpenses', 'Valor de outras despesas inválido');
+  }
+  if (additionalExpensesCents === 0) return items.map((item) => ({ ...item }));
+
+  const productValuesCents = items.map((item) => toCents(item.valor_bruto, 'items'));
+  const productsTotalCents = productValuesCents.reduce((total, value) => total + value, 0);
+  if (productsTotalCents <= 0) {
+    throw new ValidationError('items', 'Não é possível distribuir despesas em itens sem valor');
+  }
+
+  let allocatedCents = 0;
+  return items.map((item, index) => {
+    const remainingCents = additionalExpensesCents - allocatedCents;
+    const itemExpensesCents = index === items.length - 1
+      ? remainingCents
+      : Math.min(
+          Math.round(additionalExpensesCents * productValuesCents[index] / productsTotalCents),
+          remainingCents
+        );
+    allocatedCents += itemExpensesCents;
+    return {
+      ...item,
+      valor_outras_despesas: fromCents(itemExpensesCents),
+    };
+  });
+};
+
+export const buildNfceItems = (items: FiscalItem[], config: RestaurantConfig) => {
+  if (items.length === 0) {
+    throw new ValidationError('items', 'Pedido sem itens para emitir a NFC-e');
+  }
+
+  // order_items.price is the persisted gross line total after quantity, weight,
+  // extras and any sale-time manual price have already been applied.
+  const subtotalCents = items.reduce(
+    (total, item) => total + toCents(item.price, 'items'),
+    0
+  );
+  if (subtotalCents <= 0) {
+    throw new ValidationError('items', 'O subtotal dos produtos deve ser maior que zero');
+  }
+
+  if (!config.nfceGroupItems) return buildFocusItems(items, config);
+
+  const description = String(config.nfceGroupedItemDescription ?? '').trim();
+  if (description.length < 1 || description.length > 120) {
+    throw new ValidationError(
+      'nfceGroupedItemDescription',
+      'A descrição do item agrupado deve ter entre 1 e 120 caracteres'
+    );
+  }
+
+  const ncm = requireValue(config.defaultNcm, 'defaultNcm');
+  const cfop = requireValue(config.defaultCfop, 'defaultCfop');
+  const origin = config.defaultOrigin ?? '0';
+  const taxCode = config.defaultTaxCode ?? '102';
+  const subtotal = fromCents(subtotalCents);
+
+  return [{
+    numero_item: 1,
+    codigo_produto: 'REFEICAO',
+    descricao: description,
+    cfop,
+    unidade_comercial: 'un',
+    quantidade_comercial: 1,
+    valor_unitario_comercial: subtotal,
+    valor_unitario_tributavel: subtotal,
+    unidade_tributavel: 'un',
+    codigo_ncm: digitsOnly(ncm),
+    quantidade_tributavel: 1,
+    valor_bruto: subtotal,
+    icms_situacao_tributaria: Number(taxCode),
+    icms_origem: Number(origin),
+    pis_situacao_tributaria: '07',
+    cofins_situacao_tributaria: '07',
+  }];
+};
+
 const buildNfePayload = async (
   invoice: Invoice,
   items: FiscalItem[],
   config: RestaurantConfig,
-  sale?: { order: Order; payment: Payment }
+  sale?: { order: Order; payment?: Payment }
 ) => {
   if (!invoice.customerId) {
     throw new ValidationError('customerId', 'A NF-e exige um cliente vinculado');
@@ -141,8 +234,26 @@ const buildNfePayload = async (
     throw new ValidationError('document', 'Informe um CNPJ válido para o cliente PJ');
   }
 
-  const focusItems = buildFocusItems(items, config);
-  const total = focusItems.reduce((sum, item) => sum + Number(item.valor_bruto || 0), 0);
+  const baseFocusItems = buildFocusItems(items, config);
+  const productsTotalCents = baseFocusItems.reduce(
+    (sum, item) => sum + toCents(item.valor_bruto, 'items'),
+    0
+  );
+  const additionalExpensesCents = toCents(sale?.order.deliveryFee || 0, 'deliveryFee');
+  const discountCents = 0;
+  const calculatedTotalCents = productsTotalCents + additionalExpensesCents - discountCents;
+  const orderTotalCents = sale ? toCents(sale.order.total, 'total') : calculatedTotalCents;
+  if (calculatedTotalCents !== orderTotalCents) {
+    throw new ValidationError(
+      'total',
+      'O total calculado da NF-e (' +
+        fromCents(calculatedTotalCents).toFixed(2) +
+        ') diverge do total do pedido (' +
+        fromCents(orderTotalCents).toFixed(2) +
+        ')'
+    );
+  }
+  const focusItems = distributeAdditionalExpenses(baseFocusItems, additionalExpensesCents);
   const now = new Date().toISOString();
   const recipientIeFields = buildRecipientIeFields(customer.stateRegistration);
 
@@ -170,13 +281,13 @@ const buildNfePayload = async (
     telefone_destinatario: digitsOnly(customer.phone),
     valor_frete: 0,
     valor_seguro: 0,
-    valor_desconto: 0,
-    valor_outras_despesas: Number(sale?.order.deliveryFee || 0),
-    valor_total: sale ? Number(sale.order.total) : total,
-    valor_produtos: total,
+    valor_desconto: fromCents(discountCents),
+    valor_outras_despesas: fromCents(additionalExpensesCents),
+    valor_total: fromCents(orderTotalCents),
+    valor_produtos: fromCents(productsTotalCents),
     modalidade_frete: 9,
     items: focusItems,
-    ...(sale ? { formas_pagamento: [buildPaymentFields(sale.order, sale.payment)] } : {}),
+    ...(sale?.payment ? { formas_pagamento: [buildPaymentFields(sale.order, sale.payment)] } : {}),
     informacoes_adicionais_contribuinte: invoice.creditTransactionId
       ? `NF-e emitida para cobrança de fiado. Ref interna: ${invoice.focusRef}`
       : `NF-e do pedido ${invoice.orderId}. Ref interna: ${invoice.focusRef}`,
@@ -268,8 +379,26 @@ export const buildNfcePayload = (
   config: RestaurantConfig,
   consumerDocument: string | null
 ) => {
-  const focusItems = buildFocusItems(items, config);
-  const productsTotal = focusItems.reduce((sum, item) => sum + Number(item.valor_bruto || 0), 0);
+  const baseFocusItems = buildNfceItems(items, config);
+  const productsTotalCents = baseFocusItems.reduce(
+    (sum, item) => sum + toCents(item.valor_bruto, 'items'),
+    0
+  );
+  const additionalExpensesCents = toCents(order.deliveryFee || 0, 'deliveryFee');
+  const discountCents = 0;
+  const calculatedTotalCents = productsTotalCents + additionalExpensesCents - discountCents;
+  const orderTotalCents = toCents(order.total, 'total');
+  if (calculatedTotalCents !== orderTotalCents) {
+    throw new ValidationError(
+      'total',
+      'O total calculado da NFC-e (' +
+        fromCents(calculatedTotalCents).toFixed(2) +
+        ') diverge do total do pedido (' +
+        fromCents(orderTotalCents).toFixed(2) +
+        ')'
+    );
+  }
+  const focusItems = distributeAdditionalExpenses(baseFocusItems, additionalExpensesCents);
   mapNfcePaymentMethod(payment.method);
 
   return {
@@ -289,10 +418,10 @@ export const buildNfcePayload = (
       : {}),
     valor_frete: 0,
     valor_seguro: 0,
-    valor_desconto: 0,
-    valor_outras_despesas: Number(order.deliveryFee || 0),
-    valor_total: Number(order.total),
-    valor_produtos: productsTotal,
+    valor_desconto: fromCents(discountCents),
+    valor_outras_despesas: fromCents(additionalExpensesCents),
+    valor_total: fromCents(orderTotalCents),
+    valor_produtos: fromCents(productsTotalCents),
     modalidade_frete: 9,
     items: focusItems,
     formas_pagamento: [buildPaymentFields(order, payment)],
@@ -408,6 +537,12 @@ export const invoiceService = {
       return previousInvoice;
     }
 
+    if (!charge.orderId) {
+      throw new ValidationError('orderId', 'A NF-e exige uma venda vinculada a pedido');
+    }
+    const order = await orderRepository.findById(charge.orderId);
+    if (!order) throw new NotFoundError('Order', charge.orderId);
+
     const invoice = await invoiceRepository.create(createInvoiceAttempt({
       customerId: charge.customerId,
       orderId: charge.orderId,
@@ -422,7 +557,7 @@ export const invoiceService = {
         loadFiscalItems(charge.orderId, 'a NF-e'),
         restaurantConfigRepository.get(),
       ]);
-      const payload = await buildNfePayload(invoice, items, config);
+      const payload = await buildNfePayload(invoice, items, config, { order });
       return submitInvoice(invoice, () => focusNfeService.issueNfe(invoice.focusRef, payload));
     } catch (error) {
       return saveIssueError(invoice, error, 'Erro ao emitir NF-e');
@@ -496,29 +631,25 @@ export const invoiceService = {
     }
 
     const normalizedConsumerDocument = normalizeConsumerDocument(consumerDocument);
-    const invoice = await invoiceRepository.create(createInvoiceAttempt({
+    const attempt = createInvoiceAttempt({
       customerId: order.customerId,
       orderId: order.id,
       creditTransactionId: null,
       model: '65',
       consumerDocument: normalizedConsumerDocument,
       focusRef: previousInvoice ? `nfce_${createId()}` : `nfce_${order.id}`,
-    }));
-
-    try {
-      const items = await loadFiscalItems(order.id, 'a NFC-e');
-      const payload = buildNfcePayload(
-        invoice,
-        order,
-        payment,
-        items,
-        config,
-        normalizedConsumerDocument
-      );
-      return submitInvoice(invoice, () => focusNfeService.issueNfce(invoice.focusRef, payload));
-    } catch (error) {
-      return saveIssueError(invoice, error, 'Erro ao emitir NFC-e');
-    }
+    });
+    const items = await loadFiscalItems(order.id, 'a NFC-e');
+    const payload = buildNfcePayload(
+      attempt,
+      order,
+      payment,
+      items,
+      config,
+      normalizedConsumerDocument
+    );
+    const invoice = await invoiceRepository.create(attempt);
+    return submitInvoice(invoice, () => focusNfeService.issueNfce(invoice.focusRef, payload));
   },
 
   async getInvoiceStatus(id: string): Promise<Invoice> {

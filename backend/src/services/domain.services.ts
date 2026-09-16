@@ -23,7 +23,7 @@ import {
   Table,
   MarmitaMenuItem,
 } from '../types/domain';
-import { NotFoundError } from '../types/errors';
+import { NotFoundError, ValidationError } from '../types/errors';
 
 // ============================================================================
 // CATEGORY
@@ -413,8 +413,28 @@ export const configService = {
     defaultOrigin?: string | null;
     defaultTaxCode?: string | null;
     nfceEnabled?: boolean;
+    nfceGroupItems?: boolean;
+    nfceGroupedItemDescription?: string;
   }) {
     const config = await restaurantConfigRepository.get();
+    if (input.nfceGroupItems !== undefined && typeof input.nfceGroupItems !== 'boolean') {
+      throw new ValidationError('nfceGroupItems', 'Informe verdadeiro ou falso');
+    }
+    if (
+      input.nfceGroupedItemDescription !== undefined &&
+      typeof input.nfceGroupedItemDescription !== 'string'
+    ) {
+      throw new ValidationError('nfceGroupedItemDescription', 'Informe uma descrição válida');
+    }
+    const groupedItemDescription = String(
+      input.nfceGroupedItemDescription ?? config.nfceGroupedItemDescription
+    ).trim();
+    if (groupedItemDescription.length < 1 || groupedItemDescription.length > 120) {
+      throw new ValidationError(
+        'nfceGroupedItemDescription',
+        'A descrição do item agrupado deve ter entre 1 e 120 caracteres'
+      );
+    }
     return restaurantConfigRepository.update(config.id, {
       name: input.name,
       logoUrl: input.logoUrl,
@@ -442,6 +462,9 @@ export const configService = {
       defaultOrigin: input.defaultOrigin,
       defaultTaxCode: input.defaultTaxCode,
       nfceEnabled: input.nfceEnabled,
+      nfceGroupItems: input.nfceGroupItems,
+      nfceGroupedItemDescription:
+        input.nfceGroupedItemDescription !== undefined ? groupedItemDescription : undefined,
     });
   },
 };

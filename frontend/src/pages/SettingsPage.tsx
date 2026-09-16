@@ -62,6 +62,7 @@ const SettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const updateConfigField = <K extends keyof RestaurantConfig>(field: K, value: RestaurantConfig[K]) => {
     setConfig((current) => ({ ...current, [field]: value }));
@@ -82,11 +83,24 @@ const SettingsPage: React.FC = () => {
   }, []);
 
   const handleSave = async () => {
+    const groupedItemDescription = String(
+      config.nfceGroupedItemDescription ?? 'REFEICAO'
+    ).trim();
+    if (
+      config.nfceGroupItems &&
+      (groupedItemDescription.length < 1 || groupedItemDescription.length > 120)
+    ) {
+      setSaveError('A descrição do item agrupado deve ter entre 1 e 120 caracteres.');
+      return;
+    }
+
     setSaving(true);
+    setSaveError(null);
     try {
       const payload = {
         ...config,
         cnpj: config.cnpj ? onlyDigits(config.cnpj).slice(0, 14) : config.cnpj,
+        nfceGroupedItemDescription: groupedItemDescription || 'REFEICAO',
       };
       await api.put('/config', payload);
       setConfig(payload);
@@ -94,6 +108,9 @@ const SettingsPage: React.FC = () => {
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {
       console.error(error);
+      const apiMessage = (error as { response?: { data?: { message?: string } } })
+        .response?.data?.message;
+      setSaveError(apiMessage || 'Não foi possível salvar as configurações.');
     } finally {
       setSaving(false);
     }
@@ -122,6 +139,11 @@ const SettingsPage: React.FC = () => {
       {saved && (
         <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
           Configurações salvas com sucesso!
+        </div>
+      )}
+      {saveError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700" role="alert">
+          {saveError}
         </div>
       )}
 
@@ -213,6 +235,45 @@ const SettingsPage: React.FC = () => {
               </span>
             </span>
           </label>
+
+          <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">NFC-e</h3>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={config.nfceGroupItems ?? false}
+                onChange={(event) => updateConfigField('nfceGroupItems', event.target.checked)}
+                className="mt-1 h-4 w-4 accent-orange-600"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">
+                  Emitir NFC-e com item único
+                </span>
+                <span className="mt-1 block text-xs text-gray-600">
+                  Todos os itens do pedido serão agrupados em um único item na NFC-e. Não afeta a NF-e.
+                </span>
+              </span>
+            </label>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="nfce-grouped-item-description">
+                Descrição do item
+              </label>
+              <input
+                id="nfce-grouped-item-description"
+                type="text"
+                value={config.nfceGroupedItemDescription ?? 'REFEICAO'}
+                onChange={(event) => updateConfigField('nfceGroupedItemDescription', event.target.value)}
+                className="input"
+                maxLength={120}
+                required={config.nfceGroupItems}
+                disabled={!config.nfceGroupItems}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Obrigatória quando o item único estiver ativo. Máximo de 120 caracteres.
+              </p>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

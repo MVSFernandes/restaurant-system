@@ -27,7 +27,7 @@ export const updateConfig = async (req: Request, res: Response) => {
       fiscalCityIbgeCode, fiscalZipCode, fiscalStreet, fiscalNumber,
       fiscalNeighborhood, fiscalCity, fiscalState,
       defaultCfop, defaultNcm, defaultOrigin, defaultTaxCode,
-      nfceEnabled,
+      nfceEnabled, nfceGroupItems, nfceGroupedItemDescription,
     } = req.body;
 
     const config = await configService.update({
@@ -57,6 +57,8 @@ export const updateConfig = async (req: Request, res: Response) => {
       defaultOrigin,
       defaultTaxCode,
       nfceEnabled: typeof nfceEnabled === 'boolean' ? nfceEnabled : undefined,
+      nfceGroupItems,
+      nfceGroupedItemDescription,
     });
     res.json(config);
   } catch (error) {

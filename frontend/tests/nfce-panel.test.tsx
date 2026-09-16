@@ -69,6 +69,36 @@ describe('fiscal settings', () => {
 
     expect(mocks.put).toHaveBeenCalledWith('/config', expect.objectContaining({ taxRegime: '4' }));
   });
+
+  it('enables and persists the grouped NFC-e item configuration', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        id: 'config-1',
+        name: 'Restaurante',
+        nfceEnabled: true,
+        nfceGroupItems: false,
+        nfceGroupedItemDescription: 'REFEICAO',
+      },
+    });
+    mocks.put.mockResolvedValue({ data: {} });
+
+    render(<SettingsPage />);
+    const toggle = await screen.findByRole('checkbox', {
+      name: /Emitir NFC-e com item único/,
+    });
+    const description = screen.getByLabelText('Descrição do item');
+    expect((description as HTMLInputElement).disabled).toBe(true);
+
+    fireEvent.click(toggle);
+    expect((description as HTMLInputElement).disabled).toBe(false);
+    fireEvent.change(description, { target: { value: 'REFEICAO E BEBIDAS' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    expect(mocks.put).toHaveBeenCalledWith('/config', expect.objectContaining({
+      nfceGroupItems: true,
+      nfceGroupedItemDescription: 'REFEICAO E BEBIDAS',
+    }));
+  });
 });
 
 describe('NFC-e CPF field', () => {
