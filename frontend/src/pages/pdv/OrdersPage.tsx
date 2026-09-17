@@ -32,7 +32,11 @@ import {
 } from 'lucide-react';
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
-import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
+import {
+  formatCurrencyBRL,
+  ORDER_STATUS_BADGE_CLASSES,
+  ORDER_STATUS_LABELS,
+} from '../../constants/orders';
 import { useAuth } from '../../hooks/useAuth';
 import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
 
@@ -217,9 +221,6 @@ const OrdersPage: React.FC = () => {
       setToast(null);
     }, 3000);
   };
-
-  const formatMoneyBR = (value: number | string | null | undefined) =>
-    `R$ ${Number(value || 0).toFixed(2)}`;
 
   const escapeHtml = (value: string | null | undefined) =>
     String(value || '')
@@ -741,7 +742,7 @@ const OrdersPage: React.FC = () => {
                   normalizeText(extra.name)
                 )}</div>
               </div>
-              <div class="item-price" style="font-size: 11px; color: #444;">${formatMoneyBR(
+              <div class="item-price" style="font-size: 11px; color: #444;">${formatCurrencyBRL(
                 extraTotal
               )}</div>
             </div>
@@ -783,7 +784,7 @@ const OrdersPage: React.FC = () => {
                   }
               </div>
 
-              <div class="item-price">${formatMoneyBR(baseItemTotal)}</div>
+              <div class="item-price">${formatCurrencyBRL(baseItemTotal)}</div>
             </div>
             ${extrasHtml}
           </div>
@@ -1040,32 +1041,32 @@ const OrdersPage: React.FC = () => {
 
             <div class="total-row">
               <span class="total-label">SubTotal</span>
-              <span class="total-value">${formatMoneyBR(calculatedSubtotal)}</span>
+              <span class="total-value">${formatCurrencyBRL(calculatedSubtotal)}</span>
             </div>
 
             <div class="total-row">
               <span class="total-label">Taxa de Entrega</span>
-              <span class="total-value">${formatMoneyBR(deliveryFee)}</span>
+              <span class="total-value">${formatCurrencyBRL(deliveryFee)}</span>
             </div>
 
             <div class="total-row">
               <span class="total-label">Taxa Adicional</span>
-              <span class="total-value">${formatMoneyBR(additionalFee)}</span>
+              <span class="total-value">${formatCurrencyBRL(additionalFee)}</span>
             </div>
 
             <div class="total-row">
               <span class="total-label">Desconto</span>
-              <span class="total-value">${formatMoneyBR(discount)}</span>
+              <span class="total-value">${formatCurrencyBRL(discount)}</span>
             </div>
 
             <div class="total-row">
               <span class="total-label strong">Troco</span>
-              <span class="total-value strong">${formatMoneyBR(changeValue)}</span>
+              <span class="total-value strong">${formatCurrencyBRL(changeValue)}</span>
             </div>
 
             <div class="total-row grand-total">
               <span class="total-label">Cobrar do Cliente</span>
-              <span class="total-value">${formatMoneyBR(totalToCharge)}</span>
+              <span class="total-value">${formatCurrencyBRL(totalToCharge)}</span>
             </div>
 
             <hr />
@@ -1075,7 +1076,7 @@ const OrdersPage: React.FC = () => {
 
             ${
               paymentLabel === 'DINHEIRO'
-                ? `<div class="line">Valor a receber em dinheiro: ${formatMoneyBR(totalToCharge)}</div>`
+                ? `<div class="line">Valor a receber em dinheiro: ${formatCurrencyBRL(totalToCharge)}</div>`
                 : ''
             }
 
@@ -1309,8 +1310,8 @@ const OrdersPage: React.FC = () => {
 
                               <span className="text-[11px] text-gray-500 whitespace-nowrap">
                                 ({isByWeight
-                                  ? `R$ ${baseUnitPrice.toFixed(2)}/kg`
-                                  : `R$ ${baseUnitPrice.toFixed(2)}`})
+                                  ? `${formatCurrencyBRL(baseUnitPrice)}/kg`
+                                  : formatCurrencyBRL(baseUnitPrice)})
                               </span>
                             </div>
 
@@ -1328,7 +1329,7 @@ const OrdersPage: React.FC = () => {
 
                                   return (
                                     <span key={extra.id}>
-                                      + {extra.name} (R$ {extraValue.toFixed(2)})
+                                      + {extra.name} ({formatCurrencyBRL(extraValue)})
                                       {idx < extras.length - 1 ? ' • ' : ''}
                                     </span>
                                   );
@@ -1353,7 +1354,7 @@ const OrdersPage: React.FC = () => {
 
                           <div className="shrink-0 text-right">
                             <span className="font-bold text-gray-900 text-sm whitespace-nowrap">
-                              R$ {totalWithExtras.toFixed(2)}
+                              {formatCurrencyBRL(totalWithExtras)}
                             </span>
                           </div>
                         </div>
@@ -1367,14 +1368,14 @@ const OrdersPage: React.FC = () => {
             <div className="border-t border-dashed pt-3 space-y-3">
               {order.deliveryFee ? (
                 <p className="text-xs text-blue-700 font-medium">
-                  Taxa de entrega: R$ {Number(order.deliveryFee).toFixed(2)}
+                  Taxa de entrega: {formatCurrencyBRL(order.deliveryFee)}
                 </p>
               ) : null}
 
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-gray-900 text-lg">
-                    R$ {order.total.toFixed(2)}
+                    {formatCurrencyBRL(order.total)}
                   </span>
 
                   <div className="flex gap-2">
@@ -1550,7 +1551,7 @@ const OrdersPage: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-1">Lançar no Fiado</h2>
             <p className="text-gray-500 mb-4">
-              Pedido #{creditOrder.id.slice(-6).toUpperCase()} • Total R$ {Number(creditOrder.total || 0).toFixed(2)}
+              Pedido #{creditOrder.id.slice(-6).toUpperCase()} • Total {formatCurrencyBRL(creditOrder.total)}
             </p>
 
             <div className="mb-4">
@@ -1653,7 +1654,7 @@ const OrdersPage: React.FC = () => {
                         {product.description}
                       </p>
                       <p className="text-primary-600 font-bold mt-1">
-                        R$ {product.price.toFixed(2)}
+                        {formatCurrencyBRL(product.price)}
                       </p>
                     </button>
                   ))}
@@ -1761,7 +1762,7 @@ const OrdersPage: React.FC = () => {
                             >
                               <div className="font-medium text-sm">Urbana</div>
                               <div className="text-primary-600 font-bold">
-                                R$ {Number(config?.urbanDeliveryFee || 1).toFixed(2)}
+                                {formatCurrencyBRL(config?.urbanDeliveryFee || 1)}
                               </div>
                             </button>
 
@@ -1777,7 +1778,7 @@ const OrdersPage: React.FC = () => {
                             >
                               <div className="font-medium text-sm">Rural</div>
                               <div className="text-primary-600 font-bold">
-                                R$ {Number(config?.ruralDeliveryFee || 3).toFixed(2)}
+                                {formatCurrencyBRL(config?.ruralDeliveryFee || 3)}
                               </div>
                             </button>
                           </div>
@@ -1882,8 +1883,8 @@ const OrdersPage: React.FC = () => {
                               <p className="text-sm font-medium">{item.product.name}</p>
                               <p className="text-xs text-gray-500">
                                 {isByWeight
-                                  ? `Preço base: R$ ${baseUnitPrice.toFixed(2)}/kg`
-                                  : `Valor base: R$ ${baseUnitPrice.toFixed(2)}`}
+                                  ? `Preço base: ${formatCurrencyBRL(baseUnitPrice)}/kg`
+                                  : `Valor base: ${formatCurrencyBRL(baseUnitPrice)}`}
                               </p>
                               {hasManualPrice && (
                                 <span className="mt-1 inline-flex w-fit rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-700 border border-orange-200">
@@ -1991,7 +1992,7 @@ const OrdersPage: React.FC = () => {
 
                             <div className="flex items-center gap-1 whitespace-nowrap min-w-[96px] justify-end ml-auto">
                               <span className="text-sm font-bold text-primary-600 text-right">
-                                R$ {totalWithExtras.toFixed(2)}
+                                {formatCurrencyBRL(totalWithExtras)}
                               </span>
                               {canEditManualPrice && (
                                 <button
@@ -2026,7 +2027,7 @@ const OrdersPage: React.FC = () => {
                 <div className="p-4 border-t flex-shrink-0 bg-white shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.05)]">
                   <div className="flex justify-between font-bold text-lg mb-3">
                     <span>Total</span>
-                    <span>R$ {cartTotal.toFixed(2)}</span>
+                    <span>{formatCurrencyBRL(cartTotal)}</span>
                   </div>
 
                   {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
