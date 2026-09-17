@@ -310,23 +310,3 @@ export const getOrderReceipt = async (req: Request, res: Response) => {
     handleError(res, error, 'Erro ao gerar PDF do pedido');
   }
 };
-
-export const getCompanyReceipt = async (req: Request, res: Response) => {
-  try {
-    const { companyName, companyCnpj } = req.query;
-    const order = await orderRepository.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: 'Pedido não encontrado' });
-    const items = await getItemsWithProduct(order.id);
-    const config = await restaurantConfigRepository.get();
-    const pdfBuffer = await PdfService.generateCompanyReceipt(
-      { ...order, items } as any,
-      config as any,
-      { name: (companyName as string) || 'N/A', cnpj: (companyCnpj as string) || 'N/A' }
-    );
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=recibo-empresa-${order.id.slice(-6)}.pdf`);
-    return res.send(pdfBuffer);
-  } catch (error) {
-    handleError(res, error, 'Erro ao gerar recibo para empresa');
-  }
-};

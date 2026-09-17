@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 import {
   getOrders, getRecentOrders, getOrderById, createOrder, updateOrderStatus,
-  deleteOrder, createPublicOrder, processPayment, getOrderReceipt, getCompanyReceipt, updateOrder
+  deleteOrder, createPublicOrder, processPayment, getOrderReceipt, updateOrder
 } from '../controllers/order.controller';
 
 const router = Router();
@@ -22,6 +22,5 @@ router.post('/:id/payment', processPayment);
 router.delete('/:id', authorize('ADMIN', 'CASHIER'), deleteOrder);
 
 router.get('/:id/receipt', getOrderReceipt);
-router.get('/:id/company-receipt', getCompanyReceipt);
 
 export default router;
