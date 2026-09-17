@@ -10,6 +10,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface LinkFormRow {
   stockItemId: string;
@@ -285,7 +286,7 @@ const ProductsPage: React.FC = () => {
 
               <div className="flex items-center justify-between mb-2">
                 <span className="text-primary-600 font-bold">
-                  R$ {product.price.toFixed(2)}
+                  {formatCurrencyBRL(product.price)}
                   {product.isByWeight ? '/kg' : ''}
                 </span>
 

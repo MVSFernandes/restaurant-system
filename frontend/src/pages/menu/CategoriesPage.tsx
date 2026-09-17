@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import type { Category } from '../../types';
 import { Plus, Pencil, Trash2, Tag, AlertTriangle, X } from 'lucide-react';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 const emptyForm = {
   name: '',
@@ -152,13 +153,13 @@ const CategoriesPage: React.FC = () => {
                     <p>
                       Preço/kg:{' '}
                       <span className="font-semibold text-gray-700">
-                        R$ {Number(category.pricePerKg || 0).toFixed(2)}
+                        {formatCurrencyBRL(category.pricePerKg)}
                       </span>
                     </p>
                     <p>
                       Self-service/kg:{' '}
                       <span className="font-semibold text-gray-700">
-                        R$ {Number(category.selfServicePricePerKg || 0).toFixed(2)}
+                        {formatCurrencyBRL(category.selfServicePricePerKg)}
                       </span>
                     </p>
                   </div>
@@ -230,7 +231,7 @@ const CategoriesPage: React.FC = () => {
                       value={form.pricePerKg}
                       onChange={(e) => setForm({ ...form, pricePerKg: e.target.value })}
                       className="input"
-                      placeholder="60.00"
+                    placeholder="0,00"
                     />
                   </div>
 
@@ -247,7 +248,7 @@ const CategoriesPage: React.FC = () => {
                         setForm({ ...form, selfServicePricePerKg: e.target.value })
                       }
                       className="input"
-                      placeholder="49.90"
+                    placeholder="0,00"
                     />
                   </div>
                 </div>

@@ -3,6 +3,7 @@ import api from '../../services/api';
 import type { CashRegisterSession, Order, RestaurantConfig } from '../../types';
 import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
 import { CalendarDays, History, Search, UserRound, ShoppingBag, RotateCcw } from 'lucide-react';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface HistorySession extends CashRegisterSession {
   totalEntries?: number;
@@ -27,12 +28,6 @@ const paymentMethodLabels: Record<string, string> = {
   ON_DELIVERY: 'Na entrega',
   ON_PICKUP: 'Na retirada',
 };
-
-const currency = (value: number) =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(Number(value || 0));
 
 const formatDateTime = (value?: string | null) => {
   if (!value) return '-';
@@ -266,25 +261,25 @@ const HistoryPage: React.FC = () => {
                   <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                     <p className="text-xs uppercase tracking-wide text-gray-500">Abertura</p>
                     <p className="mt-1 text-base font-bold text-gray-900">
-                      {currency(Number(session.openingAmount || 0))}
+                      {formatCurrencyBRL(session.openingAmount)}
                     </p>
                   </div>
                   <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                     <p className="text-xs uppercase tracking-wide text-gray-500">Entradas</p>
                     <p className="mt-1 text-base font-bold text-green-700">
-                      {currency(Number(session.totalEntries || 0))}
+                      {formatCurrencyBRL(session.totalEntries)}
                     </p>
                   </div>
                   <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                     <p className="text-xs uppercase tracking-wide text-gray-500">Sangrias</p>
                     <p className="mt-1 text-base font-bold text-red-600">
-                      {currency(Number(session.totalWithdrawals || 0))}
+                      {formatCurrencyBRL(session.totalWithdrawals)}
                     </p>
                   </div>
                   <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
                     <p className="text-xs uppercase tracking-wide text-gray-500">Fechamento</p>
                     <p className="mt-1 text-base font-bold text-primary-700">
-                      {currency(Number(session.closingAmount || 0))}
+                      {formatCurrencyBRL(session.closingAmount)}
                     </p>
                   </div>
                 </div>
@@ -295,7 +290,7 @@ const HistoryPage: React.FC = () => {
                   <strong>{session.matchedOrdersCount}</strong> pedido(s) exibido(s) neste fechamento.
                 </p>
                 <p>
-                  Saldo esperado: <strong>{currency(Number(session.expectedBalance || 0))}</strong>
+                  Saldo esperado: <strong>{formatCurrencyBRL(session.expectedBalance)}</strong>
                 </p>
               </div>
 
@@ -345,7 +340,7 @@ const HistoryPage: React.FC = () => {
 
                       <div className="rounded-xl bg-white px-4 py-3 border border-gray-200 min-w-[180px]">
                         <p className="text-xs uppercase tracking-wide text-gray-500">Total do pedido</p>
-                        <p className="mt-1 text-xl font-bold text-gray-900">{currency(order.total)}</p>
+                        <p className="mt-1 text-xl font-bold text-gray-900">{formatCurrencyBRL(order.total)}</p>
                       </div>
                     </div>
 
@@ -388,7 +383,7 @@ const HistoryPage: React.FC = () => {
                                   )}
                                 </div>
                                 <p className="text-sm font-semibold text-gray-700">
-                                  {currency(item.price)}
+                                  {formatCurrencyBRL(item.price)}
                                 </p>
                               </div>
                               
@@ -397,7 +392,7 @@ const HistoryPage: React.FC = () => {
                                   {extras.map(extra => (
                                     <div key={extra.id} className="flex justify-between items-center text-xs text-gray-600 bg-white border border-gray-100 px-2 py-1 rounded-md">
                                       <span>+ {extra.name}</span>
-                                      <span className="font-bold text-primary-600">{currency(extra.price)}</span>
+                                      <span className="font-bold text-primary-600">{formatCurrencyBRL(extra.price)}</span>
                                     </div>
                                   ))}
                                 </div>

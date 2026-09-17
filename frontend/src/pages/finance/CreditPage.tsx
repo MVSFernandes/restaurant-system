@@ -29,6 +29,7 @@ import {
   useInvoiceStatusPolling,
   type InvoicePollingState,
 } from '../../hooks/useInvoiceStatusPolling';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 type FilterMode = 'all' | 'open' | 'paid';
 
@@ -37,9 +38,6 @@ type NoticeState = {
   message: string;
   variant?: 'error' | 'info';
 };
-
-const formatMoney = (value: number) =>
-  Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const formatDate = (value?: string | null) => {
   if (!value) return '-';
@@ -99,11 +97,11 @@ const buildWhatsAppMessage = (customer: Customer) => {
   const openRows = customer.openRows ?? [];
   const debtList = openRows.length
     ? openRows
-        .map((row, index) => `${index + 1}. ${row.desc} - ${formatMoney(row.openAmount)} (${formatDate(row.date)})`)
+        .map((row, index) => `${index + 1}. ${row.desc} - ${formatCurrencyBRL(row.openAmount)} (${formatDate(row.date)})`)
         .join('\n')
-    : `1. Saldo em aberto - ${formatMoney(customer.creditUsed)}`;
+    : `1. Saldo em aberto - ${formatCurrencyBRL(customer.creditUsed)}`;
 
-  return `Olá, ${customer.name}! Tudo bem?\n\nEstamos entrando em contato para lembrar que há pendências em aberto no seu cadastro no ${restaurantName}.\n\nLançamentos em aberto:\n${debtList}\n\nTotal em aberto: ${formatMoney(customer.creditUsed)}.\n\nSe o pagamento já foi realizado, por favor desconsidere esta mensagem.\n\nAgradecemos pela atenção e ficamos à disposição.`;
+  return `Olá, ${customer.name}! Tudo bem?\n\nEstamos entrando em contato para lembrar que há pendências em aberto no seu cadastro no ${restaurantName}.\n\nLançamentos em aberto:\n${debtList}\n\nTotal em aberto: ${formatCurrencyBRL(customer.creditUsed)}.\n\nSe o pagamento já foi realizado, por favor desconsidere esta mensagem.\n\nAgradecemos pela atenção e ficamos à disposição.`;
 };
 
 const getUsageColor = (usagePercent: number) => {
@@ -543,10 +541,10 @@ const CreditPage: React.FC = () => {
           <KpiCard
             icon={<Wallet size={16} />}
             label="Total em aberto"
-            value={formatMoney(totals.used)}
+            value={formatCurrencyBRL(totals.used)}
             danger
           />
-          <KpiCard icon={<CreditCard size={16} />} label="Limite cadastrado" value={formatMoney(totals.limit)} />
+          <KpiCard icon={<CreditCard size={16} />} label="Limite cadastrado" value={formatCurrencyBRL(totals.limit)} />
         </section>
 
         <div className="mb-3.5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -645,7 +643,7 @@ const CreditPage: React.FC = () => {
           <p className="mb-4 text-sm text-[#64748b]">{selectedCustomer.name}</p>
           <div className="mb-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
             <p className="text-sm text-[#64748b]">Saldo em aberto</p>
-            <p className="text-2xl font-bold tabular-nums text-red-600">{formatMoney(selectedCustomer.creditUsed)}</p>
+            <p className="text-2xl font-bold tabular-nums text-red-600">{formatCurrencyBRL(selectedCustomer.creditUsed)}</p>
           </div>
           <Field
             label="Valor do pagamento (R$)"
@@ -692,7 +690,7 @@ const CreditPage: React.FC = () => {
           <div className="mb-4 rounded-lg border border-red-100 bg-red-50 p-4">
             <p className="text-sm font-semibold text-red-700">{customerToDelete.name}</p>
             <p className="mt-1 text-sm text-red-600">
-              Saldo em aberto: {formatMoney(customerToDelete.creditUsed)}
+              Saldo em aberto: {formatCurrencyBRL(customerToDelete.creditUsed)}
             </p>
           </div>
           <div className="flex gap-3">
@@ -874,7 +872,7 @@ const CustomerCard: React.FC<{
               <span className="inline-flex items-center gap-1.5 rounded-lg border border-[#bbf7d0] bg-[#dcfce7] px-2.5 py-1 text-[11px] font-semibold text-[#16a34a]">
                 <Check size={12} />
                 Tudo pago
-                <span className="tabular-nums text-[#15803d]">{formatMoney(paidTotal)}</span>
+                <span className="tabular-nums text-[#15803d]">{formatCurrencyBRL(paidTotal)}</span>
               </span>
             )}
           </div>
@@ -906,8 +904,8 @@ const CustomerCard: React.FC<{
       <div className="mt-[18px]">
         <div className="flex flex-wrap items-baseline gap-1.5 text-[12.5px] text-[#64748b]">
           Crédito usado
-          <strong className="font-semibold tabular-nums text-[#0f172a]">{formatMoney(customer.creditUsed)}</strong>
-          <span className="tabular-nums text-[#cbd5e1]">/ {formatMoney(customer.creditLimit)}</span>
+          <strong className="font-semibold tabular-nums text-[#0f172a]">{formatCurrencyBRL(customer.creditUsed)}</strong>
+          <span className="tabular-nums text-[#cbd5e1]">/ {formatCurrencyBRL(customer.creditLimit)}</span>
         </div>
         <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#f1f5f9]">
           <div
@@ -917,7 +915,7 @@ const CustomerCard: React.FC<{
         </div>
         <div className="mt-1.5 flex items-center justify-between text-xs">
           <span className="text-[#64748b]">
-            Disponível: <strong className="font-semibold tabular-nums text-[#16a34a]">{formatMoney(available)}</strong>
+            Disponível: <strong className="font-semibold tabular-nums text-[#16a34a]">{formatCurrencyBRL(available)}</strong>
           </span>
           <span className="tabular-nums text-[#94a3b8]">{Math.round(usagePercent)}% do limite</span>
         </div>
@@ -1063,7 +1061,7 @@ const CreditRow: React.FC<{
               <span>{formatDate(row.date)}</span>
               {row.status === 'PARTIAL' && (
                 <span>
-                  Pago: {formatMoney(row.settledAmount)} de {formatMoney(row.amount)}
+                  Pago: {formatCurrencyBRL(row.settledAmount)} de {formatCurrencyBRL(row.amount)}
                 </span>
               )}
               {row.status === 'PAID' && (
@@ -1075,7 +1073,7 @@ const CreditRow: React.FC<{
         <div className="flex flex-none items-center gap-2.5">
           <div className="text-right">
             <span className={clsx('block text-sm font-semibold tabular-nums', status.amountClass)}>
-              {formatMoney(displayAmount)}
+              {formatCurrencyBRL(displayAmount)}
             </span>
             {row.status === 'PARTIAL' && (
               <span className="block text-[11px] tabular-nums text-[#94a3b8]">restante</span>
@@ -1093,15 +1091,15 @@ const CreditRow: React.FC<{
             <div className="mt-3 grid grid-cols-1 gap-2 rounded-lg border border-[#fde68a] bg-[#fffbeb] p-3 text-[12.5px] sm:grid-cols-3">
               <div>
                 <span className="block text-[#92400e]">Total do lançamento</span>
-                <strong className="tabular-nums text-[#1e293b]">{formatMoney(row.amount)}</strong>
+                <strong className="tabular-nums text-[#1e293b]">{formatCurrencyBRL(row.amount)}</strong>
               </div>
               <div>
                 <span className="block text-[#92400e]">Já pago</span>
-                <strong className="tabular-nums text-[#16a34a]">{formatMoney(row.settledAmount)}</strong>
+                <strong className="tabular-nums text-[#16a34a]">{formatCurrencyBRL(row.settledAmount)}</strong>
               </div>
               <div>
                 <span className="block text-[#92400e]">Em aberto</span>
-                <strong className="tabular-nums text-[#b45309]">{formatMoney(row.openAmount)}</strong>
+                <strong className="tabular-nums text-[#b45309]">{formatCurrencyBRL(row.openAmount)}</strong>
               </div>
             </div>
           )}
@@ -1125,8 +1123,8 @@ const CreditRow: React.FC<{
                 >
                   <span className="min-w-0 truncate text-[#334155]">{item.productName}</span>
                   <span className="text-right tabular-nums text-[#64748b]">{item.quantity}</span>
-                  <span className="text-right tabular-nums text-[#64748b]">{formatMoney(item.unitPrice)}</span>
-                  <span className="text-right font-medium tabular-nums text-[#1e293b]">{formatMoney(item.total)}</span>
+                  <span className="text-right tabular-nums text-[#64748b]">{formatCurrencyBRL(item.unitPrice)}</span>
+                  <span className="text-right font-medium tabular-nums text-[#1e293b]">{formatCurrencyBRL(item.total)}</span>
                 </div>
               ))
             )}

@@ -15,9 +15,7 @@ import {
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import type { CashRegisterSession, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from '../../types';
-
-const currency = (value: number | string | null | undefined) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface PendingCloseOrder {
   id: string;
@@ -214,7 +212,7 @@ const CashRegisterPage: React.FC = () => {
           title="Dinheiro a mais na gaveta"
         >
           <TrendingUp size={14} />
-          Sobra: {currency(difference)}
+          Sobra: {formatCurrencyBRL(difference)}
         </div>
       );
     }
@@ -225,7 +223,7 @@ const CashRegisterPage: React.FC = () => {
         title="Dinheiro a menos na gaveta"
       >
         <AlertTriangle size={14} />
-        Quebra: {currency(Math.abs(difference))}
+        Quebra: {formatCurrencyBRL(Math.abs(difference))}
       </div>
     );
   };
@@ -276,7 +274,7 @@ const CashRegisterPage: React.FC = () => {
                       <div>
                         <p className="font-bold text-gray-900">Pedido #{order.id.slice(-6).toUpperCase()}</p>
                         <p className="mt-1 text-sm text-gray-600">
-                          {orderTypeLabels[order.type]} • {orderStatusLabels[order.orderStatus]} • {currency(order.total)}
+                          {orderTypeLabels[order.type]} • {orderStatusLabels[order.orderStatus]} • {formatCurrencyBRL(order.total)}
                         </p>
                       </div>
                       <div className="text-sm sm:text-right">
@@ -369,7 +367,7 @@ const CashRegisterPage: React.FC = () => {
                         value={openingAmount}
                         onChange={(e) => setOpeningAmount(e.target.value)}
                         className="input w-full pl-9 font-medium"
-                        placeholder="0.00"
+                        placeholder="0,00"
                       />
                     </div>
                   </div>
@@ -396,7 +394,7 @@ const CashRegisterPage: React.FC = () => {
                         <span className="text-xs font-semibold uppercase tracking-wide">Fundo</span>
                       </div>
                       <p className="text-lg font-bold text-gray-900 truncate">
-                        {currency(current.openingAmount)}
+                        {formatCurrencyBRL(current.openingAmount)}
                       </p>
                     </div>
 
@@ -406,7 +404,7 @@ const CashRegisterPage: React.FC = () => {
                         <span className="text-xs font-semibold uppercase tracking-wide">Entradas</span>
                       </div>
                       <p className="text-lg font-bold text-gray-900 truncate">
-                        {currency(totalEntries)}
+                        {formatCurrencyBRL(totalEntries)}
                       </p>
                     </div>
 
@@ -416,7 +414,7 @@ const CashRegisterPage: React.FC = () => {
                         <span className="text-xs font-semibold uppercase tracking-wide">Sangrias</span>
                       </div>
                       <p className="text-lg font-bold text-red-600 truncate">
-                        -{currency(totalWithdrawals)}
+                        -{formatCurrencyBRL(totalWithdrawals)}
                       </p>
                     </div>
 
@@ -426,7 +424,7 @@ const CashRegisterPage: React.FC = () => {
                         <span className="text-xs font-bold uppercase tracking-wide">Gaveta Exata</span>
                       </div>
                       <p className="text-xl font-bold truncate">
-                        {currency(expectedBalance)}
+                        {formatCurrencyBRL(expectedBalance)}
                       </p>
                     </div>
                   </div>
@@ -442,7 +440,7 @@ const CashRegisterPage: React.FC = () => {
                         <span className="text-sm font-semibold">PIX</span>
                       </div>
                       <p className="text-base font-bold text-teal-900">
-                        {currency(pixTotal)}
+                        {formatCurrencyBRL(pixTotal)}
                       </p>
                     </div>
 
@@ -452,7 +450,7 @@ const CashRegisterPage: React.FC = () => {
                         <span className="text-sm font-semibold">Crédito</span>
                       </div>
                       <p className="text-base font-bold text-blue-900">
-                        {currency(creditTotal)}
+                        {formatCurrencyBRL(creditTotal)}
                       </p>
                     </div>
 
@@ -462,7 +460,7 @@ const CashRegisterPage: React.FC = () => {
                         <span className="text-sm font-semibold">Débito</span>
                       </div>
                       <p className="text-base font-bold text-indigo-900">
-                        {currency(debitTotal)}
+                        {formatCurrencyBRL(debitTotal)}
                       </p>
                     </div>
                   </div>
@@ -489,7 +487,7 @@ const CashRegisterPage: React.FC = () => {
                           value={closingAmount}
                           onChange={(e) => setClosingAmount(e.target.value)}
                           className="input w-full pl-9 font-bold text-lg text-gray-900 h-12"
-                          placeholder="0.00"
+                          placeholder="0,00"
                         />
                       </div>
                     </div>
@@ -509,11 +507,11 @@ const CashRegisterPage: React.FC = () => {
                         <div className="flex gap-6">
                           <div>
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Esperado</p>
-                            <p className="text-lg font-bold text-gray-800">{currency(expectedBalance)}</p>
+                            <p className="text-lg font-bold text-gray-800">{formatCurrencyBRL(expectedBalance)}</p>
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Informado</p>
-                            <p className="text-lg font-bold text-gray-800">{currency(typedClosingAmount)}</p>
+                            <p className="text-lg font-bold text-gray-800">{formatCurrencyBRL(typedClosingAmount)}</p>
                           </div>
                         </div>
                         <div className="text-right">
@@ -560,7 +558,7 @@ const CashRegisterPage: React.FC = () => {
                 {suggestedAmount !== null && (
                   <div className="mt-3 pt-3 border-t border-blue-200/50 flex items-center justify-between">
                     <span className="text-sm text-blue-800 font-medium">Valor seguro para retirada:</span>
-                    <span className="text-lg font-black text-blue-900">{currency(suggestedAmount)}</span>
+                    <span className="text-lg font-black text-blue-900">{formatCurrencyBRL(suggestedAmount)}</span>
                   </div>
                 )}
               </div>
@@ -576,7 +574,7 @@ const CashRegisterPage: React.FC = () => {
                   value={withdrawalAmount}
                   onChange={(e) => setWithdrawalAmount(e.target.value)}
                   className="input w-full"
-                  placeholder="0.00"
+                  placeholder="0,00"
                   disabled={!current}
                 />
               </div>
@@ -627,7 +625,7 @@ const CashRegisterPage: React.FC = () => {
                           </p>
                         </div>
                         <p className="font-bold text-red-600 bg-red-100 px-2.5 py-1 rounded-md text-sm">
-                          - {currency(item.amount)}
+                          - {formatCurrencyBRL(item.amount)}
                         </p>
                       </div>
                     ))
@@ -691,20 +689,20 @@ const CashRegisterPage: React.FC = () => {
                       <div className="space-y-1.5 mb-4 text-xs font-medium text-gray-600">
                         <div className="flex justify-between">
                           <span>Fundo Inicial:</span>
-                          <span className="text-gray-900">{currency(sessionOpening)}</span>
+                          <span className="text-gray-900">{formatCurrencyBRL(sessionOpening)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Vendas (Dinheiro):</span>
-                          <span className="text-green-600">+{currency(sessionEntries)}</span>
+                          <span className="text-green-600">+{formatCurrencyBRL(sessionEntries)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Sangrias:</span>
-                          <span className="text-red-500">-{currency(sessionWithdrawals)}</span>
+                          <span className="text-red-500">-{formatCurrencyBRL(sessionWithdrawals)}</span>
                         </div>
                         
                         <div className="flex justify-between items-center bg-gray-100 p-2 rounded mt-2 text-gray-800 border border-gray-200">
                           <span className="font-bold">GAVETA ESPERADA:</span>
-                          <span className="font-black text-sm">{currency(sessionExpected)}</span>
+                          <span className="font-black text-sm">{formatCurrencyBRL(sessionExpected)}</span>
                         </div>
                       </div>
 
@@ -716,19 +714,19 @@ const CashRegisterPage: React.FC = () => {
                             {sessionPix > 0 && (
                               <div className="flex justify-between">
                                 <span>PIX:</span>
-                                <span className="font-bold text-blue-900">{currency(sessionPix)}</span>
+                                <span className="font-bold text-blue-900">{formatCurrencyBRL(sessionPix)}</span>
                               </div>
                             )}
                             {sessionCredit > 0 && (
                               <div className="flex justify-between">
                                 <span>Crédito:</span>
-                                <span className="font-bold text-blue-900">{currency(sessionCredit)}</span>
+                                <span className="font-bold text-blue-900">{formatCurrencyBRL(sessionCredit)}</span>
                               </div>
                             )}
                             {sessionDebit > 0 && (
                               <div className="flex justify-between">
                                 <span>Débito:</span>
-                                <span className="font-bold text-blue-900">{currency(sessionDebit)}</span>
+                                <span className="font-bold text-blue-900">{formatCurrencyBRL(sessionDebit)}</span>
                               </div>
                             )}
                           </div>
@@ -740,7 +738,7 @@ const CashRegisterPage: React.FC = () => {
                         <div className="border-t border-gray-100 pt-3 mt-1">
                           <div className="flex justify-between text-xs font-medium text-gray-600 mb-2">
                             <span>Gaveta Real:</span>
-                            <span className="font-bold text-gray-900">{currency(sessionClosing)}</span>
+                            <span className="font-bold text-gray-900">{formatCurrencyBRL(sessionClosing)}</span>
                           </div>
                           
                           <div className="flex justify-between items-center">

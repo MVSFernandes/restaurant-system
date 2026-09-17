@@ -33,10 +33,10 @@ import {
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
 import {
-  formatCurrencyBRL,
   ORDER_STATUS_BADGE_CLASSES,
   ORDER_STATUS_LABELS,
 } from '../../constants/orders';
+import { formatCurrencyBRL } from '../../utils/currency';
 import { useAuth } from '../../hooks/useAuth';
 import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
 
@@ -1948,7 +1948,7 @@ const OrdersPage: React.FC = () => {
                               <div className="flex min-w-[180px] flex-1 items-center gap-2">
                                 <input
                                   type="number"
-                                  placeholder="Fixo (R$)"
+                                  placeholder="R$ 0,00"
                                   title="Valor Fixo - Ignora peso ou quantidade"
                                   className="input py-1.5 text-xs w-full bg-orange-50 border-orange-200 focus:border-orange-400 placeholder:text-orange-400 text-orange-800 font-bold"
                                   value={item.manualPrice !== undefined ? item.manualPrice : ''}

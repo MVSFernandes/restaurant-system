@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { TrendingUp, TrendingDown, DollarSign, ShoppingCart } from 'lucide-react';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface ReportData {
   totalRevenue: number;
@@ -63,14 +64,14 @@ const FinanceReportsPage: React.FC = () => {
             <div className="p-2 bg-green-100 rounded-lg"><TrendingUp className="text-green-600" size={20} /></div>
             <p className="text-xs sm:text-sm text-gray-500">Faturamento</p>
           </div>
-          <p className="text-lg sm:text-2xl font-bold text-gray-900">R$ {(report?.totalRevenue || 0).toFixed(2)}</p>
+          <p className="text-lg sm:text-2xl font-bold text-gray-900">{formatCurrencyBRL(report?.totalRevenue)}</p>
         </div>
         <div className="card">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-red-100 rounded-lg"><TrendingDown className="text-red-600" size={20} /></div>
             <p className="text-xs sm:text-sm text-gray-500">Despesas</p>
           </div>
-          <p className="text-lg sm:text-2xl font-bold text-gray-900">R$ {(report?.totalExpenses || 0).toFixed(2)}</p>
+          <p className="text-lg sm:text-2xl font-bold text-gray-900">{formatCurrencyBRL(report?.totalExpenses)}</p>
         </div>
         <div className="card">
           <div className="flex items-center gap-3 mb-2">
@@ -78,7 +79,7 @@ const FinanceReportsPage: React.FC = () => {
             <p className="text-xs sm:text-sm text-gray-500">Lucro Liquido</p>
           </div>
           <p className={`text-lg sm:text-2xl font-bold ${(report?.netProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            R$ {(report?.netProfit || 0).toFixed(2)}
+            {formatCurrencyBRL(report?.netProfit)}
           </p>
         </div>
         <div className="card">
@@ -105,7 +106,7 @@ const FinanceReportsPage: React.FC = () => {
                     <span className="font-medium text-gray-900">{product.name}</span>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-gray-900">R$ {product.revenue.toFixed(2)}</p>
+                    <p className="font-bold text-gray-900">{formatCurrencyBRL(product.revenue)}</p>
                     <p className="text-xs text-gray-500">{product.quantity} vendidos</p>
                   </div>
                 </div>
@@ -128,7 +129,7 @@ const FinanceReportsPage: React.FC = () => {
                     <span className="font-medium text-gray-900">{customer.name}</span>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-gray-900">R$ {customer.totalSpent.toFixed(2)}</p>
+                    <p className="font-bold text-gray-900">{formatCurrencyBRL(customer.totalSpent)}</p>
                     <p className="text-xs text-gray-500">{customer.orderCount} pedidos</p>
                   </div>
                 </div>

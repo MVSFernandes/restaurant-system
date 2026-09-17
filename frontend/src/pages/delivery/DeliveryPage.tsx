@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import type { Order } from '../../types';
 import { MapPin, Phone, FileText, CheckCircle } from 'lucide-react';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 const DeliveryPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -124,7 +125,7 @@ const DeliveryPage: React.FC = () => {
                         {item.quantity > 1 ? `${item.quantity}x ` : ''}{item.product?.name}
                         {item.weight ? ` (${(item.weight/1000).toFixed(3)}kg)` : ''}
                       </span>
-                      <span className="font-medium">R$ {item.price.toFixed(2)}</span>
+                      <span className="font-medium">{formatCurrencyBRL(item.price)}</span>
                     </div>
                   ))}
                 </div>
@@ -133,7 +134,7 @@ const DeliveryPage: React.FC = () => {
               {/* Total */}
               <div className="flex justify-between items-center mb-4 p-3 bg-primary-50 rounded-lg border border-primary-200">
                 <span className="font-bold text-gray-900">Total:</span>
-                <span className="text-xl font-bold text-primary-600">R$ {order.total.toFixed(2)}</span>
+                <span className="text-xl font-bold text-primary-600">{formatCurrencyBRL(order.total)}</span>
               </div>
 
               {/* Observações */}

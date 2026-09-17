@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Minus, Plus, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import type { MarmitaMenuItem } from '../../types';
 import { clsx } from 'clsx';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface SelectedMarmitaItem extends MarmitaMenuItem {
   quantity: number;
@@ -180,7 +181,7 @@ export const MarmitaBuilderModal: React.FC<MarmitaBuilderModalProps> = ({
               <div>
                 <p className="text-sm font-medium text-gray-900">
                   {option.name}
-                  {option.price > 0 && <span className="text-primary-600 ml-2">(+ R$ {option.price.toFixed(2)})</span>}
+                  {option.price > 0 && <span className="text-primary-600 ml-2">(+ {formatCurrencyBRL(option.price)})</span>}
                 </p>
               </div>
 
@@ -314,7 +315,7 @@ export const MarmitaBuilderModal: React.FC<MarmitaBuilderModalProps> = ({
                   >
                     <div>
                       <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                      <p className="text-xs text-primary-600">R$ {item.price.toFixed(2)}</p>
+                      <p className="text-xs text-primary-600">{formatCurrencyBRL(item.price)}</p>
                     </div>
 
                     <button
@@ -342,15 +343,15 @@ export const MarmitaBuilderModal: React.FC<MarmitaBuilderModalProps> = ({
           <div className="bg-primary-50 border border-primary-200 rounded-2xl p-4 mb-5">
             <div className="flex justify-between text-sm mb-1">
               <span>Preço base</span>
-              <span>R$ {basePrice.toFixed(2)}</span>
+              <span>{formatCurrencyBRL(basePrice)}</span>
             </div>
             <div className="flex justify-between text-sm mb-1">
               <span>Extras</span>
-              <span>R$ {extraTotal.toFixed(2)}</span>
+              <span>{formatCurrencyBRL(extraTotal)}</span>
             </div>
             <div className="flex justify-between text-lg font-bold text-primary-700 mt-2">
               <span>Total</span>
-              <span>R$ {finalTotal.toFixed(2)}</span>
+              <span>{formatCurrencyBRL(finalTotal)}</span>
             </div>
           </div>
 

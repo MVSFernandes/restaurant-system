@@ -6,11 +6,11 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import type { OrderStatus, OrderType } from '../types';
 import {
-  formatCurrencyBRL,
   getOrderStatusBadgeClass,
   getOrderStatusLabel,
   getOrderTypeLabel,
 } from '../constants/orders';
+import { formatCurrencyBRL } from '../utils/currency';
 
 interface RecentOrder {
   id: string;
