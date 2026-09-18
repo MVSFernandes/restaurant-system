@@ -3,8 +3,98 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-bg-canvas: 241 245 249;
+    --color-bg-surface: 255 255 255;
+    --color-bg-surface-sunken: 248 250 252;
+    --color-bg-surface-hover: 241 245 249;
+    --color-border-default: 226 232 240;
+    --color-border-strong: 203 213 225;
+    --color-text-default: 15 23 42;
+    --color-text-muted: 71 85 105;
+    --color-text-subtle: 100 116 139;
+    --color-text-inverse: 255 255 255;
+    --color-primary: 234 88 12;
+    --color-primary-hover: 194 65 12;
+    --color-primary-subtle: 255 247 237;
+    --color-primary-fg: 255 255 255;
+    --color-danger: 220 38 38;
+    --color-danger-subtle: 254 242 242;
+    --color-danger-fg: 255 255 255;
+    --color-success: 5 150 105;
+    --color-success-subtle: 236 253 245;
+    --color-warning: 245 158 11;
+    --color-warning-subtle: 255 251 235;
+    --color-info: 37 99 235;
+    --color-info-subtle: 239 246 255;
+    --color-focus-ring: 249 115 22;
+    --color-sidebar-bg: 15 23 42;
+    --color-sidebar-fg: 203 213 225;
+    --color-sidebar-fg-active: 255 255 255;
+    --color-sidebar-item-active: var(--color-primary);
+    --color-sidebar-item-hover: 30 41 59;
+    --color-sidebar-border: 30 41 59;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.06);
+    --shadow-md: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.08);
+    --space-page: 24px;
+    --space-section: 24px;
+    --space-card: 20px;
+  }
+
+  .dark {
+    --color-bg-canvas: 2 6 23;
+    --color-bg-surface: 15 23 42;
+    --color-bg-surface-sunken: 30 41 59;
+    --color-bg-surface-hover: 30 41 59;
+    --color-border-default: 30 41 59;
+    --color-border-strong: 51 65 85;
+    --color-text-default: 241 245 249;
+    --color-text-muted: 148 163 184;
+    --color-text-subtle: 100 116 139;
+    --color-text-inverse: 15 23 42;
+    --color-primary: 249 115 22;
+    --color-primary-hover: 234 88 12;
+    --color-primary-subtle: 67 20 7;
+    --color-primary-fg: 255 255 255;
+    --color-danger: 239 68 68;
+    --color-danger-subtle: 69 10 10;
+    --color-danger-fg: 255 255 255;
+    --color-success: 16 185 129;
+    --color-success-subtle: 2 44 34;
+    --color-warning: 251 191 36;
+    --color-warning-subtle: 69 26 3;
+    --color-info: 59 130 246;
+    --color-info-subtle: 23 37 84;
+    --color-focus-ring: 251 146 60;
+    --color-sidebar-bg: 2 6 23;
+    --color-sidebar-fg: 203 213 225;
+    --color-sidebar-fg-active: 255 255 255;
+    --color-sidebar-item-active: var(--color-primary);
+    --color-sidebar-item-hover: 15 23 42;
+    --color-sidebar-border: 30 41 59;
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.12);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.16), 0 1px 2px -1px rgb(0 0 0 / 0.12);
+    --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.16);
+  }
+
   body {
-    @apply bg-gray-100 text-gray-900 font-sans;
+    @apply bg-canvas text-default font-sans;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--color-focus-ring));
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
