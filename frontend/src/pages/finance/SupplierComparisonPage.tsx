@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import type { StockItem, Supplier } from '../../types';
 import { TrendingDown, Plus } from 'lucide-react';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface SupplierPrice {
   supplierId: string;
@@ -81,7 +82,7 @@ const SupplierComparisonPage: React.FC = () => {
                 <div key={sp.supplierId} className={`p-3 rounded-xl border-2 ${sp.isCheapest ? 'border-green-400 bg-green-50' : 'border-gray-200'}`}>
                   <p className="text-sm font-medium text-gray-700">{sp.supplierName}</p>
                   <p className={`text-xl font-bold mt-1 ${sp.isCheapest ? 'text-green-600' : 'text-gray-900'}`}>
-                    R$ {sp.price.toFixed(2)}
+                    {formatCurrencyBRL(sp.price)}
                   </p>
                   {sp.isCheapest && (
                     <span className="text-xs text-green-600 font-medium flex items-center gap-1 mt-1">

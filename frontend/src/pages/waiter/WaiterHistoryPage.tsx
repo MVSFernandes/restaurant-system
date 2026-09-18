@@ -4,6 +4,7 @@ import type { Order, Category } from '../../types';
 import { Edit, XCircle } from 'lucide-react';
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 const statusLabels = ORDER_STATUS_LABELS;
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
@@ -91,13 +92,13 @@ const WaiterHistoryPage: React.FC = () => {
               {order.items.map((item) => (
                 <div key={item.id} className="flex justify-between text-sm text-gray-600">
                   <span>{item.quantity}x {item.product?.name}</span>
-                  <span>R$ {(item.price * item.quantity).toFixed(2)}</span>
+                  <span>{formatCurrencyBRL(item.price * item.quantity)}</span>
                 </div>
               ))}
             </div>
             <div className="border-t mt-2 pt-2 flex justify-between font-bold">
               <span>Total</span>
-              <span>R$ {order.total.toFixed(2)}</span>
+              <span>{formatCurrencyBRL(order.total)}</span>
             </div>
           </div>
         ))}

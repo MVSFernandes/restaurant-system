@@ -5,6 +5,7 @@ import type { Category, Product, RestaurantConfig } from '../../types';
 import { ShoppingCart, Plus, Minus, Trash2, X, UtensilsCrossed, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useMenuViewers } from '../../hooks/useMenuViewers';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface CartItem { product: Product; quantity: number; }
 
@@ -199,7 +200,7 @@ const PublicMenuPage: React.FC = () => {
                       <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
                     </div>
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-primary-600 font-bold">R$ {product.price.toFixed(2)}{product.isByWeight ? '/kg' : ''}</span>
+                      <span className="text-primary-600 font-bold">{formatCurrencyBRL(product.price)}{product.isByWeight ? '/kg' : ''}</span>
                       {!productAvailable(product) ? (
                         <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">Sem estoque</span>
                       ) : cartItem ? (
@@ -236,7 +237,7 @@ const PublicMenuPage: React.FC = () => {
                 <div key={item.product.id} className="flex items-center gap-3">
                   <div className="flex-1">
                     <p className="font-medium">{item.product.name}</p>
-                    <p className="text-sm text-gray-500">R$ {(item.product.price * item.quantity).toFixed(2)}</p>
+                    <p className="text-sm text-gray-500">{formatCurrencyBRL(item.product.price * item.quantity)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={() => removeFromCart(item.product.id)} className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center"><Minus size={14} /></button>
@@ -281,7 +282,7 @@ const PublicMenuPage: React.FC = () => {
               <div className="p-4 border-t">
                 <div className="flex justify-between font-bold text-xl mb-4">
                   <span>Total</span>
-                  <span>R$ {cartTotal.toFixed(2)}</span>
+                  <span>{formatCurrencyBRL(cartTotal)}</span>
                 </div>
                 {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
                 <button onClick={handleCheckout} disabled={!customerName || checkoutSubmitting} className="btn-primary w-full py-4 text-lg">

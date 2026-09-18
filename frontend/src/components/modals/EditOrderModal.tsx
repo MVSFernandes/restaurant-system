@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../services/api';
 import type { Order, Product, Category, RestaurantConfig } from '../../types';
 import { X, Plus, Minus, Tag, Trash2, DollarSign, Package } from 'lucide-react';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface EditOrderModalProps {
   order: Order;
@@ -336,7 +337,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
                     }`}
                   >
                     <span className="text-sm font-semibold">Urbana</span>
-                    <span className="font-bold">R$ {Number(config?.urbanDeliveryFee || 1).toFixed(2)}</span>
+                    <span className="font-bold">{formatCurrencyBRL(config?.urbanDeliveryFee || 1)}</span>
                   </button>
 
                   <button
@@ -346,7 +347,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
                     }`}
                   >
                     <span className="text-sm font-semibold">Rural</span>
-                    <span className="font-bold">R$ {Number(config?.ruralDeliveryFee || 3).toFixed(2)}</span>
+                    <span className="font-bold">{formatCurrencyBRL(config?.ruralDeliveryFee || 3)}</span>
                   </button>
                 </div>
 
@@ -401,8 +402,8 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
                     </div>
                     <p className="text-primary-600 font-bold mt-3 text-sm bg-primary-50 w-fit px-2 py-0.5 rounded-md">
                       {product.isByWeight && category?.isMealCategory 
-                        ? `R$ ${Number(category.pricePerKg || product.price).toFixed(2)}/kg` 
-                        : `R$ ${product.price.toFixed(2)}${product.isByWeight ? '/kg' : ''}`
+                        ? `${formatCurrencyBRL(category.pricePerKg || product.price)}/kg`
+                        : `${formatCurrencyBRL(product.price)}${product.isByWeight ? '/kg' : ''}`
                       }
                     </p>
                   </button>
@@ -434,14 +435,14 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
                         <div className="flex-1 pr-4">
                           <p className="font-bold text-gray-900 text-base">{item.product.name}</p>
                           <p className="text-xs text-gray-500 mt-0.5">
-                            Base: <span className="font-medium text-gray-700">R$ {item.baseUnitPrice.toFixed(2)}</span>
+                            Base: <span className="font-medium text-gray-700">{formatCurrencyBRL(item.baseUnitPrice)}</span>
                             {item.product.isByWeight && <span>/kg</span>}
                           </p>
                         </div>
                         <div className="flex items-center gap-4 shrink-0">
                           <div className="text-right">
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block leading-none mb-1">Total Item</span>
-                            <span className="text-lg font-black text-primary-600 leading-none">R$ {getItemTotalWithExtras(item).toFixed(2)}</span>
+                            <span className="text-lg font-black text-primary-600 leading-none">{formatCurrencyBRL(getItemTotalWithExtras(item))}</span>
                           </div>
                           <div className="w-px h-8 bg-gray-200"></div>
                           <button 
@@ -538,7 +539,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
                                 <div key={extra.id} className="flex justify-between items-center bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
                                   <span className="text-xs font-semibold text-gray-700 truncate mr-2">+ {extra.name}</span>
                                   <div className="flex items-center gap-3 shrink-0">
-                                    <span className="text-xs font-bold text-primary-600">R$ {extra.price.toFixed(2)}</span>
+                                    <span className="text-xs font-bold text-primary-600">{formatCurrencyBRL(extra.price)}</span>
                                     <button onClick={() => handleRemoveExtra(index, extra.id)} className="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded">
                                       <X size={14} />
                                     </button>
@@ -559,7 +560,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
                             <input 
                               type="text" 
                               inputMode="decimal" 
-                              placeholder="R$" 
+                              placeholder="R$ 0,00"
                               className="input py-2 px-3 text-xs w-20 text-center h-10 font-medium" 
                               value={extraForms[index]?.price || ''} 
                               onChange={(e) => {
@@ -587,8 +588,8 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
           <div>
             <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Total do Pedido</span>
             <div className="flex items-center gap-3">
-              <span className="text-3xl font-black text-gray-900 leading-none">R$ {cartTotal.toFixed(2)}</span>
-              {currentDeliveryFee > 0 && <span className="text-xs text-primary-600 font-bold bg-primary-50 px-2 py-1 rounded-md border border-primary-100">(+ R$ {currentDeliveryFee.toFixed(2)} taxa)</span>}
+              <span className="text-3xl font-black text-gray-900 leading-none">{formatCurrencyBRL(cartTotal)}</span>
+              {currentDeliveryFee > 0 && <span className="text-xs text-primary-600 font-bold bg-primary-50 px-2 py-1 rounded-md border border-primary-100">(+ {formatCurrencyBRL(currentDeliveryFee)} taxa)</span>}
             </div>
           </div>
           <div className="flex gap-3 w-full sm:w-auto">

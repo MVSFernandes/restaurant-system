@@ -7,6 +7,7 @@ import { Plus, Minus, Trash2, Send, Edit, XCircle, Loader2 } from 'lucide-react'
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 interface CartItem {
   product: Product;
@@ -397,12 +398,12 @@ const showToast = (type: 'success' | 'error', message: string) => {
                       {order.items.map((item) => (
                         <div key={item.id} className="flex justify-between gap-3 text-sm py-1 border-b last:border-0">
                           <span className="min-w-0">{item.product?.isByWeight ? `${Number(item.weight || 0).toFixed(0)}g` : `${item.quantity}x`} {item.product?.name}</span>
-                          <span className="text-gray-500 shrink-0">R$ {item.price.toFixed(2)}</span>
+                          <span className="text-gray-500 shrink-0">{formatCurrencyBRL(item.price)}</span>
                         </div>
                       ))}
                       <div className="flex justify-between font-bold mt-2 pt-2">
                         <span>Total</span>
-                        <span>R$ {order.total.toFixed(2)}</span>
+                        <span>{formatCurrencyBRL(order.total)}</span>
                       </div>
                     </div>
                   ))
@@ -451,7 +452,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
                       className="text-left p-3 border rounded-xl enabled:hover:border-primary-400 enabled:hover:bg-primary-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                       <p className="font-medium">{product.name}</p>
                       {!productAvailable(product) && <span className="text-xs font-semibold text-red-700">Sem estoque</span>}
-                      <p className="text-primary-600 font-bold mt-1">{product.isByWeight && getCategoryForProduct(product)?.isMealCategory ? `Peso R$ ${Number(getCategoryForProduct(product)?.pricePerKg || product.price).toFixed(2)}/kg` : `R$ ${product.price.toFixed(2)}${product.isByWeight ? '/kg' : ''}`}</p>
+                      <p className="text-primary-600 font-bold mt-1">{product.isByWeight && getCategoryForProduct(product)?.isMealCategory ? `Peso ${formatCurrencyBRL(getCategoryForProduct(product)?.pricePerKg || product.price)}/kg` : `${formatCurrencyBRL(product.price)}${product.isByWeight ? '/kg' : ''}`}</p>
                     </button>
                   ))}
                 </div>
@@ -465,7 +466,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">{item.product.name}</p>
                           <p className="text-xs text-gray-500">
-                            {item.product.isByWeight ? `R$ ${getItemUnitPrice(item).toFixed(2)}/kg` : `R$ ${getItemTotal(item).toFixed(2)}`}
+                            {item.product.isByWeight ? `${formatCurrencyBRL(getItemUnitPrice(item))}/kg` : formatCurrencyBRL(getItemTotal(item))}
                           </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -511,7 +512,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
                               updateCartItem(index, { weight: val });
                             }}
                           />
-                          <span className="text-xs font-bold text-primary-600 whitespace-nowrap">R$ {getItemTotal(item).toFixed(2)}</span>
+                          <span className="text-xs font-bold text-primary-600 whitespace-nowrap">{formatCurrencyBRL(getItemTotal(item))}</span>
                         </div>
                         </div>
                       )}
@@ -526,7 +527,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
                 <div className="p-4 border-t bg-white">
                   <div className="flex justify-between font-bold text-lg mb-3">
                     <span>Total</span>
-                    <span>R$ {cartTotal.toFixed(2)}</span>
+                    <span>{formatCurrencyBRL(cartTotal)}</span>
                   </div>
                   {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
                   <button onClick={handleSendToKitchen} disabled={cart.length === 0 || saving} className="btn-primary w-full py-3 flex items-center justify-center gap-2">

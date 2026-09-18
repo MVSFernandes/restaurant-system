@@ -15,6 +15,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 const statusLabels = ORDER_STATUS_LABELS;
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
@@ -46,9 +47,6 @@ interface ToastState {
   type: 'success' | 'error';
   message: string;
 }
-
-const currency = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
 const roleLabel = (role: Role) => roleOptions.find((item) => item.value === role)?.label || role;
 
@@ -441,7 +439,7 @@ const WaitersManagementPage: React.FC = () => {
                       <p className="text-2xl font-bold text-gray-900">{info.count}</p>
                       <p className="text-xs text-gray-500">pedidos</p>
                     </div>
-                    <p className="text-sm font-semibold text-primary-600">{currency(info.total)}</p>
+                    <p className="text-sm font-semibold text-primary-600">{formatCurrencyBRL(info.total)}</p>
                   </div>
                 </div>
               ))}
@@ -485,7 +483,7 @@ const WaitersManagementPage: React.FC = () => {
                       <span className={`badge ${statusColors[order.status]}`}>{statusLabels[order.status]}</span>
                       <div className="rounded-xl border border-primary-100 bg-primary-50 px-4 py-3 text-left md:text-right min-w-[130px]">
                         <p className="text-xs uppercase tracking-wide text-gray-500">Total</p>
-                        <p className="text-xl font-bold text-gray-900">{currency(order.total)}</p>
+                        <p className="text-xl font-bold text-gray-900">{formatCurrencyBRL(order.total)}</p>
                       </div>
                     </div>
                   </div>
@@ -499,7 +497,7 @@ const WaitersManagementPage: React.FC = () => {
                             <p className="font-medium text-gray-900">{item.quantity}x {item.product?.name}</p>
                             {item.notes && <p className="text-gray-500 mt-1">{item.notes}</p>}
                           </div>
-                          <span className="font-semibold text-gray-700 whitespace-nowrap">{currency(item.price)}</span>
+                          <span className="font-semibold text-gray-700 whitespace-nowrap">{formatCurrencyBRL(item.price)}</span>
                         </div>
                       ))}
                     </div>

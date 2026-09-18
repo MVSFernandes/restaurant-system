@@ -48,9 +48,3 @@ export const getOrderTypeLabel = (order: OrderTypeLabelInput) => {
 
   return order.type;
 };
-
-export const formatCurrencyBRL = (value: number | string | null | undefined) =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(Number(value || 0));

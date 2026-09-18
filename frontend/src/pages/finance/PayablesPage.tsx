@@ -14,6 +14,7 @@ import {
   Trash2,
   Filter,
 } from 'lucide-react';
+import { formatCurrencyBRL } from '../../utils/currency';
 
 type FilterStatus = 'ALL' | 'PENDING' | 'PAID' | 'OVERDUE';
 
@@ -58,8 +59,6 @@ const PayablesPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
-
-  const formatCurrency = (value: number) => `R$ ${Number(value || 0).toFixed(2)}`;
 
   const normalizeText = (value: string) =>
     value
@@ -231,7 +230,7 @@ const PayablesPage: React.FC = () => {
           </div>
           <p className="text-sm text-gray-500">Total em aberto</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">
-            {formatCurrency(totalPending)}
+            {formatCurrencyBRL(totalPending)}
           </p>
           <p className="text-xs text-gray-400 mt-2">{pending.length} conta(s)</p>
         </div>
@@ -247,7 +246,7 @@ const PayablesPage: React.FC = () => {
           </div>
           <p className="text-sm text-gray-500">Precisam de atenção</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">
-            {formatCurrency(totalOverdue)}
+            {formatCurrencyBRL(totalOverdue)}
           </p>
           <p className="text-xs text-gray-400 mt-2">{overdue.length} conta(s)</p>
         </div>
@@ -263,7 +262,7 @@ const PayablesPage: React.FC = () => {
           </div>
           <p className="text-sm text-gray-500">Total já quitado</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">
-            {formatCurrency(totalPaid)}
+            {formatCurrencyBRL(totalPaid)}
           </p>
           <p className="text-xs text-gray-400 mt-2">{paid.length} conta(s)</p>
         </div>
@@ -471,7 +470,7 @@ const PayablesPage: React.FC = () => {
 
                     <td className="px-5 py-4 text-right">
                       <span className="font-bold text-gray-900">
-                        {formatCurrency(p.amount)}
+                        {formatCurrencyBRL(p.amount)}
                       </span>
                     </td>
 
@@ -564,7 +563,7 @@ const PayablesPage: React.FC = () => {
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     className="input"
-                    placeholder="0.00"
+                    placeholder="0,00"
                   />
                 </div>
 
