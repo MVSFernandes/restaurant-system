@@ -5,6 +5,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute';
 // Lazy loading das páginas
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const DesignSystemPage = lazy(() => import('./pages/DesignSystemPage'));
 
 // PDV
 const TablesPage = lazy(() => import('./pages/pdv/TablesPage'));
@@ -55,6 +56,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/design-system" element={<DesignSystemPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'CASHIER']} />}>
