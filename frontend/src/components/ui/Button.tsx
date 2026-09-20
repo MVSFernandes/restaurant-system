@@ -33,6 +33,12 @@ const sizeClasses: Record<ButtonSize, string> = {
   lg: 'h-12 rounded-token-md px-5 text-body-lg',
 };
 
+const iconOnlySizeClasses: Record<ButtonSize, string> = {
+  sm: 'w-8 px-0 [&>svg]:h-4 [&>svg]:w-4',
+  md: 'w-10 px-0 [&>svg]:h-5 [&>svg]:w-5',
+  lg: 'w-12 px-0 [&>svg]:h-6 [&>svg]:w-6',
+};
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     variant = 'primary',
@@ -68,11 +74,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         sizeClasses[size],
         variant === 'danger' ? dangerClass : variantClasses[variant],
         fullWidth && 'w-full',
-        iconOnly && {
-          'w-8 px-0': size === 'sm',
-          'w-10 px-0': size === 'md',
-          'w-12 px-0': size === 'lg',
-        },
+        iconOnly && iconOnlySizeClasses[size],
         className
       )}
       {...props}

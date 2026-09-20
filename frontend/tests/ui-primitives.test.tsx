@@ -34,6 +34,13 @@ describe('Button', () => {
 
     rerender(<Button iconOnly aria-label="Ícone por propriedade" leftIcon={<span data-testid="left-icon">+</span>} />);
     expect(screen.getByRole('button', { name: 'Ícone por propriedade' }).contains(screen.getByTestId('left-icon'))).toBe(true);
+
+    rerender(<Button iconOnly size="sm" aria-label="Pequeno"><svg /></Button>);
+    expect(screen.getByRole('button', { name: 'Pequeno' }).className).toContain('[&>svg]:h-4');
+    rerender(<Button iconOnly size="md" aria-label="Médio"><svg /></Button>);
+    expect(screen.getByRole('button', { name: 'Médio' }).className).toContain('[&>svg]:h-5');
+    rerender(<Button iconOnly size="lg" aria-label="Grande"><svg /></Button>);
+    expect(screen.getByRole('button', { name: 'Grande' }).className).toContain('[&>svg]:h-6');
   });
 });
 
@@ -55,6 +62,7 @@ describe('Modal', () => {
 
     const close = screen.getByRole('button', { name: 'Fechar modal' });
     const save = screen.getByRole('button', { name: 'Salvar' });
+    expect(save.parentElement?.className).toContain('border-t');
     save.focus();
     fireEvent.keyDown(document, { key: 'Tab' });
     expect(document.activeElement).toBe(close);
@@ -81,6 +89,7 @@ describe('ConfirmDialog', () => {
     const dialog = screen.getByRole('dialog');
     const action = screen.getByRole('button', { name: 'Sim, excluir' });
     expect(action.className).toContain('bg-danger');
+    expect(action.parentElement?.className).not.toContain('border-t');
     expect(dialog.querySelector('.p-card')).toBeNull();
     fireEvent.click(action);
     await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));

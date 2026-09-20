@@ -116,7 +116,7 @@ export const ModalHeader = forwardRef<HTMLDivElement, ModalHeaderProps>(function
   ref
 ) {
   const context = useContext(ModalContext);
-  return <div ref={ref} className={clsx('flex items-start justify-between gap-4 border-b border-default px-card py-4', className)} {...props}><div className="min-w-0">{children}</div>{showCloseButton && context && <Button variant="ghost" size="sm" iconOnly aria-label="Fechar modal" onClick={context.onClose}><X aria-hidden="true" size={18} /></Button>}</div>;
+  return <div ref={ref} className={clsx('flex items-start justify-between gap-4 border-b border-default px-card py-4', className)} {...props}><div className="min-w-0">{children}</div>{showCloseButton && context && <Button variant="ghost" size="sm" iconOnly aria-label="Fechar modal" onClick={context.onClose}><X aria-hidden="true" /></Button>}</div>;
 });
 
 export const ModalTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(function ModalTitle(
@@ -142,9 +142,10 @@ export const ModalContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEle
   return <div ref={ref} className={clsx('p-card', className)} {...props} />;
 });
 
-export const ModalFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(function ModalFooter(
-  { className, ...props },
+export type ModalFooterProps = HTMLAttributes<HTMLDivElement> & { showDivider?: boolean };
+export const ModalFooter = forwardRef<HTMLDivElement, ModalFooterProps>(function ModalFooter(
+  { showDivider = true, className, ...props },
   ref
 ) {
-  return <div ref={ref} className={clsx('flex flex-col-reverse gap-3 border-t border-default px-card py-4 sm:flex-row sm:justify-end', className)} {...props} />;
+  return <div ref={ref} className={clsx('flex flex-col-reverse gap-3 px-card py-4 sm:flex-row sm:justify-end', showDivider && 'border-t border-default', className)} {...props} />;
 });

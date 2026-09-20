@@ -33,7 +33,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, description, co
         <div><ModalTitle>{title}</ModalTitle><ModalDescription>{description}</ModalDescription></div>
       </div>
     </ModalHeader>
-    <ModalFooter>
+    <ModalFooter showDivider={false}>
       <Button variant="secondary" onClick={onClose} disabled={loading}>{cancelLabel}</Button>
       <Button variant={variant === 'danger' ? 'danger' : 'primary'} solid={variant === 'danger'} onClick={() => void confirm()} loading={loading}>{confirmLabel}</Button>
     </ModalFooter>
