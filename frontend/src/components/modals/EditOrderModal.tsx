@@ -3,6 +3,7 @@ import api from '../../services/api';
 import type { Order, Product, Category, RestaurantConfig } from '../../types';
 import { X, Plus, Minus, Tag, Trash2, DollarSign, Package } from 'lucide-react';
 import { formatCurrencyBRL } from '../../utils/currency';
+import { DeliveryIcon, PickupIcon, TableIcon } from '../ui/icons';
 
 interface EditOrderModalProps {
   order: Order;
@@ -294,7 +295,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
               Editar Pedido #{order.id.slice(-6).toUpperCase()}
             </h2>
             <p className="text-primary-100 mt-0.5 text-sm">
-              {order.type === 'DINE_IN' ? '🍽️ Consumo na Mesa' : order.type === 'TAKE_AWAY' ? '📦 Retirada no Balcão' : '🚗 Entrega Delivery'}
+              {order.type === 'DINE_IN' ? <><TableIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Consumo na Mesa</> : order.type === 'TAKE_AWAY' ? <><PickupIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Retirada no Balcão</> : <><DeliveryIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Entrega Delivery</>}
             </p>
           </div>
           <button onClick={onClose} className="p-2 bg-black/10 hover:bg-black/20 rounded-lg transition-colors text-white">

@@ -1,16 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import api from '../../services/api';
 import type { Product, Category, StockItem, ProductStockLink } from '../../types';
 import {
   Plus,
   Pencil,
   Trash2,
-  Package,
-  Link2,
-  X,
-  AlertTriangle,
 } from 'lucide-react';
 import { formatCurrencyBRL } from '../../utils/currency';
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  ConfirmDialog,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  PageHeader,
+  Select,
+  SkeletonCard,
+  Textarea,
+  useToast,
+} from '../../components/ui';
+import { ProductIcon, StockLinkIcon, WarningIcon } from '../../components/ui/icons';
 
 interface LinkFormRow {
   stockItemId: string;
@@ -18,6 +36,7 @@ interface LinkFormRow {
 }
 
 const ProductsPage: React.FC = () => {
+  const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -43,7 +62,7 @@ const ProductsPage: React.FC = () => {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [productsRes, categoriesRes, stockRes] = await Promise.all([
         api.get('/products'),
@@ -56,14 +75,15 @@ const ProductsPage: React.FC = () => {
       setStockItems(stockRes.data);
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao carregar produtos', description: 'Não foi possível atualizar a listagem.', variant: 'error' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    void fetchData();
+  }, [fetchData]);
 
   const handleOpenModal = (product?: Product) => {
     if (product) {
@@ -106,10 +126,12 @@ const ProductsPage: React.FC = () => {
         await api.post('/products', payload);
       }
 
+      toast({ title: editingProduct ? 'Produto atualizado' : 'Produto criado', variant: 'success' });
       setShowModal(false);
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao salvar produto', description: 'Revise os dados e tente novamente.', variant: 'error' });
     }
   };
 
@@ -124,11 +146,13 @@ const ProductsPage: React.FC = () => {
     try {
       setDeleting(true);
       await api.delete(`/products/${productToDelete.id}`);
+      toast({ title: 'Produto excluído', variant: 'success' });
       setDeleteModalOpen(false);
       setProductToDelete(null);
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao excluir produto', description: 'Tente novamente.', variant: 'error' });
     } finally {
       setDeleting(false);
     }
@@ -162,6 +186,7 @@ const ProductsPage: React.FC = () => {
       setShowLinkModal(true);
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao carregar vínculos', description: 'Você ainda pode definir novos vínculos.', variant: 'error' });
       setLinkingProduct(product);
       setLinkRows([{ stockItemId: '', quantity: '1' }]);
       setShowLinkModal(true);
@@ -203,15 +228,24 @@ const ProductsPage: React.FC = () => {
         links: cleanedLinks,
       });
 
+      toast({ title: 'Vínculos de estoque atualizados', variant: 'success' });
       setShowLinkModal(false);
       setLinkingProduct(null);
       setLinkRows([]);
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao salvar vínculos', description: 'Tente novamente.', variant: 'error' });
     } finally {
       setSavingLinks(false);
     }
+  };
+
+  const handleCloseLinkModal = () => {
+    if (savingLinks) return;
+    setShowLinkModal(false);
+    setLinkingProduct(null);
+    setLinkRows([]);
   };
 
   const getStockLinkLabel = (product: Product) => {
@@ -219,391 +253,180 @@ const ProductsPage: React.FC = () => {
 
     if (totalLinks > 0) {
       return (
-        <p className="text-xs mt-1 font-medium text-green-600">
-          🔗 {totalLinks} vínculo{totalLinks > 1 ? 's' : ''} com estoque
-        </p>
+        <Badge variant="success" icon={<StockLinkIcon aria-hidden="true" size={14} />}>
+          {totalLinks} vínculo{totalLinks > 1 ? 's' : ''} com estoque
+        </Badge>
       );
     }
 
     return (
-      <p className="text-xs mt-1 font-medium text-amber-600">
-        ⚠️ Sem vínculo de estoque
-      </p>
+      <Badge variant="warning" icon={<WarningIcon aria-hidden="true" size={14} />}>
+        Sem vínculo de estoque
+      </Badge>
     );
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+      <div>
+        <PageHeader title="Produtos" description="Gerencie os produtos do cardápio" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" aria-label="Carregando produtos">
+          {Array.from({ length: 4 }, (_, index) => <SkeletonCard key={index} />)}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Produtos</h1>
-          <p className="text-gray-500">Gerencie os produtos do cardápio</p>
-        </div>
+      <PageHeader
+        title="Produtos"
+        description="Gerencie os produtos do cardápio"
+        actions={<Button leftIcon={<Plus aria-hidden="true" />} onClick={() => handleOpenModal()}>Novo Produto</Button>}
+      />
 
-        <button
-          onClick={() => handleOpenModal()}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={18} /> Novo Produto
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {products.length === 0 && (
-          <div className="col-span-full card text-center py-12 text-gray-400">
-            <Package size={48} className="mx-auto mb-3 opacity-50" />
-            <p>Nenhum produto cadastrado.</p>
-          </div>
+          <EmptyState
+            className="col-span-full"
+            icon={<ProductIcon size={40} />}
+            title="Nenhum produto cadastrado."
+            description="Cadastre o primeiro produto para começar a montar o cardápio."
+            action={<Button leftIcon={<Plus aria-hidden="true" />} onClick={() => handleOpenModal()}>Novo Produto</Button>}
+          />
         )}
 
         {products.map((product) => (
-          <div key={product.id} className="card overflow-hidden p-0">
+          <Card key={product.id} className="overflow-hidden p-0">
             {product.imageUrl ? (
               <img
                 src={product.imageUrl}
                 alt={product.name}
-                className="w-full h-40 object-cover"
+                className="h-24 w-full object-cover"
               />
             ) : (
-              <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
-                <Package className="text-gray-300" size={48} />
+              <div className="flex h-24 w-full items-center justify-center bg-surface-sunken">
+                <ProductIcon aria-hidden="true" className="text-subtle" size={32} />
               </div>
             )}
 
-            <div className="p-4">
-              <p className="font-semibold text-gray-900">{product.name}</p>
-              <p className="text-xs text-gray-500 mt-0.5 mb-2 line-clamp-2">
+            <div className="p-card">
+              <p className="text-heading text-default">{product.name}</p>
+              <p className="mb-3 mt-1 line-clamp-2 min-h-8 text-caption text-muted">
                 {product.description}
               </p>
 
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-primary-600 font-bold">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="tabular-nums text-heading text-primary">
                   {formatCurrencyBRL(product.price)}
                   {product.isByWeight ? '/kg' : ''}
                 </span>
 
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    iconOnly
+                    aria-label={`Editar ${product.name}`}
                     onClick={() => handleOpenModal(product)}
-                    className="btn-secondary p-1.5"
                     title="Editar produto"
                   >
-                    <Pencil size={14} />
-                  </button>
+                    <Pencil aria-hidden="true" />
+                  </Button>
 
-                  <button
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    iconOnly
+                    aria-label={`Excluir ${product.name}`}
                     onClick={() => handleOpenDeleteModal(product)}
-                    className="btn-danger p-1.5"
                     title="Excluir produto"
                   >
-                    <Trash2 size={14} />
-                  </button>
+                    <Trash2 aria-hidden="true" />
+                  </Button>
                 </div>
               </div>
 
-              <p className="text-xs text-gray-400 mt-1">{product.category?.name}</p>
+              <p className="mb-2 text-caption text-subtle">{product.category?.name}</p>
 
               {getStockLinkLabel(product)}
 
-              <button
+              <Button
+                variant="secondary"
+                fullWidth
+                size="sm"
+                leftIcon={<StockLinkIcon aria-hidden="true" />}
+                className="mt-4"
                 onClick={() => handleOpenLinkModal(product)}
-                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
               >
-                <Link2 size={16} />
                 Vincular estoque
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">
-              {editingProduct ? 'Editar Produto' : 'Novo Produto'}
-            </h2>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome *
-                </label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Descrição
-                </label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="input"
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Preço (R$) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.price}
-                    onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    className="input"
-                  />
-                </div>
-
-                <div className="flex items-end pb-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.isByWeight}
-                      onChange={(e) =>
-                        setForm({ ...form, isByWeight: e.target.checked })
-                      }
-                      className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Vendido por KG
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Categoria *
-                </label>
-                <select
-                  value={form.categoryId}
-                  onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                  className="input"
-                >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  URL da Imagem
-                </label>
-                <input
-                  type="text"
-                  value={form.imageUrl}
-                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                  className="input"
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-4">
-              <button onClick={handleSave} className="btn-primary flex-1">
-                Salvar
-              </button>
-              <button
-                onClick={() => setShowModal(false)}
-                className="btn-secondary flex-1"
-              >
-                Cancelar
-              </button>
-            </div>
+      <Modal open={showModal} onClose={() => setShowModal(false)} size="md">
+        <ModalHeader>
+          <ModalTitle>{editingProduct ? 'Editar Produto' : 'Novo Produto'}</ModalTitle>
+          <ModalDescription>Preencha os dados exibidos no cardápio.</ModalDescription>
+        </ModalHeader>
+        <ModalContent className="space-y-4">
+          <Field label="Nome" required><Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
+          <Field label="Descrição"><Textarea rows={2} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></Field>
+          <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
+            <Field label="Preço (R$)" required><Input type="number" min="0" step="0.01" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} /></Field>
+            <Checkbox label="Vendido por KG" checked={form.isByWeight} onChange={(event) => setForm({ ...form, isByWeight: event.target.checked })} />
           </div>
-        </div>
-      )}
+          <Field label="Categoria" required>
+            <Select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="URL da Imagem"><Input value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} placeholder="https://..." /></Field>
+        </ModalContent>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
+          <Button onClick={handleSave}>Salvar</Button>
+        </ModalFooter>
+      </Modal>
 
-      {deleteModalOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl border border-red-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-start justify-between p-6 pb-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100">
-                  <AlertTriangle className="text-red-600" size={28} />
-                </div>
+      <ConfirmDialog
+        open={deleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Excluir produto"
+        description={`Você está prestes a excluir o produto ${productToDelete?.name ?? ''}. Esta ação não poderá ser desfeita.`}
+        confirmLabel="Sim, excluir"
+        variant="danger"
+        loading={deleting}
+      />
 
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Excluir produto</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Esta ação não poderá ser desfeita.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={handleCloseDeleteModal}
-                disabled={deleting}
-                className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="px-6 pb-2">
-              <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
-                <p className="text-sm text-gray-700">
-                  Você está prestes a excluir o produto{' '}
-                  <span className="font-semibold text-gray-900">
-                    {productToDelete?.name}
-                  </span>
-                  .
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 p-6 pt-5">
-              <button
-                onClick={handleCloseDeleteModal}
-                disabled={deleting}
-                className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-3 font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={handleConfirmDelete}
-                disabled={deleting}
-                className="flex-1 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white hover:bg-red-700 transition disabled:opacity-50"
-              >
-                {deleting ? 'Excluindo...' : 'Sim, excluir'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showLinkModal && linkingProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Vincular estoque</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Produto: <span className="font-semibold">{linkingProduct.name}</span>
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Defina quais insumos serão baixados a cada venda desse produto.
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowLinkModal(false);
-                  setLinkingProduct(null);
-                  setLinkRows([]);
-                }}
-                className="p-2 rounded-lg hover:bg-gray-100"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {linkRows.map((row, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-12 gap-3 items-end border rounded-xl p-3"
-                >
-                  <div className="col-span-7">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Insumo
-                    </label>
-                    <select
-                      value={row.stockItemId}
-                      onChange={(e) =>
-                        handleChangeLinkRow(index, 'stockItemId', e.target.value)
-                      }
-                      className="input"
-                    >
-                      <option value="">Selecione um insumo</option>
-                      {stockItems.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} ({item.quantity} {item.unit})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="col-span-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Quantidade
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={row.quantity}
-                      onChange={(e) =>
-                        handleChangeLinkRow(index, 'quantity', e.target.value)
-                      }
-                      className="input"
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <button
-                      onClick={() => handleRemoveLinkRow(index)}
-                      className="w-full rounded-xl border border-red-200 text-red-600 px-3 py-2 hover:bg-red-50"
-                    >
-                      Remover
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={handleAddLinkRow}
-              className="mt-4 rounded-xl border border-dashed border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              + Adicionar vínculo
-            </button>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleSaveLinks}
-                disabled={savingLinks}
-                className="btn-primary flex-1"
-              >
-                {savingLinks ? 'Salvando...' : 'Salvar vínculos'}
-              </button>
-
-              <button
-                onClick={() => {
-                  setShowLinkModal(false);
-                  setLinkingProduct(null);
-                  setLinkRows([]);
-                }}
-                className="btn-secondary flex-1"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal open={showLinkModal && Boolean(linkingProduct)} onClose={handleCloseLinkModal} size="lg">
+        <ModalHeader>
+          <ModalTitle>Vincular estoque</ModalTitle>
+          <ModalDescription>Produto: {linkingProduct?.name}. Defina os insumos baixados a cada venda.</ModalDescription>
+        </ModalHeader>
+        <ModalContent className="space-y-3">
+          {linkRows.map((row, index) => (
+            <Card key={index} className="grid gap-3 p-3 sm:grid-cols-[1fr_150px_auto] sm:items-end">
+              <Field label="Insumo">
+                <Select value={row.stockItemId} onChange={(event) => handleChangeLinkRow(index, 'stockItemId', event.target.value)}>
+                  <option value="">Selecione um insumo</option>
+                  {stockItems.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.quantity} {item.unit})</option>)}
+                </Select>
+              </Field>
+              <Field label="Quantidade"><Input type="number" min="0" step="0.01" value={row.quantity} onChange={(event) => handleChangeLinkRow(index, 'quantity', event.target.value)} /></Field>
+              <Button variant="danger" size="sm" onClick={() => handleRemoveLinkRow(index)}>Remover</Button>
+            </Card>
+          ))}
+          <Button variant="secondary" size="sm" leftIcon={<Plus aria-hidden="true" />} onClick={handleAddLinkRow}>Adicionar vínculo</Button>
+        </ModalContent>
+        <ModalFooter>
+          <Button variant="secondary" onClick={handleCloseLinkModal} disabled={savingLinks}>Cancelar</Button>
+          <Button onClick={handleSaveLinks} loading={savingLinks}>Salvar vínculos</Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 };

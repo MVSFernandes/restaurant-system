@@ -8,6 +8,7 @@ import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
 import { formatCurrencyBRL } from '../../utils/currency';
+import { CloseIcon } from '../../components/ui/icons';
 
 interface CartItem {
   product: Product;
@@ -419,7 +420,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="p-4 border-b flex items-center justify-between gap-3">
               <h2 className="text-lg md:text-xl font-bold">{selectedTable?.status === 'AVAILABLE' ? 'Novo Pedido' : 'Adicionar Itens'} - Mesa {selectedTable?.number}</h2>
-              <button onClick={handleCloseOrderModal} className="btn-secondary p-2">✕</button>
+              <button onClick={handleCloseOrderModal} className="btn-secondary p-2" aria-label="Fechar pedido"><CloseIcon aria-hidden="true" size={20} /></button>
             </div>
             <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
               <div className="flex-1 overflow-y-auto p-4 min-h-0">

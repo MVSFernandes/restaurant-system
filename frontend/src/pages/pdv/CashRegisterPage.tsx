@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import type { CashRegisterSession, OrderStatus, OrderType, PaymentMethod, PaymentStatus } from '../../types';
 import { formatCurrencyBRL } from '../../utils/currency';
+import { WarningIcon } from '../../components/ui/icons';
 
 interface PendingCloseOrder {
   id: string;
@@ -600,7 +601,7 @@ const CashRegisterPage: React.FC = () => {
 
             {!current && (
               <p className="text-sm font-medium text-amber-600 mt-4 bg-amber-50 p-3 rounded-lg border border-amber-100">
-                ⚠️ Abra o caixa para poder registrar sangrias.
+                <WarningIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Abra o caixa para poder registrar sangrias.
               </p>
             )}
 
