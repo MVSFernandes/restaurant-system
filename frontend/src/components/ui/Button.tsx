@@ -28,15 +28,27 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'h-8 rounded-token-sm px-3 text-caption',
-  md: 'h-10 rounded-token-md px-4 text-body',
-  lg: 'h-12 rounded-token-md px-5 text-body-lg',
+  sm: 'h-8 rounded-token-sm text-caption',
+  md: 'h-10 rounded-token-md text-body',
+  lg: 'h-12 rounded-token-md text-body-lg',
 };
 
-const iconOnlySizeClasses: Record<ButtonSize, string> = {
-  sm: 'w-8 px-0 [&>svg]:h-4 [&>svg]:w-4',
-  md: 'w-10 px-0 [&>svg]:h-5 [&>svg]:w-5',
-  lg: 'w-12 px-0 [&>svg]:h-6 [&>svg]:w-6',
+const paddingClasses: Record<ButtonSize, string> = {
+  sm: 'px-3',
+  md: 'px-4',
+  lg: 'px-5',
+};
+
+const iconSizeClasses: Record<ButtonSize, string> = {
+  sm: '[&_svg]:!h-4 [&_svg]:!w-4 [&_svg]:shrink-0',
+  md: '[&_svg]:!h-5 [&_svg]:!w-5 [&_svg]:shrink-0',
+  lg: '[&_svg]:!h-6 [&_svg]:!w-6 [&_svg]:shrink-0',
+};
+
+const iconOnlyWidthClasses: Record<ButtonSize, string> = {
+  sm: 'w-8',
+  md: 'w-10',
+  lg: 'w-12',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -72,9 +84,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2',
         'disabled:cursor-not-allowed disabled:opacity-50',
         sizeClasses[size],
+        iconSizeClasses[size],
         variant === 'danger' ? dangerClass : variantClasses[variant],
         fullWidth && 'w-full',
-        iconOnly && iconOnlySizeClasses[size],
+        iconOnly ? iconOnlyWidthClasses[size] : paddingClasses[size],
         className
       )}
       {...props}

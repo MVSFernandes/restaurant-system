@@ -36,11 +36,16 @@ describe('Button', () => {
     expect(screen.getByRole('button', { name: 'Ícone por propriedade' }).contains(screen.getByTestId('left-icon'))).toBe(true);
 
     rerender(<Button iconOnly size="sm" aria-label="Pequeno"><svg /></Button>);
-    expect(screen.getByRole('button', { name: 'Pequeno' }).className).toContain('[&>svg]:h-4');
-    rerender(<Button iconOnly size="md" aria-label="Médio"><svg /></Button>);
-    expect(screen.getByRole('button', { name: 'Médio' }).className).toContain('[&>svg]:h-5');
-    rerender(<Button iconOnly size="lg" aria-label="Grande"><svg /></Button>);
-    expect(screen.getByRole('button', { name: 'Grande' }).className).toContain('[&>svg]:h-6');
+    const small = screen.getByRole('button', { name: 'Pequeno' });
+    expect(small.className).toContain('[&_svg]:!h-4');
+    expect(small.className).toContain('[&_svg]:!w-4');
+    expect(small.className).toContain('[&_svg]:shrink-0');
+    expect(small.className).not.toContain('px-3');
+
+    rerender(<Button size="md" leftIcon={<svg />}>Médio</Button>);
+    expect(screen.getByRole('button', { name: 'Médio' }).className).toContain('[&_svg]:!h-5');
+    rerender(<Button size="lg" leftIcon={<svg />}>Grande</Button>);
+    expect(screen.getByRole('button', { name: 'Grande' }).className).toContain('[&_svg]:!h-6');
   });
 });
 

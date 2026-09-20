@@ -282,7 +282,7 @@ const ProductsPage: React.FC = () => {
       <PageHeader
         title="Produtos"
         description="Gerencie os produtos do cardápio"
-        actions={<Button leftIcon={<Plus aria-hidden="true" size={20} />} onClick={() => handleOpenModal()}>Novo Produto</Button>}
+        actions={<Button leftIcon={<Plus aria-hidden="true" />} onClick={() => handleOpenModal()}>Novo Produto</Button>}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -292,7 +292,7 @@ const ProductsPage: React.FC = () => {
             icon={<ProductIcon size={40} />}
             title="Nenhum produto cadastrado."
             description="Cadastre o primeiro produto para começar a montar o cardápio."
-            action={<Button leftIcon={<Plus aria-hidden="true" size={20} />} onClick={() => handleOpenModal()}>Novo Produto</Button>}
+            action={<Button leftIcon={<Plus aria-hidden="true" />} onClick={() => handleOpenModal()}>Novo Produto</Button>}
           />
         )}
 
@@ -331,7 +331,7 @@ const ProductsPage: React.FC = () => {
                     onClick={() => handleOpenModal(product)}
                     title="Editar produto"
                   >
-                    <Pencil aria-hidden="true" size={16} />
+                    <Pencil aria-hidden="true" />
                   </Button>
 
                   <Button
@@ -342,7 +342,7 @@ const ProductsPage: React.FC = () => {
                     onClick={() => handleOpenDeleteModal(product)}
                     title="Excluir produto"
                   >
-                    <Trash2 aria-hidden="true" size={16} />
+                    <Trash2 aria-hidden="true" />
                   </Button>
                 </div>
               </div>
@@ -355,7 +355,7 @@ const ProductsPage: React.FC = () => {
                 variant="secondary"
                 fullWidth
                 size="sm"
-                leftIcon={<StockLinkIcon aria-hidden="true" size={16} />}
+                leftIcon={<StockLinkIcon aria-hidden="true" />}
                 className="mt-4"
                 onClick={() => handleOpenLinkModal(product)}
               >
@@ -420,7 +420,7 @@ const ProductsPage: React.FC = () => {
               <Button variant="danger" size="sm" onClick={() => handleRemoveLinkRow(index)}>Remover</Button>
             </Card>
           ))}
-          <Button variant="secondary" size="sm" leftIcon={<Plus aria-hidden="true" size={16} />} onClick={handleAddLinkRow}>Adicionar vínculo</Button>
+          <Button variant="secondary" size="sm" leftIcon={<Plus aria-hidden="true" />} onClick={handleAddLinkRow}>Adicionar vínculo</Button>
         </ModalContent>
         <ModalFooter>
           <Button variant="secondary" onClick={handleCloseLinkModal} disabled={savingLinks}>Cancelar</Button>
