@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import type { Supplier } from '../../types';
 import { Plus, Pencil, Trash2, Truck } from 'lucide-react';
+import { EmailIcon, PhoneIcon } from '../../components/ui/icons';
 
 const SuppliersPage: React.FC = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -97,8 +98,8 @@ const SuppliersPage: React.FC = () => {
                 <button onClick={() => handleDelete(supplier.id)} className="btn-danger p-1.5"><Trash2 size={14} /></button>
               </div>
             </div>
-            {supplier.phone && <p className="text-sm text-gray-600">📞 {supplier.phone}</p>}
-            {supplier.email && <p className="text-sm text-gray-600">✉️ {supplier.email}</p>}
+            {supplier.phone && <p className="text-sm text-gray-600"><PhoneIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> {supplier.phone}</p>}
+            {supplier.email && <p className="text-sm text-gray-600"><EmailIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> {supplier.email}</p>}
           </div>
         ))}
       </div>

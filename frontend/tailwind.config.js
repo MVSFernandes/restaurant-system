@@ -76,8 +76,8 @@ export default {
         inverse: 'rgb(var(--color-text-inverse) / <alpha-value>)',
       },
       borderColor: {
-        default: 'rgb(var(--color-border-default) / <alpha-value>)',
-        strong: 'rgb(var(--color-border-strong) / <alpha-value>)',
+        default: 'rgb(var(--color-border-default))',
+        strong: 'rgb(var(--color-border-strong))',
       },
       borderRadius: {
         'token-sm': 'var(--radius-sm)',

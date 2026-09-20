@@ -37,6 +37,7 @@ import {
   ORDER_STATUS_LABELS,
 } from '../../constants/orders';
 import { formatCurrencyBRL } from '../../utils/currency';
+import { CloseIcon, CreditCardIcon, CreditSaleIcon, DebitCardIcon, MoneyIcon, PixIcon } from '../../components/ui/icons';
 import { useAuth } from '../../hooks/useAuth';
 import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
 
@@ -1525,11 +1526,11 @@ const OrdersPage: React.FC = () => {
                   <div className="pt-2 border-t border-dashed">
                     <p className="text-xs text-gray-500 font-medium">Pago via:</p>
                     <p className="text-sm font-bold text-gray-800 mt-0.5">
-                      {order.payment.method === 'CASH' && '💵 Dinheiro'}
-                      {order.payment.method === 'PIX' && '💠 PIX'}
-                      {order.payment.method === 'CREDIT_CARD' && '💳 Cartão de Crédito'}
-                      {order.payment.method === 'DEBIT_CARD' && '💳 Cartão de Débito'}
-                      {order.payment.method === 'CREDIT' && '🧾 Fiado'}
+                      {order.payment.method === 'CASH' && <><MoneyIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Dinheiro</>}
+                      {order.payment.method === 'PIX' && <><PixIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> PIX</>}
+                      {order.payment.method === 'CREDIT_CARD' && <><CreditCardIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Cartão de Crédito</>}
+                      {order.payment.method === 'DEBIT_CARD' && <><DebitCardIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Cartão de Débito</>}
+                      {order.payment.method === 'CREDIT' && <><CreditSaleIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Fiado</>}
                     </p>
                   </div>
                 )}
@@ -1618,8 +1619,9 @@ const OrdersPage: React.FC = () => {
               <button
                 onClick={handleCloseNewOrder}
                 className="btn-secondary p-2"
+                aria-label="Fechar novo pedido"
               >
-                ✕
+                <CloseIcon aria-hidden="true" size={20} />
               </button>
             </div>
 
