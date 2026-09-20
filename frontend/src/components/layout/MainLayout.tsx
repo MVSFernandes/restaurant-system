@@ -63,7 +63,14 @@ const navItems: NavItem[] = [
       { label: 'Fiado', path: '/finance/credit', icon: null },
     ]
   },
-  { label: 'Configurações', path: '/settings', icon: <Settings size={20} />, roles: ['ADMIN'] },
+  {
+    label: 'Configurações', path: '/settings', icon: <Settings size={20} />,
+    roles: ['ADMIN'],
+    children: [
+      { label: 'Restaurante', path: '/settings/restaurant', icon: null },
+      { label: 'Documentos Fiscais', path: '/settings/fiscal', icon: null },
+    ]
+  },
   { label: 'Garçons', path: '/admin/waiters', icon: <UserCog size={20} />, roles: ['ADMIN'] },
 ];
 
