@@ -11,7 +11,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { leftAdornment, rightAdornment, className, id, 'aria-describedby': describedBy, 'aria-invalid': invalid, ...props },
   ref
 ) {
-  const fieldProps = useFieldControl(id, describedBy, invalid === true || invalid === 'true');
+  const explicitInvalid = invalid === undefined ? undefined : invalid === true || invalid === 'true';
+  const fieldProps = useFieldControl(id, describedBy, explicitInvalid);
   return (
     <div className="relative">
       {leftAdornment && <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-body text-muted">{leftAdornment}</span>}

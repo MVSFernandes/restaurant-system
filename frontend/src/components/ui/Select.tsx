@@ -8,7 +8,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   { className, id, 'aria-describedby': describedBy, 'aria-invalid': invalid, ...props },
   ref
 ) {
-  const fieldProps = useFieldControl(id, describedBy, invalid === true || invalid === 'true');
+  const explicitInvalid = invalid === undefined ? undefined : invalid === true || invalid === 'true';
+  const fieldProps = useFieldControl(id, describedBy, explicitInvalid);
   return (
     <select
       ref={ref}
