@@ -1,4 +1,5 @@
 import React from 'react';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Invoice } from '../src/types';
@@ -14,7 +15,18 @@ vi.mock('../src/services/orderInvoices', () => ({ loadOrderInvoice: (id: string)
 
 import { OrderFiscalDocumentPanel } from '../src/components/fiscal/OrderFiscalDocumentPanel';
 import { formatCpf, isValidCpf, formatConsumerDocument, isValidConsumerDocument } from '../src/lib/cpf';
-import SettingsPage from '../src/pages/SettingsPage';
+import FiscalSettingsPage from '../src/pages/settings/FiscalSettingsPage';
+import { ToastProvider } from '../src/components/ui';
+
+const renderSettingsPage = () => {
+  const router = createMemoryRouter([
+    {
+      path: '/settings/fiscal',
+      element: <ToastProvider><FiscalSettingsPage /></ToastProvider>,
+    },
+  ], { initialEntries: ['/settings/fiscal'] });
+  return render(<RouterProvider router={router} />);
+};
 
 const makeInvoice = (status: Invoice['status'], patch: Partial<Invoice> = {}): Invoice => ({
   id: 'invoice-65',
@@ -63,7 +75,7 @@ describe('fiscal settings', () => {
     });
     mocks.put.mockResolvedValue({ data: {} });
 
-    render(<SettingsPage />);
+    renderSettingsPage();
     expect(await screen.findByDisplayValue('4 - Simples Nacional (MEI)')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
@@ -82,8 +94,8 @@ describe('fiscal settings', () => {
     });
     mocks.put.mockResolvedValue({ data: {} });
 
-    render(<SettingsPage />);
-    const toggle = await screen.findByRole('checkbox', {
+    renderSettingsPage();
+    const toggle = await screen.findByRole('switch', {
       name: /Emitir NFC-e com item único/,
     });
     const description = screen.getByLabelText('Descrição do item');
