@@ -215,8 +215,20 @@ describe('Settings pages and routes', () => {
     renderSettings();
     fireEvent.change(await screen.findByLabelText('Nome do Restaurante'), { target: { value: 'Outro nome' } });
     const event = new Event('beforeunload', { cancelable: true });
+    Object.defineProperty(event, 'returnValue', { configurable: true, value: null, writable: true });
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
+    expect(event.returnValue).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(mocks.put).toHaveBeenCalledTimes(1));
+    await screen.findByText('Configurações salvas com sucesso');
+    await waitFor(() => {
+      const savedEvent = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(savedEvent);
+      expect(savedEvent.defaultPrevented).toBe(false);
+      expect(savedEvent.returnValue).toBe(true);
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Copiar Link' }));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/cardapio`));
