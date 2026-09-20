@@ -77,9 +77,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       )}
       {...props}
     >
-      {loading ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : leftIcon}
+      {loading ? (
+        <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+      ) : iconOnly ? (
+        leftIcon ?? children ?? rightIcon
+      ) : (
+        leftIcon
+      )}
       {!iconOnly && children}
-      {!loading && rightIcon}
+      {!iconOnly && !loading && rightIcon}
     </button>
   );
 });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from './Button';
-import { Modal, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from './Modal';
+import { Modal, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from './Modal';
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -33,7 +33,6 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, description, co
         <div><ModalTitle>{title}</ModalTitle><ModalDescription>{description}</ModalDescription></div>
       </div>
     </ModalHeader>
-    <ModalContent className="py-3" />
     <ModalFooter>
       <Button variant="secondary" onClick={onClose} disabled={loading}>{cancelLabel}</Button>
       <Button variant={variant === 'danger' ? 'danger' : 'primary'} solid={variant === 'danger'} onClick={() => void confirm()} loading={loading}>{confirmLabel}</Button>

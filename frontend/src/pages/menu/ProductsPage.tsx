@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import api from '../../services/api';
 import type { Product, Category, StockItem, ProductStockLink } from '../../types';
 import {
@@ -26,6 +26,7 @@ import {
   Select,
   SkeletonCard,
   Textarea,
+  useToast,
 } from '../../components/ui';
 import { ProductIcon, StockLinkIcon, WarningIcon } from '../../components/ui/icons';
 
@@ -35,6 +36,7 @@ interface LinkFormRow {
 }
 
 const ProductsPage: React.FC = () => {
+  const { toast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -60,7 +62,7 @@ const ProductsPage: React.FC = () => {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [productsRes, categoriesRes, stockRes] = await Promise.all([
         api.get('/products'),
@@ -73,14 +75,15 @@ const ProductsPage: React.FC = () => {
       setStockItems(stockRes.data);
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao carregar produtos', description: 'Não foi possível atualizar a listagem.', variant: 'error' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    void fetchData();
+  }, [fetchData]);
 
   const handleOpenModal = (product?: Product) => {
     if (product) {
@@ -123,10 +126,12 @@ const ProductsPage: React.FC = () => {
         await api.post('/products', payload);
       }
 
+      toast({ title: editingProduct ? 'Produto atualizado' : 'Produto criado', variant: 'success' });
       setShowModal(false);
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao salvar produto', description: 'Revise os dados e tente novamente.', variant: 'error' });
     }
   };
 
@@ -141,11 +146,13 @@ const ProductsPage: React.FC = () => {
     try {
       setDeleting(true);
       await api.delete(`/products/${productToDelete.id}`);
+      toast({ title: 'Produto excluído', variant: 'success' });
       setDeleteModalOpen(false);
       setProductToDelete(null);
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao excluir produto', description: 'Tente novamente.', variant: 'error' });
     } finally {
       setDeleting(false);
     }
@@ -179,6 +186,7 @@ const ProductsPage: React.FC = () => {
       setShowLinkModal(true);
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao carregar vínculos', description: 'Você ainda pode definir novos vínculos.', variant: 'error' });
       setLinkingProduct(product);
       setLinkRows([{ stockItemId: '', quantity: '1' }]);
       setShowLinkModal(true);
@@ -220,12 +228,14 @@ const ProductsPage: React.FC = () => {
         links: cleanedLinks,
       });
 
+      toast({ title: 'Vínculos de estoque atualizados', variant: 'success' });
       setShowLinkModal(false);
       setLinkingProduct(null);
       setLinkRows([]);
-      fetchData();
+      void fetchData();
     } catch (error) {
       console.error(error);
+      toast({ title: 'Erro ao salvar vínculos', description: 'Tente novamente.', variant: 'error' });
     } finally {
       setSavingLinks(false);
     }

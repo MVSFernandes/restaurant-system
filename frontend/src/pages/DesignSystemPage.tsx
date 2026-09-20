@@ -11,6 +11,7 @@ import {
   CardTitle,
   Checkbox,
   ConfirmDialog,
+  CurrencyInput,
   EmptyState,
   Field,
   Input,
@@ -38,6 +39,7 @@ import {
   TabsList,
   TabsTrigger,
   Textarea,
+  useToast,
 } from '../components/ui';
 import { MoneyIcon, ProductIcon } from '../components/ui/icons';
 
@@ -109,10 +111,12 @@ const DesignSystemPage = () => {
   const [radio, setRadio] = useState('cash');
   const [switchEnabled, setSwitchEnabled] = useState(true);
   const [checked, setChecked] = useState(false);
+  const [currency, setCurrency] = useState<number | null>(131.15);
+  const { toast } = useToast();
 
   return (
-    <div className={`${dark ? 'dark ' : ''}min-h-[calc(100vh-2rem)] md:min-h-[calc(100vh-3rem)]`}>
-      <div className="min-h-[calc(100vh-2rem)] bg-canvas p-page text-default transition-colors md:min-h-[calc(100vh-3rem)]">
+    <div className={`${dark ? 'dark ' : ''}-m-4 min-h-[calc(100vh-3.5rem)] w-[calc(100%+2rem)] md:-m-6 md:min-h-screen md:w-[calc(100%+3rem)]`}>
+      <div className="min-h-[inherit] bg-canvas p-page text-default transition-colors">
         <div className="mx-auto max-w-6xl space-y-section">
           <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -136,7 +140,7 @@ const DesignSystemPage = () => {
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {colorTokens.map(([name, variable, light, darkValue]) => (
                 <div key={name} className="flex items-center gap-3 rounded-token-md border border-default bg-surface-sunken p-3">
-                  <span className="h-12 w-12 shrink-0 rounded-token-md border border-default" style={{ backgroundColor: `rgb(var(${variable}))` }} />
+                  <span className="h-12 w-12 shrink-0 rounded-token-md" style={{ backgroundColor: `rgb(var(${variable}))` }} />
                   <span className="min-w-0">
                     <strong className="block truncate text-label">{name}</strong>
                     <span className="block font-mono text-caption text-muted">{dark ? darkValue : light}</span>
@@ -223,6 +227,13 @@ const DesignSystemPage = () => {
             </div>
           </ShowcaseSection>
 
+
+          <ShowcaseSection title="CurrencyInput" description="Moeda em centavos, com valor numérico exposto ao formulário e limite configurável.">
+            <div className="max-w-sm space-y-2">
+              <Field label="Valor"><CurrencyInput aria-label="Valor monetário" value={currency} onValueChange={setCurrency} max={100000} /></Field>
+              <p className="text-caption text-muted">Valor numérico: {currency === null ? 'vazio' : currency}</p>
+            </div>
+          </ShowcaseSection>
           <ShowcaseSection title="Checkbox, Switch e RadioGroup" description="Controles de seleção com rótulos acessíveis.">
             <div className="grid gap-5 md:grid-cols-3">
               <Checkbox label="Vendido por peso" description="Calcula o valor por quilograma." checked={checked} onChange={(event) => setChecked(event.target.checked)} />
@@ -247,6 +258,15 @@ const DesignSystemPage = () => {
             <div className="grid gap-4 md:grid-cols-3"><div className="space-y-3"><Skeleton className="h-10 w-full" /><SkeletonText lines={4} /></div><SkeletonCard /><SkeletonCard /></div>
           </ShowcaseSection>
 
+
+          <ShowcaseSection title="Toast" description="Notificações empilhadas, temporizadas e com pausa ao passar o mouse.">
+            <div className="flex flex-wrap gap-3">
+              <Button variant="secondary" onClick={() => toast({ title: 'Operação concluída', variant: 'success' })}>Success</Button>
+              <Button variant="secondary" onClick={() => toast({ title: 'Não foi possível concluir', variant: 'error' })}>Error</Button>
+              <Button variant="secondary" onClick={() => toast({ title: 'Revise os dados informados', variant: 'warning' })}>Warning</Button>
+              <Button variant="secondary" onClick={() => toast({ title: 'Há uma nova informação', variant: 'info' })}>Info</Button>
+            </div>
+          </ShowcaseSection>
           <ShowcaseSection title="Modal e ConfirmDialog" description="Portal, ESC, overlay, foco preso e confirmação destrutiva.">
             <div className="flex flex-wrap gap-3"><Button onClick={() => setModalOpen(true)}>Abrir modal</Button><Button variant="danger" onClick={() => setConfirmOpen(true)}>Abrir confirmação</Button></div>
           </ShowcaseSection>
