@@ -111,10 +111,43 @@ const RestaurantSettingsPage = () => {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Entrega</CardTitle></CardHeader>
-          <CardContent className="max-w-sm">
-            <Field id="settings-deliveryFee" label="Taxa de Entrega">
-              <CurrencyInput value={config.deliveryFee ?? null} onValueChange={(value) => updateConfigField('deliveryFee', value ?? undefined)} min={0} />
+          <CardHeader>
+            <CardTitle>Entrega</CardTitle>
+            <CardDescription>Configure separadamente as taxas usadas no balcão e no cardápio online.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <Field
+              id="settings-urbanDeliveryFee"
+              label="Taxa urbana"
+              hint="Aplicada em pedidos de entrega dentro da cidade, no PDV."
+            >
+              <CurrencyInput
+                value={config.urbanDeliveryFee ?? null}
+                onValueChange={(value) => updateConfigField('urbanDeliveryFee', value ?? 0)}
+                min={0}
+              />
+            </Field>
+            <Field
+              id="settings-ruralDeliveryFee"
+              label="Taxa rural"
+              hint="Aplicada em pedidos de entrega em zona rural, no PDV."
+            >
+              <CurrencyInput
+                value={config.ruralDeliveryFee ?? null}
+                onValueChange={(value) => updateConfigField('ruralDeliveryFee', value ?? 0)}
+                min={0}
+              />
+            </Field>
+            <Field
+              id="settings-deliveryFee"
+              label="Taxa do cardápio digital"
+              hint="Cobrada em todos os pedidos de entrega feitos pelo cardápio online."
+            >
+              <CurrencyInput
+                value={config.deliveryFee ?? null}
+                onValueChange={(value) => updateConfigField('deliveryFee', value ?? 0)}
+                min={0}
+              />
             </Field>
           </CardContent>
         </Card>

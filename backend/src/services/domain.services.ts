@@ -381,6 +381,18 @@ export const marmitaMenuService = {
 // RESTAURANT CONFIG
 // ============================================================================
 
+function validatedConfigDeliveryFee(
+  value: number | null | undefined,
+  field: 'deliveryFee' | 'urbanDeliveryFee' | 'ruralDeliveryFee'
+): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    throw new ValidationError(field, 'Informe uma taxa de entrega válida');
+  }
+  return numeric;
+}
+
 export const configService = {
   async get() {
     return restaurantConfigRepository.get();
@@ -443,9 +455,9 @@ export const configService = {
       phone: input.phone,
       openingHours: input.openingHours,
       openingDays: input.openingDays,
-      deliveryFee: input.deliveryFee != null ? parseFloat(String(input.deliveryFee)) : undefined,
-      urbanDeliveryFee: input.urbanDeliveryFee != null ? parseFloat(String(input.urbanDeliveryFee)) : undefined,
-      ruralDeliveryFee: input.ruralDeliveryFee != null ? parseFloat(String(input.ruralDeliveryFee)) : undefined,
+      deliveryFee: validatedConfigDeliveryFee(input.deliveryFee, 'deliveryFee'),
+      urbanDeliveryFee: validatedConfigDeliveryFee(input.urbanDeliveryFee, 'urbanDeliveryFee'),
+      ruralDeliveryFee: validatedConfigDeliveryFee(input.ruralDeliveryFee, 'ruralDeliveryFee'),
       cnpj: input.cnpj,
       legalName: input.legalName,
       stateRegistration: input.stateRegistration,
