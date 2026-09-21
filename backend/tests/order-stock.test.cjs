@@ -8,6 +8,7 @@ const { orderRepository } = require('../src/repositories/order.repository');
 const { productRepository } = require('../src/repositories/product.repository');
 const { categoryRepository } = require('../src/repositories/category.repository');
 const { cashRegisterRepository } = require('../src/repositories/cashRegister.repository');
+const { restaurantConfigRepository } = require('../src/repositories/restaurantConfig.repository');
 const { userRepository } = require('../src/repositories/user.repository');
 const { productStockItemRepository } = require('../src/repositories/productStockItem.repository');
 const { stockItemRepository } = require('../src/repositories/stockItem.repository');
@@ -18,6 +19,10 @@ beforeEach(() => {
   requests = [];
   orderRepository.findByIdempotencyKey = async () => null;
   cashRegisterRepository.findOpenSession = async () => ({ id: 'session' });
+  restaurantConfigRepository.get = async () => ({
+    deliveryFee: 5,
+    enabledPayments: 'CASH,PIX,CREDIT_CARD,DEBIT_CARD',
+  });
   productRepository.findById = async () => ({ id: 'drink', price: 5, categoryId: 'drinks', isByWeight: false });
   categoryRepository.findById = async () => ({ id: 'drinks' });
   userRepository.findAdminUser = async () => ({ id: 'admin' });
@@ -43,11 +48,26 @@ test('private creation sends the entire order to one transaction with short IDs 
   assert.equal(requests[0].args.p_items[0].order_id, requests[0].args.p_order.id);
   assert.equal(requests[0].args.p_items[0].quantity, 2);
 });
-test('public creation includes its pending payment in the same transaction', async () => {
-  await orderService.createPublicOrder({ ...input, paymentMethod: 'PIX' }, 'public:key');
+test('public delivery creation includes a DB-valid payment and the delivery fee in the total', async () => {
+  await orderService.createPublicOrder(
+    { ...input, type: 'DELIVERY', deliveryFee: 99, paymentMethod: 'CASH' },
+    'public:key'
+  );
   assert.equal(requests.length, 1);
   assert.equal(requests[0].args.p_payment.status, 'PENDING');
+  assert.equal(requests[0].args.p_payment.method, 'CASH');
+  assert.equal(requests[0].args.p_payment.amount, 15);
+  assert.equal(requests[0].args.p_order.total, 15);
+  assert.equal(requests[0].args.p_order.delivery_fee, 5);
   assert.equal(requests[0].args.p_payment.order_id, requests[0].args.p_order.id);
+});
+
+test('public creation rejects payment values outside the database constraint', async () => {
+  await assert.rejects(
+    orderService.createPublicOrder({ ...input, paymentMethod: 'ON_DELIVERY' }, 'public:invalid'),
+    error => error.status === 400 && /forma de pagamento válida/.test(error.message)
+  );
+  assert.equal(requests.length, 0);
 });
 test('stock errors are surfaced as HTTP 400 with a Portuguese message', async () => {
   supabase.rpc = async () => ({ error: { code: 'P0001', message: 'Insufficient stock of "Coca Lata".' }, data: null });

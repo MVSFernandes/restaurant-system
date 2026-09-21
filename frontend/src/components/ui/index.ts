@@ -7,6 +7,7 @@ export * from './CurrencyInput';
 export * from './EmptyState';
 export * from './Field';
 export * from './Input';
+export * from './ImageUpload';
 export * from './icons';
 export * from './Modal';
 export * from './PageHeader';

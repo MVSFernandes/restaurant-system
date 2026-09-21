@@ -1,99 +1,110 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { BrandMark } from '../../components/branding/BrandMark';
+import { Button, Field, Input } from '../../components/ui';
+import { useBranding } from '../../contexts/brandingContext';
 import { useAuth } from '../../hooks/useAuth';
-import { UtensilsCrossed } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const { signIn } = useAuth();
+  const { displayName, logoUrl } = useBranding();
   const navigate = useNavigate();
   const [email, setEmail] = useState('admin@admin.com');
   const [password, setPassword] = useState('admin123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
     try {
       const user = await signIn(email, password);
-      // Redireciona baseado no role
-      if (user.role === 'WAITER') {
-        navigate('/waiter/tables');
-      } else {
-        navigate('/dashboard');
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Erro ao fazer login. Verifique suas credenciais.');
+      navigate(user.role === 'WAITER' ? '/waiter/tables' : '/dashboard');
+    } catch (loginError: unknown) {
+      const message = (loginError as { response?: { data?: { message?: string } } })
+        .response?.data?.message;
+      setError(message || 'Erro ao fazer login. Verifique suas credenciais.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
-            <UtensilsCrossed className="text-primary-600" size={32} />
+    <main className="grid min-h-screen bg-canvas text-default lg:grid-cols-[minmax(28rem,42%)_1fr]">
+      <section className="flex min-h-screen flex-col bg-surface px-6 py-8 sm:px-10 lg:px-16">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-md">
+            <div className="mb-9 text-center">
+              <BrandMark
+                name={displayName}
+                logoUrl={logoUrl}
+                className="mx-auto mb-4 h-20 w-20 rounded-token-xl shadow-token-sm"
+                fallbackClassName="text-display"
+              />
+              <h1 className="text-title text-default">{displayName}</h1>
+              <p className="mt-2 text-body text-muted">Acesse o sistema de gestão</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <Field label="E-mail">
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="admin@admin.com"
+                  autoComplete="username"
+                  required
+                />
+              </Field>
+
+              <Field label="Senha">
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  required
+                />
+              </Field>
+
+              {error && (
+                <div role="alert" className="rounded-token-md border border-danger bg-danger-subtle px-4 py-3 text-body text-danger">
+                  {error}
+                </div>
+              )}
+
+              <Button type="submit" loading={loading} fullWidth size="lg">
+                Entrar
+              </Button>
+            </form>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Login</h1>
-          <p className="text-gray-500 mt-1">Sistema de Gestão de Restaurante</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              E-mail
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input"
-              placeholder="admin@admin.com"
-              required
-            />
+        <p className="pt-8 text-center text-caption text-subtle">Restaurant System</p>
+      </section>
+
+      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-primary via-orange-600 to-primary-hover lg:block" aria-hidden="true">
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage:
+              'linear-gradient(30deg, rgba(255,255,255,.28) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,.28) 87.5%, rgba(255,255,255,.28)), linear-gradient(150deg, rgba(255,255,255,.18) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,.18) 87.5%, rgba(255,255,255,.18))',
+            backgroundSize: '72px 126px',
+          }}
+        />
+        <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-white/20 bg-white/10" />
+        <div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full border border-white/20 bg-black/10" />
+        <div className="relative flex h-full items-center justify-center p-16">
+          <div className="max-w-lg text-white">
+            <p className="text-label font-semibold uppercase tracking-[0.24em] text-white/75">Gestão integrada</p>
+            <p className="mt-5 text-4xl font-bold leading-tight">Seu restaurante organizado do atendimento ao financeiro.</p>
+            <p className="mt-5 max-w-md text-body-lg text-white/80">Pedidos, estoque, caixa e documentos fiscais reunidos em um só lugar.</p>
           </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Senha
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input"
-              placeholder="••••••••"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full py-3 text-base"
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Developer by: (18) 99639-7127
-        </p>
-      </div>
-    </div>
+        </div>
+      </aside>
+    </main>
   );
 };
 

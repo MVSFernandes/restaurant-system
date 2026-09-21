@@ -806,6 +806,7 @@ const OrdersPage: React.FC = () => {
       .join(', ');
 
     const storeName = escapeHtml(normalizeText(config?.name || 'RESTAURANTE'));
+    const storeLogoUrl = config?.logoUrl ? escapeHtml(config.logoUrl) : '';
     const customerNameValue = escapeHtml(normalizeText(order.customerName || ''));
     const neighborhood = escapeHtml(normalizeText(order.deliveryNeighborhood || ''));
     const reference = escapeHtml(normalizeText(order.deliveryReference || ''));
@@ -853,6 +854,14 @@ const OrdersPage: React.FC = () => {
 
   .center {
     text-align: center;
+  }
+
+  .store-logo {
+    display: block;
+    max-width: 28mm;
+    max-height: 18mm;
+    margin: 0 auto 3mm;
+    object-fit: contain;
   }
 
   .title {
@@ -992,6 +1001,7 @@ const OrdersPage: React.FC = () => {
         </head>
         <body>
           <div class="receipt">
+            ${storeLogoUrl ? `<img class="store-logo" src="${storeLogoUrl}" alt="" onerror="this.style.display='none'" />` : ''}
             <div class="center title">${orderTypeLabel}</div>
             <div class="line"><span class="label-strong">LOJA:</span> ${storeName}</div>
             <div class="line"><span class="label-strong">PEDIDO:</span> #${order.id

@@ -9,6 +9,7 @@ vi.mock('../src/hooks/useMenuViewers', () => ({ useMenuViewers: () => undefined 
 import OrdersPage from '../src/pages/pdv/OrdersPage';
 import WaiterTablesPage from '../src/pages/waiter/WaiterTablesPage';
 import PublicMenuPage from '../src/pages/menu/PublicMenuPage';
+import { BrandingContext, DEFAULT_BRANDING_CONTEXT } from '../src/contexts/brandingContext';
 
 const product = (id: string, available?: boolean) => ({
   id, name: id, price: 5, categoryId: 'drinks', isByWeight: false, available,
@@ -60,6 +61,57 @@ describe('stock availability at order entry', () => {
     expect(screen.getAllByRole('button', { name: 'Adicionar' })).toHaveLength(2);
     fireEvent.click(screen.getAllByRole('button', { name: 'Adicionar' })[1]);
     expect(mocks.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('public delivery checkout', () => {
+  it('sends an enabled DB payment method and includes the configured fee in the total', async () => {
+    const deliveryCategories = [{
+      id: 'meals',
+      name: 'Refeições',
+      products: [
+        { ...product('Item 1', true), price: 4.25 },
+        { ...product('Item 2', true), price: 8.9 },
+      ],
+    }];
+    mocks.get.mockImplementation(async (url: string) => ({
+      data: url.startsWith('/categories') ? deliveryCategories : [],
+    }));
+    mocks.post.mockResolvedValue({ data: { id: 'public-order' } });
+
+    render(
+      <BrandingContext.Provider value={{
+        ...DEFAULT_BRANDING_CONTEXT,
+        deliveryFee: 5,
+        enabledPayments: 'CASH,PIX',
+      }}>
+        <PublicMenuPage />
+      </BrandingContext.Provider>
+    );
+
+    const addButtons = await screen.findAllByRole('button', { name: 'Adicionar' });
+    fireEvent.click(addButtons[0]);
+    fireEvent.click(addButtons[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByDisplayValue('Retirada no local'), { target: { value: 'DELIVERY' } });
+
+    expect(screen.getByText('R$ 13,15')).toBeTruthy();
+    expect(screen.getByText('R$ 5,00')).toBeTruthy();
+    expect(screen.getByText('R$ 18,15')).toBeTruthy();
+    expect(screen.queryByText('Pagar na Entrega')).toBeNull();
+
+    fireEvent.change(screen.getByDisplayValue('PIX'), { target: { value: 'CASH' } });
+    fireEvent.change(screen.getByPlaceholderText('João Silva'), { target: { value: 'Cliente Entrega' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
+    const [url, body] = mocks.post.mock.calls[0];
+    expect(url).toBe('/orders/public');
+    expect(body).toMatchObject({
+      type: 'DELIVERY',
+      paymentMethod: 'CASH',
+      deliveryFee: 5,
+    });
   });
 });
 

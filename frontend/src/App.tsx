@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import ProtectedRoute from './components/layout/ProtectedRoute';
+import { BrandingRouteEffects } from './contexts/BrandingProvider';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -39,56 +40,61 @@ const LoadingFallback = () => (
 );
 
 const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
-  { path: '/cardapio', element: <PublicMenuPage /> },
   {
-    element: <ProtectedRoute />,
+    element: <BrandingRouteEffects />,
     children: [
-      { path: '/dashboard', element: <DashboardPage /> },
-      { path: '/settings', element: <Navigate to="/settings/restaurant" replace /> },
-      { path: '/settings/restaurant', element: <RestaurantSettingsPage /> },
-      { path: '/settings/fiscal', element: <FiscalSettingsPage /> },
-      { path: '/design-system', element: <DesignSystemPage /> },
+      { path: '/login', element: <LoginPage /> },
+      { path: '/cardapio', element: <PublicMenuPage /> },
+      {
+        element: <ProtectedRoute />,
+        children: [
+          { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/settings', element: <Navigate to="/settings/restaurant" replace /> },
+          { path: '/settings/restaurant', element: <RestaurantSettingsPage /> },
+          { path: '/settings/fiscal', element: <FiscalSettingsPage /> },
+          { path: '/design-system', element: <DesignSystemPage /> },
+        ],
+      },
+      {
+        element: <ProtectedRoute allowedRoles={['ADMIN', 'CASHIER']} />,
+        children: [
+          { path: '/pdv/tables', element: <TablesPage /> },
+          { path: '/pdv/orders', element: <OrdersPage /> },
+          { path: '/pdv/cash-register', element: <CashRegisterPage /> },
+          { path: '/pdv/history', element: <HistoryPage /> },
+        ],
+      },
+      {
+        element: <ProtectedRoute allowedRoles={['ADMIN', 'WAITER']} />,
+        children: [
+          { path: '/waiter/tables', element: <WaiterTablesPage /> },
+          { path: '/waiter/history', element: <WaiterHistoryPage /> },
+        ],
+      },
+      {
+        element: <ProtectedRoute allowedRoles={['ADMIN']} />,
+        children: [
+          { path: '/menu/categories', element: <CategoriesPage /> },
+          { path: '/menu/products', element: <ProductsPage /> },
+          { path: '/menu/marmita-menu', element: <MarmitaMenuPage /> },
+          { path: '/admin/waiters', element: <WaitersManagementPage /> },
+        ],
+      },
+      {
+        element: <ProtectedRoute allowedRoles={['ADMIN', 'FINANCE']} />,
+        children: [
+          { path: '/stock/items', element: <StockItemsPage /> },
+          { path: '/stock/suppliers', element: <SuppliersPage /> },
+          { path: '/stock/comparison', element: <SupplierComparisonPage /> },
+          { path: '/finance/reports', element: <FinanceReportsPage /> },
+          { path: '/finance/payables', element: <PayablesPage /> },
+          { path: '/finance/credit', element: <CreditPage /> },
+        ],
+      },
+      { path: '/', element: <Navigate to="/dashboard" replace /> },
+      { path: '*', element: <Navigate to="/dashboard" replace /> },
     ],
   },
-  {
-    element: <ProtectedRoute allowedRoles={['ADMIN', 'CASHIER']} />,
-    children: [
-      { path: '/pdv/tables', element: <TablesPage /> },
-      { path: '/pdv/orders', element: <OrdersPage /> },
-      { path: '/pdv/cash-register', element: <CashRegisterPage /> },
-      { path: '/pdv/history', element: <HistoryPage /> },
-    ],
-  },
-  {
-    element: <ProtectedRoute allowedRoles={['ADMIN', 'WAITER']} />,
-    children: [
-      { path: '/waiter/tables', element: <WaiterTablesPage /> },
-      { path: '/waiter/history', element: <WaiterHistoryPage /> },
-    ],
-  },
-  {
-    element: <ProtectedRoute allowedRoles={['ADMIN']} />,
-    children: [
-      { path: '/menu/categories', element: <CategoriesPage /> },
-      { path: '/menu/products', element: <ProductsPage /> },
-      { path: '/menu/marmita-menu', element: <MarmitaMenuPage /> },
-      { path: '/admin/waiters', element: <WaitersManagementPage /> },
-    ],
-  },
-  {
-    element: <ProtectedRoute allowedRoles={['ADMIN', 'FINANCE']} />,
-    children: [
-      { path: '/stock/items', element: <StockItemsPage /> },
-      { path: '/stock/suppliers', element: <SuppliersPage /> },
-      { path: '/stock/comparison', element: <SupplierComparisonPage /> },
-      { path: '/finance/reports', element: <FinanceReportsPage /> },
-      { path: '/finance/payables', element: <PayablesPage /> },
-      { path: '/finance/credit', element: <CreditPage /> },
-    ],
-  },
-  { path: '/', element: <Navigate to="/dashboard" replace /> },
-  { path: '*', element: <Navigate to="/dashboard" replace /> },
 ]);
 
 function App() {

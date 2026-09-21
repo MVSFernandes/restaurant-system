@@ -1,11 +1,14 @@
 import { orderErrorMessage } from '../../lib/orderErrors';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
-import type { Category, Product, RestaurantConfig } from '../../types';
+import type { Category, Product } from '../../types';
 import { ShoppingCart, Plus, Minus, Trash2, X, UtensilsCrossed, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useMenuViewers } from '../../hooks/useMenuViewers';
 import { formatCurrencyBRL } from '../../utils/currency';
+import { BrandMark } from '../../components/branding/BrandMark';
+import { useBranding } from '../../contexts/brandingContext';
+import { getPublicPaymentOptions } from '../../lib/publicPayments';
 
 interface CartItem { product: Product; quantity: number; }
 
@@ -16,9 +19,10 @@ const createIdempotencyKey = () =>
 
 const PublicMenuPage: React.FC = () => {
   useMenuViewers(true);
+  const { displayName, logoUrl, bannerUrl, deliveryFee, enabledPayments } = useBranding();
+  const [failedBannerUrl, setFailedBannerUrl] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [config, setConfig] = useState<RestaurantConfig | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [activeCategory, setActiveCategory] = useState('');
@@ -34,19 +38,16 @@ const PublicMenuPage: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [catRes, configRes] = await Promise.all([
-          api.get('/categories?includeProducts=true'),
-          api.get('/config'),
-        ]);
-        setCategories(catRes.data);
-        setConfig(configRes.data);
-        if (catRes.data.length > 0) setActiveCategory(catRes.data[0].id);
+        const { data } = await api.get<Category[]>('/categories?includeProducts=true');
+        setCategories(data);
+        if (data.length > 0) setActiveCategory(data[0].id);
       } catch (error) {
         console.error(error);
       }
     };
-    fetchData();
+    void fetchData();
   }, []);
+
 
   const productAvailable = (product: Product) =>
     (categories.flatMap((category) => category.products ?? []).find((current) => current.id === product.id) ?? product).available !== false;
@@ -68,12 +69,20 @@ const PublicMenuPage: React.FC = () => {
     });
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const configuredDeliveryFee = Number(deliveryFee ?? 0);
+  const currentDeliveryFee =
+    orderType === 'DELIVERY' && Number.isFinite(configuredDeliveryFee) ? configuredDeliveryFee : 0;
+  const cartTotal = cartSubtotal + currentDeliveryFee;
+  const paymentOptions = getPublicPaymentOptions(enabledPayments);
+  const selectedPaymentMethod = paymentOptions.some(({ value }) => value === paymentMethod)
+    ? paymentMethod
+    : paymentOptions[0]?.value ?? '';
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = async () => {
     if (checkoutSubmittingRef.current) return;
-    if (cart.length === 0 || !customerName) return;
+    if (cart.length === 0 || !customerName || !selectedPaymentMethod) return;
     try {
       checkoutSubmittingRef.current = true;
       setCheckoutSubmitting(true);
@@ -86,7 +95,8 @@ const PublicMenuPage: React.FC = () => {
         customerName,
         customerPhone,
         type: orderType,
-        paymentMethod,
+        paymentMethod: selectedPaymentMethod,
+        deliveryFee: currentDeliveryFee,
         items: cart.map((item) => ({ productId: item.product.id, quantity: item.quantity })),
       }, {
         headers: { 'X-Idempotency-Key': idempotencyKey },
@@ -129,9 +139,9 @@ const PublicMenuPage: React.FC = () => {
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <UtensilsCrossed className="text-primary-600" size={28} />
+            <BrandMark name={displayName} logoUrl={logoUrl} className="h-10 w-10 rounded-token-md" />
             <div>
-              <h1 className="font-bold text-gray-900">{config?.name || 'Restaurante'}</h1>
+              <h1 className="font-bold text-gray-900">{displayName}</h1>
             </div>
           </div>
           <button
@@ -153,9 +163,9 @@ const PublicMenuPage: React.FC = () => {
       </header>
 
       {/* Banner */}
-      {config?.bannerUrl && (
+      {bannerUrl && failedBannerUrl !== bannerUrl && (
         <div className="w-full h-48 overflow-hidden">
-          <img src={config.bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+          <img src={bannerUrl} alt={'Banner de ' + displayName} className="w-full h-full object-cover" onError={() => setFailedBannerUrl(bannerUrl)} />
         </div>
       )}
 
@@ -267,25 +277,47 @@ const PublicMenuPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
-                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="input">
-                      <option value="PIX">PIX</option>
-                      <option value="ON_PICKUP">Pagar na Retirada</option>
-                      <option value="ON_DELIVERY">Pagar na Entrega</option>
-                      <option value="CREDIT_CARD">Cartão de Crédito</option>
-                      <option value="DEBIT_CARD">Cartão de Débito</option>
+                    <select
+                      value={selectedPaymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="input"
+                      disabled={paymentOptions.length === 0}
+                    >
+                      {paymentOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
                     </select>
+                    {paymentOptions.length === 0 && (
+                      <p role="alert" className="mt-1 text-sm text-red-600">
+                        Nenhuma forma de pagamento está habilitada.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
             </div>
             {cart.length > 0 && (
               <div className="p-4 border-t">
-                <div className="flex justify-between font-bold text-xl mb-4">
-                  <span>Total</span>
-                  <span>{formatCurrencyBRL(cartTotal)}</span>
+                <div className="mb-4 space-y-1">
+                  {orderType === 'DELIVERY' && (
+                    <>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Subtotal</span>
+                        <span>{formatCurrencyBRL(cartSubtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Taxa de entrega</span>
+                        <span>{formatCurrencyBRL(currentDeliveryFee)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between font-bold text-xl">
+                    <span>Total</span>
+                    <span>{formatCurrencyBRL(cartTotal)}</span>
+                  </div>
                 </div>
                 {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
-                <button onClick={handleCheckout} disabled={!customerName || checkoutSubmitting} className="btn-primary w-full py-4 text-lg">
+                <button onClick={handleCheckout} disabled={!customerName || !selectedPaymentMethod || checkoutSubmitting} className="btn-primary w-full py-4 text-lg">
                   {checkoutSubmitting ? (
                     <span className="inline-flex items-center justify-center gap-2">
                       <Loader2 size={18} className="animate-spin" />

@@ -11,7 +11,8 @@
     "test:realtime": "vitest run",
     "test:nfe": "vitest run tests/nfe-status.test.tsx",
     "test:nfce": "vitest run tests/nfce-panel.test.tsx",
-    "test:stock": "vitest run tests/order-stock.test.tsx"
+    "test:stock": "vitest run tests/order-stock.test.tsx",
+    "test:branding": "vitest run tests/branding.test.tsx"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
