@@ -26,7 +26,7 @@ beforeEach(() => {
     deliveryFee: 5,
     enabledPayments: 'CASH,PIX,CREDIT_CARD,DEBIT_CARD',
   });
-  productRepository.findById = async () => ({ id: 'drink', price: 5, categoryId: 'drinks', isByWeight: false });
+  productRepository.findById = async () => ({ id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks', isByWeight: false });
   categoryRepository.findById = async () => ({ id: 'drinks' });
   userRepository.findAdminUser = async () => ({ id: 'admin' });
   orderRepository.create = async () => assert.fail('must not insert an order outside the transaction');
@@ -50,6 +50,25 @@ test('private creation sends the entire order to one transaction with short IDs 
   assert.notEqual(requests[0].args.p_order.id, requests[2].args.p_order.id);
   assert.equal(requests[0].args.p_items[0].order_id, requests[0].args.p_order.id);
   assert.equal(requests[0].args.p_items[0].quantity, 2);
+  assert.equal(requests[0].args.p_items[0].product_name, 'Coca Lata');
+});
+test('product names are captured at sale time and do not change when the catalog is renamed', async () => {
+  const actor = { id: 'admin', role: 'ADMIN' };
+  let currentName = 'Coca Lata';
+  productRepository.findById = async () => ({
+    id: 'drink',
+    name: currentName,
+    price: 5,
+    categoryId: 'drinks',
+    isByWeight: false,
+  });
+
+  await orderService.createOrder(input, actor, 'snapshot:before');
+  currentName = 'Coca-Cola Lata 350ml';
+  await orderService.createOrder(input, actor, 'snapshot:after');
+
+  assert.equal(requests[0].args.p_items[0].product_name, 'Coca Lata');
+  assert.equal(requests[1].args.p_items[0].product_name, 'Coca-Cola Lata 350ml');
 });
 test('public delivery creation includes a DB-valid payment and the delivery fee in the total', async () => {
   await orderService.createPublicOrder(

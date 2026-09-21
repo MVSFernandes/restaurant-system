@@ -2,21 +2,38 @@ import { createId } from '@paralleldrive/cuid2';
 import { cashRegisterRepository } from '../repositories/cashRegister.repository';
 import { paymentRepository } from '../repositories/payment.repository';
 import { auditLogRepository } from '../repositories/auditLog.repository';
-import { CashRegisterSession, CashWithdrawal } from '../types/domain';
+import { orderRepository } from '../repositories/order.repository';
+import { userRepository } from '../repositories/user.repository';
+import { CashRegisterSession, CashWithdrawal, PaymentMethod } from '../types/domain';
 import {
   CashRegisterClosedError,
   PendingCashRegisterOrdersError,
   ValidationError,
 } from '../types/errors';
+import { formatBRL } from '../utils/currency';
+
+export interface OperatorSummary {
+  id: string;
+  name: string;
+}
+
+export interface CashWithdrawalSummary extends CashWithdrawal {
+  createdBy: OperatorSummary | null;
+}
 
 export interface SessionSummary extends CashRegisterSession {
-  totalEntries: number;       // apenas CASH
+  openedBy: OperatorSummary | null;
+  closedBy: OperatorSummary | null;
+  totalEntries: number;
   totalWithdrawals: number;
   expectedBalance: number;
   pixTotal: number;
   creditTotal: number;
   debitTotal: number;
-  withdrawals?: CashWithdrawal[];
+  onAccountTotal: number;
+  totalRevenue: number;
+  orderCount: number;
+  withdrawals: CashWithdrawalSummary[];
 }
 
 export interface SuggestWithdrawalResult {
@@ -24,48 +41,70 @@ export interface SuggestWithdrawalResult {
   totalCashReceived: number;
   totalWithdrawn: number;
   openingAmount: number;
+  message: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers privados
-// ---------------------------------------------------------------------------
+type PaymentTotals = Record<PaymentMethod, number>;
 
-async function getPaymentTotals(sessionId: string) {
+async function getPaymentTotals(sessionId: string): Promise<PaymentTotals> {
   const payments = await paymentRepository.findBySession(sessionId);
-  const paid = payments.filter((p) => p.status === 'PAID');
+  const paid = payments.filter((payment) => payment.status === 'PAID');
+  const totals: PaymentTotals = {
+    CASH: 0,
+    PIX: 0,
+    CREDIT_CARD: 0,
+    DEBIT_CARD: 0,
+    CREDIT: 0,
+  };
 
-  const totals = { CASH: 0, PIX: 0, CREDIT_CARD: 0, DEBIT_CARD: 0 };
-  for (const p of paid) {
-    if (p.method in totals) {
-      totals[p.method as keyof typeof totals] += p.amount;
-    }
+  for (const payment of paid) {
+    totals[payment.method] += Number(payment.amount);
   }
   return totals;
 }
 
-async function enrichSession(session: CashRegisterSession): Promise<SessionSummary> {
-  const paymentTotals = await getPaymentTotals(session.id);
-  const withdrawals = await cashRegisterRepository.findWithdrawalsBySession(session.id);
+async function findOperator(id: string | null): Promise<OperatorSummary | null> {
+  if (!id) return null;
+  const user = await userRepository.findById(id);
+  return user ? { id: user.id, name: user.name } : null;
+}
 
-  const totalWithdrawals = withdrawals.reduce((sum, w) => sum + w.amount, 0);
+async function enrichSession(session: CashRegisterSession): Promise<SessionSummary> {
+  const [paymentTotals, withdrawals, orders, openedBy, closedBy] = await Promise.all([
+    getPaymentTotals(session.id),
+    cashRegisterRepository.findWithdrawalsBySession(session.id),
+    orderRepository.findBySession(session.id),
+    findOperator(session.openedById),
+    findOperator(session.closedById),
+  ]);
+
+  const enrichedWithdrawals = await Promise.all(
+    withdrawals.map(async (withdrawal): Promise<CashWithdrawalSummary> => ({
+      ...withdrawal,
+      createdBy: await findOperator(withdrawal.createdById),
+    }))
+  );
+  const totalWithdrawals = withdrawals.reduce((sum, withdrawal) => sum + withdrawal.amount, 0);
   const totalEntries = paymentTotals.CASH;
   const expectedBalance = session.openingAmount + totalEntries - totalWithdrawals;
+  const totalRevenue = Object.values(paymentTotals).reduce((sum, value) => sum + value, 0);
 
   return {
     ...session,
+    openedBy,
+    closedBy,
     totalEntries,
     totalWithdrawals,
     expectedBalance,
     pixTotal: paymentTotals.PIX,
     creditTotal: paymentTotals.CREDIT_CARD,
     debitTotal: paymentTotals.DEBIT_CARD,
-    withdrawals,
+    onAccountTotal: paymentTotals.CREDIT,
+    totalRevenue,
+    orderCount: orders.filter((order) => order.status !== 'CANCELED').length,
+    withdrawals: enrichedWithdrawals,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Service público
-// ---------------------------------------------------------------------------
 
 export const cashRegisterService = {
   async getCurrentSession(): Promise<SessionSummary | null> {
@@ -85,18 +124,18 @@ export const cashRegisterService = {
 
     const paymentTotals = await getPaymentTotals(session.id);
     const withdrawals = await cashRegisterRepository.findWithdrawalsBySession(session.id);
-    const totalWithdrawn = withdrawals.reduce((sum, w) => sum + w.amount, 0);
-
-    const suggestedAmount = Math.max(
-      0,
-      paymentTotals.CASH - totalWithdrawn - session.openingAmount
-    );
+    const totalWithdrawn = withdrawals.reduce((sum, withdrawal) => sum + withdrawal.amount, 0);
+    const suggestedAmount = Math.max(0, paymentTotals.CASH - totalWithdrawn);
+    const roundedSuggestion = Math.round(suggestedAmount * 100) / 100;
 
     return {
-      suggestedAmount: Math.round(suggestedAmount * 100) / 100,
+      suggestedAmount: roundedSuggestion,
       totalCashReceived: paymentTotals.CASH,
       totalWithdrawn,
       openingAmount: session.openingAmount,
+      message: roundedSuggestion === 0
+        ? `A gaveta tem apenas o fundo de ${formatBRL(session.openingAmount)}. Não há valor a retirar.`
+        : null,
     };
   },
 
@@ -107,7 +146,6 @@ export const cashRegisterService = {
   ): Promise<SessionSummary> {
     const existing = await cashRegisterRepository.findOpenSession();
     if (existing) throw new ValidationError('session', 'Já existe um caixa aberto.');
-
     if (openingAmount < 0) {
       throw new ValidationError('openingAmount', 'O valor de abertura não pode ser negativo.');
     }
@@ -145,7 +183,6 @@ export const cashRegisterService = {
   ): Promise<SessionSummary> {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
-
     if (closingAmount < 0) {
       throw new ValidationError('closingAmount', 'O valor de fechamento não pode ser negativo.');
     }
@@ -165,20 +202,27 @@ export const cashRegisterService = {
         }),
         createdAt: new Date(),
       });
-
       throw new PendingCashRegisterOrdersError(pendingOrders);
     }
 
     const paymentTotals = await getPaymentTotals(session.id);
     const withdrawals = await cashRegisterRepository.findWithdrawalsBySession(session.id);
-    const withdrawalTotal = withdrawals.reduce((sum, w) => sum + w.amount, 0);
+    const withdrawalTotal = withdrawals.reduce((sum, withdrawal) => sum + withdrawal.amount, 0);
     const expectedAmount = session.openingAmount + paymentTotals.CASH - withdrawalTotal;
     const closingDate = new Date();
+    const difference = Math.round((closingAmount - expectedAmount) * 100) / 100;
+
+    if (difference !== 0 && !notes?.trim()) {
+      throw new ValidationError(
+        'notes',
+        'Informe uma justificativa para a diferença encontrada no fechamento.'
+      );
+    }
 
     const updated = await cashRegisterRepository.closeOpenSession(session.id, {
       status: 'CLOSED',
       closingAmount,
-      notes: notes ?? session.notes,
+      notes: notes?.trim() || session.notes,
       closedAt: closingDate,
       closedById: actingUserId,
       withdrawalTotal,
@@ -196,11 +240,13 @@ export const cashRegisterService = {
         closingAmount,
         withdrawalTotal,
         expectedAmount,
-        difference: closingAmount - expectedAmount,
+        difference,
+        justification: notes?.trim() || null,
         closedAt: closingDate.toISOString(),
         pixTotal: paymentTotals.PIX,
         creditTotal: paymentTotals.CREDIT_CARD,
         debitTotal: paymentTotals.DEBIT_CARD,
+        onAccountTotal: paymentTotals.CREDIT,
       }),
       createdAt: new Date(),
     });
@@ -212,10 +258,9 @@ export const cashRegisterService = {
     amount: number,
     reason: string,
     actingUserId: string
-  ): Promise<CashWithdrawal> {
+  ): Promise<CashWithdrawalSummary> {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
-
     if (!amount || amount <= 0 || !reason.trim()) {
       throw new ValidationError('withdrawal', 'Informe valor e motivo da sangria.');
     }
@@ -239,6 +284,9 @@ export const cashRegisterService = {
       createdAt: new Date(),
     });
 
-    return withdrawal;
+    return {
+      ...withdrawal,
+      createdBy: await findOperator(withdrawal.createdById),
+    };
   },
 };

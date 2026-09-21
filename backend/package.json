@@ -18,7 +18,8 @@
     "test:nfce": "node --test -r ts-node/register/transpile-only tests/nfce.test.cjs",
     "test:currency": "node --test -r ts-node/register/transpile-only tests/currency.test.cjs",
     "test:stock": "node --test -r ts-node/register/transpile-only tests/order-stock.test.cjs",
-    "test:branding": "node --test -r ts-node/register/transpile-only tests/branding.test.cjs"
+    "test:branding": "node --test -r ts-node/register/transpile-only tests/branding.test.cjs",
+    "test:cash": "node --test -r ts-node/register/transpile-only tests/cash-register.test.cjs"
   },
   "keywords": [],
   "author": "",

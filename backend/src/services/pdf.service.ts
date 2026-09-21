@@ -94,7 +94,7 @@ export class PdfService {
     doc.setFont('helvetica', 'normal');
 
     order.items.forEach((item) => {
-      const name = item.product?.name ?? 'Produto';
+      const name = item.productName || item.product?.name || 'Produto removido';
       const qty = item.weight ? `${(item.weight / 1000).toFixed(3)}kg` : `${item.quantity}x`;
       const price = formatBRL(item.price);
 
