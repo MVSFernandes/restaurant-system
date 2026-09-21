@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { configService } from '../services/domain.services';
+import { brandingService, BrandingImageKind } from '../services/branding.service';
 import { DomainError } from '../types/errors';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
@@ -16,6 +17,35 @@ export const getConfig = async (_req: Request, res: Response) => {
     handleError(res, error, 'Erro ao buscar configurações');
   }
 };
+
+export const getPublicBranding = async (_req: Request, res: Response) => {
+  try {
+    res.json(await brandingService.getPublicIdentity());
+  } catch (error) {
+    handleError(res, error, 'Erro ao buscar identidade do restaurante');
+  }
+};
+
+const uploadBranding = (kind: BrandingImageKind) => async (req: Request, res: Response) => {
+  try {
+    res.json(await brandingService.upload(kind, req.file));
+  } catch (error) {
+    handleError(res, error, 'Erro ao enviar imagem');
+  }
+};
+
+const removeBranding = (kind: BrandingImageKind) => async (_req: Request, res: Response) => {
+  try {
+    res.json(await brandingService.remove(kind));
+  } catch (error) {
+    handleError(res, error, 'Erro ao remover imagem');
+  }
+};
+
+export const uploadLogo = uploadBranding('logo');
+export const uploadBanner = uploadBranding('banner');
+export const removeLogo = removeBranding('logo');
+export const removeBanner = removeBranding('banner');
 
 export const updateConfig = async (req: Request, res: Response) => {
   try {
