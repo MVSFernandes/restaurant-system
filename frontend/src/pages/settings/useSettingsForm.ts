@@ -8,7 +8,10 @@ import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 export type SettingsFieldErrors = Partial<Record<keyof RestaurantConfig, string>>;
 type SettingsValidator = (config: Partial<RestaurantConfig>) => SettingsFieldErrors;
 
-export function useSettingsForm(validate?: SettingsValidator) {
+export function useSettingsForm(
+  validate?: SettingsValidator,
+  onSaved?: () => void | Promise<void>
+) {
   const [config, setConfig] = useState<Partial<RestaurantConfig>>({});
   const [savedConfig, setSavedConfig] = useState<Partial<RestaurantConfig>>({});
   const [loading, setLoading] = useState(true);
@@ -44,6 +47,11 @@ export function useSettingsForm(validate?: SettingsValidator) {
     });
   };
 
+  const syncConfigField = <K extends keyof RestaurantConfig>(field: K, value: RestaurantConfig[K] | undefined) => {
+    setConfig((current) => ({ ...current, [field]: value }));
+    setSavedConfig((current) => ({ ...current, [field]: value }));
+  };
+
   const handleSave = async () => {
     const errors = validate?.(config) ?? {};
     const invalidFields = Object.keys(errors) as Array<keyof RestaurantConfig>;
@@ -62,6 +70,7 @@ export function useSettingsForm(validate?: SettingsValidator) {
       setConfig(payload);
       setSavedConfig(payload);
       setFieldErrors({});
+      await onSaved?.();
       toast({ title: 'Configurações salvas com sucesso', variant: 'success' });
     } catch (error) {
       console.error(error);
@@ -85,5 +94,6 @@ export function useSettingsForm(validate?: SettingsValidator) {
     saving,
     handleSave,
     updateConfigField,
+    syncConfigField,
   };
 }

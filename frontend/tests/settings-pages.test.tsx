@@ -109,7 +109,7 @@ describe('Settings pages and routes', () => {
     renderSettings();
     const labels = [
       'Nome do Restaurante', 'Telefone', 'Endereço', 'Horário de Funcionamento',
-      'Dias de Funcionamento', 'URL do Logo', 'URL do Banner (Cardápio Digital)',
+      'Dias de Funcionamento', 'Logo do restaurante', 'Banner do cardápio digital',
       'Taxa de Entrega',
     ];
 

@@ -1,11 +1,13 @@
 import { orderErrorMessage } from '../../lib/orderErrors';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
-import type { Category, Product, RestaurantConfig } from '../../types';
+import type { Category, Product } from '../../types';
 import { ShoppingCart, Plus, Minus, Trash2, X, UtensilsCrossed, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useMenuViewers } from '../../hooks/useMenuViewers';
 import { formatCurrencyBRL } from '../../utils/currency';
+import { BrandMark } from '../../components/branding/BrandMark';
+import { useBranding } from '../../contexts/brandingContext';
 
 interface CartItem { product: Product; quantity: number; }
 
@@ -16,9 +18,10 @@ const createIdempotencyKey = () =>
 
 const PublicMenuPage: React.FC = () => {
   useMenuViewers(true);
+  const { displayName, logoUrl, bannerUrl } = useBranding();
+  const [failedBannerUrl, setFailedBannerUrl] = useState<string | null>(null);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [config, setConfig] = useState<RestaurantConfig | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [activeCategory, setActiveCategory] = useState('');
@@ -34,19 +37,16 @@ const PublicMenuPage: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [catRes, configRes] = await Promise.all([
-          api.get('/categories?includeProducts=true'),
-          api.get('/config'),
-        ]);
-        setCategories(catRes.data);
-        setConfig(configRes.data);
-        if (catRes.data.length > 0) setActiveCategory(catRes.data[0].id);
+        const { data } = await api.get<Category[]>('/categories?includeProducts=true');
+        setCategories(data);
+        if (data.length > 0) setActiveCategory(data[0].id);
       } catch (error) {
         console.error(error);
       }
     };
-    fetchData();
+    void fetchData();
   }, []);
+
 
   const productAvailable = (product: Product) =>
     (categories.flatMap((category) => category.products ?? []).find((current) => current.id === product.id) ?? product).available !== false;
@@ -129,9 +129,9 @@ const PublicMenuPage: React.FC = () => {
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <UtensilsCrossed className="text-primary-600" size={28} />
+            <BrandMark name={displayName} logoUrl={logoUrl} className="h-10 w-10 rounded-token-md" />
             <div>
-              <h1 className="font-bold text-gray-900">{config?.name || 'Restaurante'}</h1>
+              <h1 className="font-bold text-gray-900">{displayName}</h1>
             </div>
           </div>
           <button
@@ -153,9 +153,9 @@ const PublicMenuPage: React.FC = () => {
       </header>
 
       {/* Banner */}
-      {config?.bannerUrl && (
+      {bannerUrl && failedBannerUrl !== bannerUrl && (
         <div className="w-full h-48 overflow-hidden">
-          <img src={config.bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+          <img src={bannerUrl} alt={'Banner de ' + displayName} className="w-full h-full object-cover" onError={() => setFailedBannerUrl(bannerUrl)} />
         </div>
       )}
 

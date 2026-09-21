@@ -5,12 +5,15 @@ import './index.css';
 import { RateLimitNotice } from './components/RateLimitNotice';
 import { ToastProvider } from './components/ui';
 import App from './App.tsx';
+import { BrandingProvider } from './contexts/BrandingProvider';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ToastProvider>
-      <RateLimitNotice />
-      <App />
+      <BrandingProvider>
+        <RateLimitNotice />
+        <App />
+      </BrandingProvider>
     </ToastProvider>
   </StrictMode>
 );

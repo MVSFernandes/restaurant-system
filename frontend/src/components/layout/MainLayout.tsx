@@ -6,6 +6,8 @@ import {
   BookOpen, LogOut, Menu, X, ChevronDown, ChevronUp, Settings, UserCog
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { BrandMark } from '../branding/BrandMark';
+import { useBranding } from '../../contexts/brandingContext';
 
 type NavChild = { label: string; path: string; icon: React.ReactNode | null };
 type NavItem = {
@@ -144,6 +146,7 @@ const NavLink: React.FC<{ item: NavItem; collapsed: boolean; onNavigate?: () => 
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, signOut } = useAuth();
+  const { displayName, logoUrl } = useBranding();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -164,10 +167,18 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const sidebarContent = (
     <>
-      <div className="flex items-center justify-between p-4 border-b border-gray-700">
-        {!collapsed && (
-          <span className="text-lg font-bold text-primary-400">Restaurant System</span>
-        )}
+      <div className={clsx('flex items-center justify-between border-b border-gray-700 p-4', collapsed && 'md:flex-col md:gap-2 md:px-2 md:py-3')}>
+        <div className="flex min-w-0 items-center gap-2">
+          <BrandMark
+            name={displayName}
+            logoUrl={logoUrl}
+            className="h-9 w-9 rounded-token-md"
+            fallbackClassName="text-body-lg"
+          />
+          <span className={clsx('truncate text-base font-bold text-white', collapsed && 'md:hidden')}>
+            {displayName}
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCollapsed(!collapsed)}
@@ -246,7 +257,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           >
             <Menu size={20} />
           </button>
-          <span className="font-semibold text-gray-900 truncate">{user?.role === 'WAITER' ? 'Painel do Garçom' : 'Painel'}</span>
+          <span className="max-w-[65vw] truncate font-semibold text-gray-900">{displayName}</span>
           <div className="w-10" />
         </div>
         

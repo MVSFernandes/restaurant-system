@@ -15,6 +15,7 @@ import {
   EmptyState,
   Field,
   Input,
+  ImageUpload,
   Modal,
   ModalContent,
   ModalDescription,
@@ -112,6 +113,7 @@ const DesignSystemPage = () => {
   const [switchEnabled, setSwitchEnabled] = useState(true);
   const [checked, setChecked] = useState(false);
   const [currency, setCurrency] = useState<number | null>(131.15);
+  const [demoImage, setDemoImage] = useState<string | null>(null);
   const { toast } = useToast();
 
   return (
@@ -234,6 +236,19 @@ const DesignSystemPage = () => {
               <p className="text-caption text-muted">Valor numérico: {currency === null ? 'vazio' : currency}</p>
             </div>
           </ShowcaseSection>
+          <ShowcaseSection title="ImageUpload" description="Upload com clique ou arrastar, validação, pré-visualização, remoção e feedback por Toast.">
+            <div className="max-w-md">
+              <ImageUpload
+                label="Logo de demonstração"
+                value={demoImage}
+                maxSizeMb={2}
+                helpText="PNG, JPEG ou WebP. Recomendamos uma imagem quadrada com fundo transparente."
+                onUpload={async (file) => setDemoImage(URL.createObjectURL(file))}
+                onRemove={async () => setDemoImage(null)}
+              />
+            </div>
+          </ShowcaseSection>
+
           <ShowcaseSection title="Checkbox, Switch e RadioGroup" description="Controles de seleção com rótulos acessíveis.">
             <div className="grid gap-5 md:grid-cols-3">
               <Checkbox label="Vendido por peso" description="Calcula o valor por quilograma." checked={checked} onChange={(event) => setChecked(event.target.checked)} />

@@ -8,16 +8,31 @@ import {
   CardTitle,
   CurrencyInput,
   Field,
+  ImageUpload,
   Input,
   useToast,
 } from '../../components/ui';
+import { useBranding } from '../../contexts/brandingContext';
+import api from '../../services/api';
+import type { RestaurantConfig } from '../../types';
 import { SettingsPageLayout } from './SettingsPageLayout';
 import { useSettingsForm } from './useSettingsForm';
 
+type BrandingKind = 'logo' | 'banner';
+
 const RestaurantSettingsPage = () => {
-  const { config, loading, navigation, saving, handleSave, updateConfigField } = useSettingsForm();
+  const { refresh: refreshBranding } = useBranding();
+  const {
+    config,
+    loading,
+    navigation,
+    saving,
+    handleSave,
+    updateConfigField,
+    syncConfigField,
+  } = useSettingsForm(undefined, refreshBranding);
   const { toast } = useToast();
-  const menuUrl = `${window.location.origin}/cardapio`;
+  const menuUrl = window.location.origin + '/cardapio';
 
   const copyMenuUrl = async () => {
     try {
@@ -27,6 +42,22 @@ const RestaurantSettingsPage = () => {
       console.error(error);
       toast({ title: 'Erro ao copiar link', description: 'Copie o endereço manualmente.', variant: 'error' });
     }
+  };
+
+  const uploadImage = async (kind: BrandingKind, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await api.post<RestaurantConfig>('/config/branding/' + kind, formData);
+    const field = kind === 'logo' ? 'logoUrl' : 'bannerUrl';
+    syncConfigField(field, data[field]);
+    await refreshBranding();
+  };
+
+  const removeImage = async (kind: BrandingKind) => {
+    const { data } = await api.delete<RestaurantConfig>('/config/branding/' + kind);
+    const field = kind === 'logo' ? 'logoUrl' : 'bannerUrl';
+    syncConfigField(field, data[field]);
+    await refreshBranding();
   };
 
   return (
@@ -53,10 +84,29 @@ const RestaurantSettingsPage = () => {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Imagens</CardTitle></CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <Field id="settings-logoUrl" label="URL do Logo"><Input value={config.logoUrl ?? ''} onChange={(event) => updateConfigField('logoUrl', event.target.value)} placeholder="https://..." /></Field>
-            <Field id="settings-bannerUrl" label="URL do Banner (Cardápio Digital)"><Input value={config.bannerUrl ?? ''} onChange={(event) => updateConfigField('bannerUrl', event.target.value)} placeholder="https://..." /></Field>
+          <CardHeader>
+            <CardTitle>Imagens</CardTitle>
+            <CardDescription>Envie a identidade visual usada pelo sistema e pelo cardápio digital.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-6 md:grid-cols-2">
+            <ImageUpload
+              label="Logo do restaurante"
+              value={config.logoUrl}
+              maxSizeMb={2}
+              helpText="Aparece na barra lateral, login, aba do navegador e comanda impressa. Recomendamos uma imagem quadrada com fundo transparente."
+              disabled={loading || saving}
+              onUpload={(file) => uploadImage('logo', file)}
+              onRemove={() => removeImage('logo')}
+            />
+            <ImageUpload
+              label="Banner do cardápio digital"
+              value={config.bannerUrl}
+              maxSizeMb={4}
+              helpText="Aparece no topo do cardápio digital. Recomendamos uma imagem horizontal."
+              disabled={loading || saving}
+              onUpload={(file) => uploadImage('banner', file)}
+              onRemove={() => removeImage('banner')}
+            />
           </CardContent>
         </Card>
 
