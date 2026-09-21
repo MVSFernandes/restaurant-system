@@ -4,6 +4,8 @@ import type { Order, Product, Category, RestaurantConfig } from '../../types';
 import { X, Plus, Minus, Tag, Trash2, DollarSign, Package } from 'lucide-react';
 import { formatCurrencyBRL } from '../../utils/currency';
 import { DeliveryIcon, PickupIcon, TableIcon } from '../ui/icons';
+import { DeliveryFeeSelector } from '../orders/DeliveryFeeSelector';
+import { deliveryFeeForSelection, type DeliveryFeeType } from '../../lib/deliveryFees';
 
 interface EditOrderModalProps {
   order: Order;
@@ -78,6 +80,10 @@ const parseNotesAndExtras = (originalNotes: string) => {
 
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categories, onClose, onSave }) => {
   const getCategoryForProduct = (product: Product) => categories.find((cat) => cat.id === product.categoryId);
+  const initialDeliveryType: DeliveryFeeType =
+    order.deliveryType === 'URBAN' || order.deliveryType === 'RURAL' || order.deliveryType === 'CUSTOM'
+      ? order.deliveryType
+      : 'CUSTOM';
 
   const [config, setConfig] = useState<RestaurantConfig | null>(null);
   
@@ -104,7 +110,12 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
   
   const [selectedCategory, setSelectedCategory] = useState(categories[0]?.id || '');
   const [customerName, setCustomerName] = useState(order.customerName || '');
-  const [deliveryType, setDeliveryType] = useState<'URBAN' | 'RURAL' | ''>((order.deliveryType as 'URBAN' | 'RURAL') || '');
+  const [deliveryType, setDeliveryType] = useState<DeliveryFeeType>(initialDeliveryType);
+  const [customDeliveryFee, setCustomDeliveryFee] = useState<number | null>(
+    initialDeliveryType === 'CUSTOM' ? Number(order.deliveryFee ?? 0) : null
+  );
+  const [deliveryFeeSelectionChanged, setDeliveryFeeSelectionChanged] = useState(false);
+  const [customDeliveryFeeError, setCustomDeliveryFeeError] = useState<string | null>(null);
   
   const [deliveryData, setDeliveryData] = useState({
     deliveryStreet: order.deliveryStreet || '',
@@ -231,10 +242,16 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
 
   const currentDeliveryFee = useMemo(() => {
     if (order.type !== 'DELIVERY') return 0;
-    if (deliveryType === 'URBAN') return Number(config?.urbanDeliveryFee || 1);
-    if (deliveryType === 'RURAL') return Number(config?.ruralDeliveryFee || 3);
-    return 0;
-  }, [order.type, deliveryType, config]);
+    if (!deliveryFeeSelectionChanged) return Number(order.deliveryFee ?? 0);
+    return deliveryFeeForSelection(deliveryType, config ?? {}, customDeliveryFee) ?? 0;
+  }, [
+    order.type,
+    order.deliveryFee,
+    deliveryFeeSelectionChanged,
+    deliveryType,
+    customDeliveryFee,
+    config,
+  ]);
 
   const cartTotal = useMemo(() => {
     const itemsTotal = cart.reduce((sum, item) => sum + getItemTotalWithExtras(item), 0);
@@ -243,6 +260,10 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
 
   const handleSave = async () => {
     if (cart.length === 0) return alert('Adicione pelo menos um item no pedido.');
+    if (order.type === 'DELIVERY' && deliveryType === 'CUSTOM' && customDeliveryFee === null) {
+      setCustomDeliveryFeeError('Informe o valor da taxa personalizada.');
+      return;
+    }
     if (order.type === 'DELIVERY' && (!customerName.trim() || !deliveryData.deliveryStreet.trim() || !deliveryData.deliveryNumber.trim() || !deliveryData.deliveryNeighborhood.trim() || !deliveryData.deliveryPhone.trim())) {
       return alert('Para entrega, preencha nome do cliente, rua, número, bairro e telefone.');
     }
@@ -271,7 +292,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
           };
         }),
         ...deliveryData,
-        deliveryType: order.type === 'DELIVERY' && deliveryType !== '' ? deliveryType : null,
+        deliveryType: order.type === 'DELIVERY' ? deliveryType : null,
         deliveryFee: order.type === 'DELIVERY' ? currentDeliveryFee : 0,
       });
       onSave();
@@ -330,26 +351,33 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
                   Dados da Entrega
                 </h3>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 max-w-md">
-                  <button
-                    onClick={() => setDeliveryType((prev) => (prev === 'URBAN' ? '' : 'URBAN'))}
-                    className={`p-3 rounded-lg border transition-all text-left flex justify-between items-center ${
-                      deliveryType === 'URBAN' ? 'border-primary-600 bg-primary-50 shadow-sm text-primary-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                    }`}
-                  >
-                    <span className="text-sm font-semibold">Urbana</span>
-                    <span className="font-bold">{formatCurrencyBRL(config?.urbanDeliveryFee || 1)}</span>
-                  </button>
-
-                  <button
-                    onClick={() => setDeliveryType((prev) => (prev === 'RURAL' ? '' : 'RURAL'))}
-                    className={`p-3 rounded-lg border transition-all text-left flex justify-between items-center ${
-                      deliveryType === 'RURAL' ? 'border-primary-600 bg-primary-50 shadow-sm text-primary-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                    }`}
-                  >
-                    <span className="text-sm font-semibold">Rural</span>
-                    <span className="font-bold">{formatCurrencyBRL(config?.ruralDeliveryFee || 3)}</span>
-                  </button>
+                <div className="mb-4 max-w-md space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Taxa de entrega
+                  </label>
+                  <DeliveryFeeSelector
+                    value={deliveryType}
+                    urbanFee={config?.urbanDeliveryFee}
+                    ruralFee={config?.ruralDeliveryFee}
+                    customFee={customDeliveryFee}
+                    customFeeError={customDeliveryFeeError ?? undefined}
+                    disabled={loading}
+                    onValueChange={(value) => {
+                      setDeliveryType(value);
+                      setDeliveryFeeSelectionChanged(true);
+                      setCustomDeliveryFeeError(null);
+                    }}
+                    onCustomFeeChange={(value) => {
+                      setCustomDeliveryFee(value);
+                      setDeliveryFeeSelectionChanged(true);
+                      setCustomDeliveryFeeError(null);
+                    }}
+                  />
+                  {!deliveryFeeSelectionChanged && (
+                    <p className="text-xs text-gray-500">
+                      Taxa gravada neste pedido: {formatCurrencyBRL(order.deliveryFee ?? 0)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

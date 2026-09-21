@@ -56,7 +56,7 @@ export type CashSessionStatus = 'OPEN' | 'CLOSED';
 
 export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED';
 
-export type DeliveryType = 'URBAN' | 'RURAL';
+export type DeliveryType = 'URBAN' | 'RURAL' | 'CUSTOM';
 
 export type SaleType = 'UNIT' | 'WEIGHT';
 

@@ -21,7 +21,11 @@ beforeEach(() => {
     url === '/tables' ? [{ id: 'table', number: 1, status: 'OCCUPIED' }] :
     url === '/users' ? [{ id: 'admin', name: 'Operador', role: 'ADMIN' }] :
     url === '/cash-register/current' ? { id: 'session' } :
-    url === '/config' ? { name: 'Restaurante' } : [],
+    url === '/config' ? {
+      name: 'Restaurante',
+      urbanDeliveryFee: 1,
+      ruralDeliveryFee: 3,
+    } : [],
   }));
   mocks.post.mockReset();
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -112,6 +116,27 @@ describe('public delivery checkout', () => {
       paymentMethod: 'CASH',
       deliveryFee: 5,
     });
+  });
+});
+
+describe('PDV delivery fee selection', () => {
+  it('defaults to urban and requires a value when selecting another fee', async () => {
+    await openPdv();
+    fireEvent.click(screen.getByRole('button', { name: /Água/ }));
+    fireEvent.change(screen.getByDisplayValue('Mesa'), { target: { value: 'DELIVERY' } });
+
+    expect((screen.getByRole('radio', { name: /Urbana/ }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('radio', { name: /Outra/ }));
+    fireEvent.change(screen.getByDisplayValue('Responsável pelo Pedido'), {
+      target: { value: 'admin' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pedido' }));
+
+    expect((await screen.findAllByText('Informe o valor da taxa personalizada.')).length).toBeGreaterThanOrEqual(1);
+
+    const customFee = screen.getByLabelText('Valor da taxa personalizada', { exact: false }) as HTMLInputElement;
+    fireEvent.change(customFee, { target: { value: '0' } });
+    expect(customFee.value).toContain('0,00');
   });
 });
 
