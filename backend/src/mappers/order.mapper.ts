@@ -1,14 +1,15 @@
 import { Database } from '../types/database';
-import { Order, OrderStatus, OrderType, DeliveryType } from '../types/domain';
+import { Order, OrderSource, OrderStatus, OrderType, DeliveryType } from '../types/domain';
 
-type OrderRow = Database['public']['Tables']['orders']['Row'];
-type OrderInsert = Database['public']['Tables']['orders']['Insert'];
+type OrderRow = Database['public']['Tables']['orders']['Row'] & { source?: string };
+type OrderInsert = Database['public']['Tables']['orders']['Insert'] & { source: string };
 type OrderUpdate = Database['public']['Tables']['orders']['Update'];
 
 export function toOrderDomain(row: OrderRow): Order {
   return {
     id: row.id,
     type: row.type as OrderType,
+    source: (row.source ?? 'PDV') as OrderSource,
     status: row.status as OrderStatus,
     total: row.total,
     deliveryFee: row.delivery_fee,
@@ -34,6 +35,7 @@ export function toOrderInsert(domain: Order): OrderInsert {
   return {
     id: domain.id,
     type: domain.type,
+    source: domain.source,
     status: domain.status,
     total: domain.total,
     delivery_fee: domain.deliveryFee,

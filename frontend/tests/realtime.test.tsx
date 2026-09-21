@@ -13,14 +13,15 @@ vi.mock('../src/services/api', () => ({ default: { get: mocks.get } }));
 import { openRealtimeChannel } from '../src/lib/realtime';
 import { useMenuViewers } from '../src/hooks/useMenuViewers';
 import { useStockEvents } from '../src/hooks/useStockEvents';
+import { useOrderEvents } from '../src/hooks/useOrderEvents';
 import StockItemsPage from '../src/pages/finance/StockItemsPage';
 
 function makeChannel() {
-  const handlers = new Map<string, () => void>();
+  const handlers = new Map<string, (message?: { payload?: unknown }) => void>();
   let status: (value: string) => void = () => {};
   let state: Record<string, Array<Record<string, string>>> = {};
   const channel = {
-    on: vi.fn((type: string, filter: { event: string }, callback: () => void) => {
+    on: vi.fn((type: string, filter: { event: string }, callback: (message?: { payload?: unknown }) => void) => {
       handlers.set(type + ':' + filter.event, callback);
       return channel;
     }),
@@ -30,7 +31,8 @@ function makeChannel() {
     }),
     track: vi.fn().mockResolvedValue('ok'),
     presenceState: () => state,
-    emit: (type: string, event: string) => handlers.get(type + ':' + event)?.(),
+    emit: (type: string, event: string, payload?: unknown) =>
+      handlers.get(type + ':' + event)?.({ payload }),
     setStatus: (value: string) => status(value),
     setState: (value: typeof state) => { state = value; },
   };
@@ -155,6 +157,50 @@ describe('menu presence', () => {
     close();
     await flush();
     expect(subscribe).not.toHaveBeenCalled();
+  });
+});
+
+describe('order broadcasts', () => {
+  it('refreshes on create, update, cancel, reconnect and periodic fallback', async () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    const onCreated = vi.fn();
+    const { unmount } = renderHook(() => useOrderEvents(refresh, onCreated));
+    await flush();
+
+    act(() => {
+      channel.setStatus('SUBSCRIBED');
+      vi.advanceTimersByTime(150);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      channel.emit('broadcast', 'order_created', {
+        orderId: 'online-order',
+        source: 'PUBLIC_MENU',
+      });
+      vi.advanceTimersByTime(150);
+    });
+    expect(onCreated).toHaveBeenCalledWith({
+      orderId: 'online-order',
+      source: 'PUBLIC_MENU',
+    });
+    expect(refresh).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      channel.emit('broadcast', 'order_updated');
+      channel.emit('broadcast', 'order_canceled');
+      vi.advanceTimersByTime(150);
+    });
+    expect(refresh).toHaveBeenCalledTimes(3);
+
+    act(() => vi.advanceTimersByTime(30_000));
+    expect(refresh).toHaveBeenCalledTimes(4);
+
+    unmount();
+    await flush();
+    act(() => vi.advanceTimersByTime(30_000));
+    expect(refresh).toHaveBeenCalledTimes(4);
   });
 });
 

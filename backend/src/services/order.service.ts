@@ -300,6 +300,7 @@ export const orderService = {
     const order: Order = {
       id: orderId,
       type: input.type,
+      source: actingUser.role === 'WAITER' ? 'WAITER' : 'PDV',
       status: 'NEW',
       total,
       deliveryFee,
@@ -398,6 +399,7 @@ export const orderService = {
     const order: Order = {
       id: orderId,
       type,
+      source: 'PUBLIC_MENU',
       status: 'NEW',
       total,
       deliveryFee,
@@ -419,8 +421,13 @@ export const orderService = {
     };
 
     const payment: Payment = {
-      id: createId(), orderId, method: paymentMethod,
-      amount: total, status: 'PENDING', transactionId: null, createdAt: new Date(),
+      id: createId(),
+      orderId,
+      method: paymentMethod,
+      amount: total,
+      status: paymentMethod === 'PIX' ? 'PAID' : 'PENDING',
+      transactionId: null,
+      createdAt: new Date(),
     };
     return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems), payment, storedKey);
   },

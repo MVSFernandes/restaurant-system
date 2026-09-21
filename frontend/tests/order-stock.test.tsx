@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('../src/services/api', () => ({ default: mocks }));
 vi.mock('../src/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'admin', role: 'ADMIN' } }) }));
 vi.mock('../src/hooks/useMenuViewers', () => ({ useMenuViewers: () => undefined }));
+vi.mock('../src/hooks/useOrderEvents', () => ({ useOrderEvents: () => undefined }));
 import OrdersPage from '../src/pages/pdv/OrdersPage';
 import WaiterTablesPage from '../src/pages/waiter/WaiterTablesPage';
 import PublicMenuPage from '../src/pages/menu/PublicMenuPage';
@@ -188,6 +189,32 @@ describe('stock race at confirmation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Água/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Enviar para Cozinha' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Estoque insuficiente de "Água".');
+  });
+});
+
+describe('order payment visibility', () => {
+  it('identifies an online order and shows pending payment before it is finished', async () => {
+    const previousGet = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (url: string) => url.startsWith('/orders?') ? {
+      data: [{
+        id: 'online-order',
+        type: 'DELIVERY',
+        source: 'PUBLIC_MENU',
+        status: 'NEW',
+        total: 16,
+        items: [],
+        createdAt: new Date().toISOString(),
+        customerName: 'Cliente Online',
+        payment: { method: 'CASH', status: 'PENDING' },
+      }],
+    } : previousGet(url));
+
+    render(<OrdersPage />);
+
+    expect(await screen.findByText('Pedido online')).toBeTruthy();
+    expect(screen.getByText('DINHEIRO')).toBeTruthy();
+    expect(screen.getByText('A RECEBER')).toBeTruthy();
+    expect(screen.getByText('Cobrar R$ 16,00')).toBeTruthy();
   });
 });
 

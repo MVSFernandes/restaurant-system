@@ -1,5 +1,5 @@
 import { orderErrorMessage } from '../../lib/orderErrors';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import api from '../../services/api';
 import type {
   Order,
@@ -29,6 +29,8 @@ import {
   QrCode,
   Wallet,
   Loader2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
@@ -37,11 +39,15 @@ import {
   ORDER_STATUS_LABELS,
 } from '../../constants/orders';
 import { formatCurrencyBRL } from '../../utils/currency';
-import { CloseIcon, CreditCardIcon, CreditSaleIcon, DebitCardIcon, MoneyIcon, PixIcon } from '../../components/ui/icons';
+import { CloseIcon } from '../../components/ui/icons';
 import { useAuth } from '../../hooks/useAuth';
 import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
 import { DeliveryFeeSelector } from '../../components/orders/DeliveryFeeSelector';
 import { deliveryFeeForSelection, type DeliveryFeeType } from '../../lib/deliveryFees';
+import { useOrderEvents, type OrderEventPayload } from '../../hooks/useOrderEvents';
+import { playNewOrderSound } from '../../lib/orderAlerts';
+import { getOrderPaymentSummary } from '../../lib/orderPayment';
+import { useBranding } from '../../contexts/brandingContext';
 
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
 const statusLabels = ORDER_STATUS_LABELS;
@@ -73,6 +79,16 @@ const createIdempotencyKey = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `order-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const ORDER_SOUND_PREFERENCE_KEY = 'pdv-order-sound-enabled';
+
+const savedOrderSoundPreference = () => {
+  try {
+    return localStorage.getItem(ORDER_SOUND_PREFERENCE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+};
 
 const getCurrentWeekDay = () => {
   const day = new Intl.DateTimeFormat('en-US', {
@@ -134,6 +150,7 @@ const parseNotesAndExtras = (originalNotes: string) => {
 
 const OrdersPage: React.FC = () => {
   const { user } = useAuth();
+  const { displayName } = useBranding();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -154,6 +171,13 @@ const OrdersPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [searchCustomer, setSearchCustomer] = useState('');
+  const [soundEnabled, setSoundEnabled] = useState(savedOrderSoundPreference);
+  const [soundActivationRequired, setSoundActivationRequired] = useState(false);
+  const [highlightedOrderIds, setHighlightedOrderIds] = useState<Set<string>>(() => new Set());
+  const [unseenOrderCount, setUnseenOrderCount] = useState(0);
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const announcedOrderIdsRef = useRef<Set<string>>(new Set());
+  const ordersLoadedRef = useRef(false);
 
   const [customerName, setCustomerName] = useState('');
   const [deliveryStreet, setDeliveryStreet] = useState('');
@@ -286,16 +310,106 @@ const OrdersPage: React.FC = () => {
     setTimeout(tryPrint, 400);
   };
 
+  const notifyIncomingOnlineOrder = useCallback((orderId: string) => {
+    if (announcedOrderIdsRef.current.has(orderId)) return;
+    announcedOrderIdsRef.current.add(orderId);
+
+    setHighlightedOrderIds((current) => new Set(current).add(orderId));
+    if (!document.hasFocus()) setUnseenOrderCount((current) => current + 1);
+
+    if (soundEnabled) {
+      void playNewOrderSound().then((played) => {
+        if (!played) setSoundActivationRequired(true);
+      });
+    }
+  }, [soundEnabled]);
+
+  const applyOrderSnapshot = useCallback((nextOrders: Order[]) => {
+    if (ordersLoadedRef.current) {
+      for (const order of nextOrders) {
+        if (
+          order.source === 'PUBLIC_MENU' &&
+          !knownOrderIdsRef.current.has(order.id)
+        ) {
+          notifyIncomingOnlineOrder(order.id);
+        }
+      }
+    }
+
+    knownOrderIdsRef.current = new Set(nextOrders.map((order) => order.id));
+    ordersLoadedRef.current = true;
+    setOrders(nextOrders);
+  }, [notifyIncomingOnlineOrder]);
+
+  const refreshOperationalData = useCallback(async () => {
+    try {
+      const [ordersRes, tablesRes, cashRes] = await Promise.all([
+        api.get('/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED'),
+        api.get('/tables'),
+        api.get('/cash-register/current'),
+      ]);
+      applyOrderSnapshot(ordersRes.data);
+      setTables(tablesRes.data.filter((table: Table) => table.status === 'OCCUPIED'));
+      setCurrentCash(cashRes.data);
+    } catch (error) {
+      // Realtime and polling are recovery paths; a temporary outage must not break the page.
+      console.error('Erro ao atualizar pedidos em segundo plano:', error);
+    }
+  }, [applyOrderSnapshot]);
+
+  const handleOrderCreated = useCallback((payload: OrderEventPayload) => {
+    if (payload.source === 'PUBLIC_MENU') notifyIncomingOnlineOrder(payload.orderId);
+  }, [notifyIncomingOnlineOrder]);
+
+  useOrderEvents(refreshOperationalData, handleOrderCreated);
+
+  useEffect(() => {
+    const clearUnseenCount = () => setUnseenOrderCount(0);
+    window.addEventListener('focus', clearUnseenCount);
+    return () => window.removeEventListener('focus', clearUnseenCount);
+  }, []);
+
+  useEffect(() => {
+    document.title = `${unseenOrderCount ? `(${unseenOrderCount}) ` : ''}Pedidos · ${displayName}`;
+    return () => {
+      document.title = `Pedidos · ${displayName}`;
+    };
+  }, [displayName, unseenOrderCount]);
+
+  const setSoundPreference = useCallback((enabled: boolean) => {
+    setSoundEnabled(enabled);
+    if (!enabled) setSoundActivationRequired(false);
+    try {
+      localStorage.setItem(ORDER_SOUND_PREFERENCE_KEY, String(enabled));
+    } catch {
+      // The preference remains valid for the current tab when storage is unavailable.
+    }
+  }, []);
+
+  const toggleSound = async () => {
+    const enabled = !soundEnabled;
+    setSoundPreference(enabled);
+    if (enabled) setSoundActivationRequired(!(await playNewOrderSound()));
+  };
+
+  const activateSound = async () => {
+    setSoundPreference(true);
+    setSoundActivationRequired(!(await playNewOrderSound()));
+  };
+
+  const clearNewOrderHighlight = (orderId: string) => {
+    setHighlightedOrderIds((current) => {
+      if (!current.has(orderId)) return current;
+      const next = new Set(current);
+      next.delete(orderId);
+      return next;
+    });
+  };
+
   const fetchData = async (options: { silent?: boolean; paymentOnly?: boolean } = {}) => {
     try {
       if (options.paymentOnly) {
-        const [ordersRes, tablesRes, cashRes] = await Promise.all([
-          api.get('/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED'),
-          api.get('/tables'), api.get('/cash-register/current'),
-        ]);
-        setOrders(ordersRes.data);
-        setTables(tablesRes.data.filter((table: Table) => table.status === 'OCCUPIED'));
-        setCurrentCash(cashRes.data);
+        await refreshOperationalData();
         return;
       }
       const [
@@ -318,7 +432,7 @@ const OrdersPage: React.FC = () => {
         api.get('/cash-register/current').catch(() => ({ data: null })),
       ]);
 
-      setOrders(ordersRes.data);
+      applyOrderSnapshot(ordersRes.data);
       setCategories(categoriesRes.data);
       setTables(tablesRes.data.filter((t: Table) => t.status === 'OCCUPIED'));
       setWaiters(usersRes.data.filter((u: User) => u.role === 'WAITER' || u.role === 'ADMIN'));
@@ -704,15 +818,6 @@ const OrdersPage: React.FC = () => {
         ? 'RETIRADA'
         : 'CONSUMO NO LOCAL';
 
-    const paymentMethodLabel: Record<string, string> = {
-      CASH: 'DINHEIRO',
-      CRED_CARD: 'CARTAO DE CREDITO',
-      DEBIT_CARD: 'CARTAO DE DEBITO',
-      PIX: 'PIX',
-      ON_DELIVERY: 'PAGAR NA ENTREGA',
-      ON_PICKUP: 'PAGAR NA RETIRADA',
-      CREDIT: 'FIADO',
-    };
 
     let calculatedSubtotal = 0;
 
@@ -805,7 +910,6 @@ const OrdersPage: React.FC = () => {
     const deliveryFee = Number(order.deliveryFee || 0);
     const additionalFee = 0;
     const discount = 0;
-    const changeValue = 0;
     const totalToCharge = Number(
       order.total || calculatedSubtotal + deliveryFee + additionalFee - discount
     );
@@ -820,7 +924,7 @@ const OrdersPage: React.FC = () => {
     const neighborhood = escapeHtml(normalizeText(order.deliveryNeighborhood || ''));
     const reference = escapeHtml(normalizeText(order.deliveryReference || ''));
     const phone = escapeHtml(order.deliveryPhone || '');
-    const paymentLabel = paymentMethodLabel[order.payment?.method || ''] || 'NAO INFORMADO';
+    const paymentSummary = getOrderPaymentSummary(order.payment, totalToCharge);
 
     const printContent = `
       <html>
@@ -1079,26 +1183,15 @@ const OrdersPage: React.FC = () => {
               <span class="total-value">${formatCurrencyBRL(discount)}</span>
             </div>
 
-            <div class="total-row">
-              <span class="total-label strong">Troco</span>
-              <span class="total-value strong">${formatCurrencyBRL(changeValue)}</span>
-            </div>
-
             <div class="total-row grand-total">
-              <span class="total-label">Cobrar do Cliente</span>
+              <span class="total-label">Total do Pedido</span>
               <span class="total-value">${formatCurrencyBRL(totalToCharge)}</span>
             </div>
 
             <hr />
 
             <div class="subsection-title">Forma de pagamento</div>
-            <div class="line strong">${paymentLabel}</div>
-
-            ${
-              paymentLabel === 'DINHEIRO'
-                ? `<div class="line">Valor a receber em dinheiro: ${formatCurrencyBRL(totalToCharge)}</div>`
-                : ''
-            }
+            <div class="line strong">${escapeHtml(normalizeText(paymentSummary.receiptText))}</div>
 
             <div class="footer">OBRIGADO E VOLTE SEMPRE</div>
           </div>
@@ -1183,6 +1276,30 @@ const OrdersPage: React.FC = () => {
             />
           </div>
 
+          <div className="flex gap-2">
+            {soundActivationRequired && soundEnabled && (
+              <button
+                type="button"
+                onClick={() => void activateSound()}
+                className="btn-primary whitespace-nowrap"
+              >
+                <Volume2 size={18} /> Ativar som
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void toggleSound()}
+              className="btn-secondary flex items-center justify-center gap-2 whitespace-nowrap"
+              aria-pressed={soundEnabled}
+              title={soundEnabled ? 'Desativar som de novos pedidos' : 'Ativar som de novos pedidos'}
+            >
+              {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+              <span className="sr-only sm:not-sr-only">
+                {soundEnabled ? 'Som ligado' : 'Som desligado'}
+              </span>
+            </button>
+          </div>
+
           <button
             onClick={() => {
               if (!isCashOpen) {
@@ -1221,7 +1338,15 @@ const OrdersPage: React.FC = () => {
         )}
 
         {filteredOrders.map((order) => (
-          <div key={order.id} className="card">
+          <div
+            key={order.id}
+            className={clsx(
+              'card transition-all',
+              highlightedOrderIds.has(order.id) &&
+                'ring-2 ring-primary-500 bg-primary-50/60 shadow-lg'
+            )}
+            onClickCapture={() => clearNewOrderHighlight(order.id)}
+          >
             <div className="flex items-center justify-between mb-2">
               <div>
                 <div className="flex items-center gap-2">
@@ -1253,11 +1378,23 @@ const OrdersPage: React.FC = () => {
                   {new Date(order.createdAt).toLocaleString('pt-BR')}
                 </p>
 
-                <p className="text-xs font-bold tracking-wide text-orange-600 uppercase">
-                  {order.type === 'DINE_IN' && 'MESA'}
-                  {order.type === 'TAKE_AWAY' && 'RETIRADA'}
-                  {order.type === 'DELIVERY' && 'ENTREGA'}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-bold tracking-wide text-orange-600 uppercase">
+                    {order.type === 'DINE_IN' && 'MESA'}
+                    {order.type === 'TAKE_AWAY' && 'RETIRADA'}
+                    {order.type === 'DELIVERY' && 'ENTREGA'}
+                  </p>
+                  {order.source === 'PUBLIC_MENU' && (
+                    <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-bold text-violet-700">
+                      Pedido online
+                    </span>
+                  )}
+                  {highlightedOrderIds.has(order.id) && (
+                    <span className="rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                      Novo
+                    </span>
+                  )}
+                </div>
 
                 {order.customerName && (
                   <p className="text-sm font-medium text-primary-600">
@@ -1541,18 +1678,32 @@ const OrdersPage: React.FC = () => {
                   </div>
                 )}
 
-                {order.status === 'FINISHED' && order.payment?.method && (
-                  <div className="pt-2 border-t border-dashed">
-                    <p className="text-xs text-gray-500 font-medium">Pago via:</p>
-                    <p className="text-sm font-bold text-gray-800 mt-0.5">
-                      {order.payment.method === 'CASH' && <><MoneyIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Dinheiro</>}
-                      {order.payment.method === 'PIX' && <><PixIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> PIX</>}
-                      {order.payment.method === 'CREDIT_CARD' && <><CreditCardIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Cartão de Crédito</>}
-                      {order.payment.method === 'DEBIT_CARD' && <><DebitCardIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Cartão de Débito</>}
-                      {order.payment.method === 'CREDIT' && <><CreditSaleIcon aria-hidden="true" className="mr-1 inline-block align-text-bottom" size={16} /> Fiado</>}
-                    </p>
-                  </div>
-                )}
+                {(() => {
+                  const paymentSummary = getOrderPaymentSummary(order.payment, order.total);
+                  return (
+                    <div className="pt-2 border-t border-dashed">
+                      <p className="text-xs text-gray-500 font-medium">Pagamento:</p>
+                      <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-gray-800">
+                          {paymentSummary.methodLabel}
+                        </p>
+                        <span className={clsx(
+                          'rounded-full px-2 py-0.5 text-[11px] font-bold',
+                          paymentSummary.isPaid
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-amber-100 text-amber-800'
+                        )}>
+                          {paymentSummary.statusLabel}
+                        </span>
+                      </div>
+                      {!paymentSummary.isPaid && order.payment?.method === 'CASH' && (
+                        <p className="mt-1 text-xs font-semibold text-amber-800">
+                          Cobrar {formatCurrencyBRL(order.total)}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {
                   (user?.role === 'ADMIN' || user?.role === 'CASHIER') &&

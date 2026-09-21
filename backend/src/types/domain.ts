@@ -30,6 +30,7 @@ export type OrderStatus =
   | 'CANCELED';
 
 export type OrderType = 'DINE_IN' | 'TAKE_AWAY' | 'DELIVERY';
+export type OrderSource = 'PDV' | 'PUBLIC_MENU' | 'WAITER';
 
 export type PaymentMethod =
   | 'CASH'
@@ -302,6 +303,7 @@ export interface CashWithdrawal {
 export interface Order {
   id: string;
   type: OrderType;
+  source: OrderSource;
   status: OrderStatus;
   total: number;
   deliveryFee: number;
