@@ -116,7 +116,6 @@ model OrderItem {
   quantity    Int     @default(1)
   weight      Float?
   price       Float
-  productName String  @map("product_name")
   unitPrice   Float?
   manualPrice Float?  
   saleType    String?
