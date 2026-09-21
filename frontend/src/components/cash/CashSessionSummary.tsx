@@ -63,7 +63,7 @@ export function CashSessionSummary({ session, showClosing = true }: Props) {
   );
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid items-start gap-4 xl:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle>Conferência da gaveta</CardTitle>
@@ -147,6 +147,41 @@ export function CashSessionSummary({ session, showClosing = true }: Props) {
           <p className="mt-3 text-caption text-muted">
             PIX, débito, crédito e fiado não passam pela gaveta física.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <CardTitle>Documentos fiscais do período</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-token-md bg-surface-sunken p-3">
+              <p className="text-label text-muted">NFC-e autorizadas</p>
+              <p className="mt-1 text-title font-bold text-default">
+                {session.fiscalDocuments?.authorizedNfceCount || 0}
+              </p>
+              <p className="text-body tabular-nums text-muted">
+                {formatCurrencyBRL(session.fiscalDocuments?.authorizedNfceTotal || 0)}
+              </p>
+            </div>
+            <div className="rounded-token-md bg-surface-sunken p-3">
+              <p className="text-label text-muted">NF-e autorizadas</p>
+              <p className="mt-1 text-title font-bold text-default">
+                {session.fiscalDocuments?.authorizedNfeCount || 0}
+              </p>
+              <p className="text-body tabular-nums text-muted">
+                {formatCurrencyBRL(session.fiscalDocuments?.authorizedNfeTotal || 0)}
+              </p>
+            </div>
+            <div className="rounded-token-md bg-surface-sunken p-3">
+              <p className="text-label text-muted">Rejeitados ou em processamento</p>
+              <p className="mt-1 text-title font-bold text-default">
+                {session.fiscalDocuments?.pendingOrRejectedCount || 0}
+              </p>
+              <p className="text-body text-muted">documento(s)</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -10,6 +10,7 @@ const { paymentRepository } = require('../src/repositories/payment.repository');
 const { orderRepository } = require('../src/repositories/order.repository');
 const { userRepository } = require('../src/repositories/user.repository');
 const { auditLogRepository } = require('../src/repositories/auditLog.repository');
+const { invoiceRepository } = require('../src/repositories/invoice.repository');
 
 const openedAt = new Date('2026-09-21T12:00:00.000Z');
 const baseSession = {
@@ -45,9 +46,17 @@ beforeEach(() => {
     { status: 'PENDING', method: 'CASH', amount: 999 },
   ];
   orderRepository.findBySession = async () => [
-    { id: 'order-1', status: 'FINISHED' },
-    { id: 'order-2', status: 'CANCELED' },
+    { id: 'order-1', status: 'FINISHED', total: 125.5 },
+    { id: 'order-2', status: 'CANCELED', total: 999 },
+    { id: 'order-3', status: 'FINISHED', total: 80.25 },
   ];
+  invoiceRepository.findAllForOrders = async (orderIds) => [
+    { orderId: 'order-1', model: '65', status: 'authorized' },
+    { orderId: 'order-3', model: '55', status: 'authorized' },
+    { orderId: 'order-3', model: '55', status: 'error' },
+    { orderId: 'order-1', model: '65', status: 'processing' },
+    { orderId: 'order-2', model: '65', status: 'error' },
+  ].filter((invoice) => orderIds.includes(invoice.orderId));
   userRepository.findById = async (id) => ({
     id,
     name: {
@@ -74,7 +83,14 @@ test('session summaries identify operators and separate drawer cash from digital
   assert.equal(summary.creditTotal, 50);
   assert.equal(summary.onAccountTotal, 60);
   assert.equal(summary.totalRevenue, 300);
-  assert.equal(summary.orderCount, 1);
+  assert.equal(summary.orderCount, 2);
+  assert.deepEqual(summary.fiscalDocuments, {
+    authorizedNfceCount: 1,
+    authorizedNfceTotal: 125.5,
+    authorizedNfeCount: 1,
+    authorizedNfeTotal: 80.25,
+    pendingOrRejectedCount: 2,
+  });
 });
 
 test('withdrawal suggestion preserves the opening fund and reports when there is nothing to remove', async () => {

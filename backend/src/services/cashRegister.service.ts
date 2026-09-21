@@ -4,6 +4,7 @@ import { paymentRepository } from '../repositories/payment.repository';
 import { auditLogRepository } from '../repositories/auditLog.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { userRepository } from '../repositories/user.repository';
+import { invoiceRepository } from '../repositories/invoice.repository';
 import { CashRegisterSession, CashWithdrawal, PaymentMethod } from '../types/domain';
 import {
   CashRegisterClosedError,
@@ -21,6 +22,14 @@ export interface CashWithdrawalSummary extends CashWithdrawal {
   createdBy: OperatorSummary | null;
 }
 
+export interface FiscalDocumentSummary {
+  authorizedNfceCount: number;
+  authorizedNfceTotal: number;
+  authorizedNfeCount: number;
+  authorizedNfeTotal: number;
+  pendingOrRejectedCount: number;
+}
+
 export interface SessionSummary extends CashRegisterSession {
   openedBy: OperatorSummary | null;
   closedBy: OperatorSummary | null;
@@ -33,6 +42,7 @@ export interface SessionSummary extends CashRegisterSession {
   onAccountTotal: number;
   totalRevenue: number;
   orderCount: number;
+  fiscalDocuments: FiscalDocumentSummary;
   withdrawals: CashWithdrawalSummary[];
 }
 
@@ -78,6 +88,31 @@ async function enrichSession(session: CashRegisterSession): Promise<SessionSumma
     findOperator(session.closedById),
   ]);
 
+  const nonCanceledOrders = orders.filter((order) => order.status !== 'CANCELED');
+  const orderTotals = new Map(nonCanceledOrders.map((order) => [order.id, Number(order.total || 0)]));
+  const invoices = await invoiceRepository.findAllForOrders([...orderTotals.keys()]);
+  const fiscalDocuments: FiscalDocumentSummary = {
+    authorizedNfceCount: 0,
+    authorizedNfceTotal: 0,
+    authorizedNfeCount: 0,
+    authorizedNfeTotal: 0,
+    pendingOrRejectedCount: 0,
+  };
+
+  for (const invoice of invoices) {
+    if (invoice.status === 'authorized') {
+      const amount = invoice.orderId ? orderTotals.get(invoice.orderId) ?? 0 : 0;
+      if (invoice.model === '65') {
+        fiscalDocuments.authorizedNfceCount += 1;
+        fiscalDocuments.authorizedNfceTotal += amount;
+      } else {
+        fiscalDocuments.authorizedNfeCount += 1;
+        fiscalDocuments.authorizedNfeTotal += amount;
+      }
+    } else if (['error', 'pending', 'processing'].includes(invoice.status)) {
+      fiscalDocuments.pendingOrRejectedCount += 1;
+    }
+  }
   const enrichedWithdrawals = await Promise.all(
     withdrawals.map(async (withdrawal): Promise<CashWithdrawalSummary> => ({
       ...withdrawal,
@@ -101,7 +136,8 @@ async function enrichSession(session: CashRegisterSession): Promise<SessionSumma
     debitTotal: paymentTotals.DEBIT_CARD,
     onAccountTotal: paymentTotals.CREDIT,
     totalRevenue,
-    orderCount: orders.filter((order) => order.status !== 'CANCELED').length,
+    orderCount: nonCanceledOrders.length,
+    fiscalDocuments,
     withdrawals: enrichedWithdrawals,
   };
 }

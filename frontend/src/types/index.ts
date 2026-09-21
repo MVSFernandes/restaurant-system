@@ -293,6 +293,13 @@ export interface CashWithdrawal {
   createdBy?: OperatorSummary | null;
 }
 
+export interface FiscalDocumentSummary {
+  authorizedNfceCount: number;
+  authorizedNfceTotal: number;
+  authorizedNfeCount: number;
+  authorizedNfeTotal: number;
+  pendingOrRejectedCount: number;
+}
 export interface CashRegisterSession {
   id: string;
   status: string;
@@ -316,4 +323,5 @@ export interface CashRegisterSession {
   onAccountTotal?: number;
   totalRevenue?: number;
   orderCount?: number;
+  fiscalDocuments?: FiscalDocumentSummary;
 }

@@ -1,10 +1,12 @@
 import React from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { CashSessionSummary } from '../src/components/cash/CashSessionSummary';
 import { getOperatorName } from '../src/utils/cashAudit';
 import { ToastProvider } from '../src/components/ui';
 import HistoryPage from '../src/pages/pdv/HistoryPage';
+import CashRegisterPage from '../src/pages/pdv/CashRegisterPage';
 import api from '../src/services/api';
 import type { CashRegisterSession } from '../src/types';
 
@@ -35,6 +37,13 @@ const closedSession: CashRegisterSession = {
   onAccountTotal: 60,
   totalRevenue: 300,
   orderCount: 1,
+  fiscalDocuments: {
+    authorizedNfceCount: 2,
+    authorizedNfceTotal: 125.5,
+    authorizedNfeCount: 1,
+    authorizedNfeTotal: 80.25,
+    pendingOrRejectedCount: 3,
+  },
   withdrawals: [],
 };
 
@@ -57,8 +66,63 @@ describe('cash register audit', () => {
     expect(screen.getAllByText('Banco')).toHaveLength(3);
     expect(screen.getByText('Contas a receber')).toBeTruthy();
     expect(screen.getByText(/não passam pela gaveta física/)).toBeTruthy();
+    expect(screen.getByText('Documentos fiscais do período')).toBeTruthy();
+    expect(screen.getByText('NFC-e autorizadas')).toBeTruthy();
+    expect(screen.getByText('NF-e autorizadas')).toBeTruthy();
+    expect(screen.getByText('Rejeitados ou em processamento')).toBeTruthy();
+    expect(screen.getByText(/125,50/)).toBeTruthy();
+    expect(screen.getByText(/80,25/)).toBeTruthy();
   });
 
+  it('shows only the active-turn sections in the requested order while the register is open', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/cash-register/current') {
+        return { data: { ...closedSession, status: 'OPEN', closingAmount: null, closedAt: null, closedBy: null } };
+      }
+      return { data: [closedSession] };
+    });
+
+    render(
+      <ToastProvider>
+        <MemoryRouter>
+          <CashRegisterPage />
+        </MemoryRouter>
+      </ToastProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText('Turno ativo')).toBeTruthy());
+    expect(screen.queryByText('Resumo do fechamento concluído')).toBeNull();
+    expect(screen.queryByText('Fechamentos recentes')).toBeNull();
+
+    const pageText = document.body.textContent || '';
+    expect(pageText.indexOf('Caixa aberto')).toBeLessThan(pageText.indexOf('Conferência da gaveta'));
+    expect(pageText.indexOf('Conferência da gaveta')).toBeLessThan(pageText.indexOf('Registrar sangria'));
+    expect(pageText.indexOf('Registrar sangria')).toBeLessThan(pageText.indexOf('Fechar caixa'));
+  });
+
+  it('shows opening, last closing summary and compact recent history while the register is closed', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/cash-register/current') return { data: null };
+      return { data: [closedSession] };
+    });
+
+    render(
+      <ToastProvider>
+        <MemoryRouter>
+          <CashRegisterPage />
+        </MemoryRouter>
+      </ToastProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText('Resumo do fechamento concluído')).toBeTruthy());
+    expect(screen.getByRole('heading', { name: 'Abrir caixa' })).toBeTruthy();
+    expect(screen.getByText('Fechamentos recentes')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Ver histórico completo' })).toBeTruthy();
+
+    const pageText = document.body.textContent || '';
+    expect(pageText.indexOf('Abrir caixa')).toBeLessThan(pageText.indexOf('Resumo do fechamento concluído'));
+    expect(pageText.indexOf('Resumo do fechamento concluído')).toBeLessThan(pageText.indexOf('Fechamentos recentes'));
+  });
   it('renders frozen product, delivery fee, table and responsible users in history', async () => {
     vi.mocked(api.get).mockImplementation(async (url: string) => {
       if (url === '/config') return { data: { nfceEnabled: false } };

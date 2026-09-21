@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BanknoteArrowDown,
-  History,
   Loader2,
   Lock,
   Unlock,
@@ -117,8 +116,13 @@ export default function CashRegisterPage() {
         api.get('/cash-register/current'),
         api.get('/cash-register/history'),
       ]);
-      setCurrent(currentResponse.data || null);
+      const currentSession = currentResponse.data || null;
+      const closedSessions = (historyResponse.data || []).filter(
+        (session: CashRegisterSession) => session.status === 'CLOSED'
+      );
+      setCurrent(currentSession);
       setHistory(historyResponse.data || []);
+      setLastClosed((previous) => currentSession ? null : closedSessions[0] || previous);
     } catch (error) {
       toast({
         title: 'Não foi possível carregar o caixa',
@@ -225,39 +229,18 @@ export default function CashRegisterPage() {
     );
   }
 
+  const closedHistory = history
+    .filter((session) => session.status === 'CLOSED')
+    .slice(0, 4);
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
         title="Gestão de caixa"
         description="Abertura, sangrias, conferência da gaveta e auditoria do turno."
-        actions={
-          <Link to="/pdv/history">
-            <Button variant="secondary" leftIcon={<History aria-hidden="true" />}>Ver histórico</Button>
-          </Link>
-        }
       />
 
-      {!current ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <span className="rounded-token-lg bg-surface-sunken p-3 text-muted"><Lock aria-hidden="true" /></span>
-              <div>
-                <CardTitle>Caixa fechado</CardTitle>
-                <p className="text-body text-muted">Informe o fundo inicial para começar um novo turno.</p>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-            <Field label="Fundo de abertura">
-              <CurrencyInput value={openingAmount} onValueChange={setOpeningAmount} aria-label="Fundo de abertura" />
-            </Field>
-            <Button onClick={handleOpen} disabled={openingAmount === null} loading={saving} leftIcon={<Unlock aria-hidden="true" />}>
-              Abrir caixa
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
+      {current ? (
         <>
           <Card>
             <CardHeader>
@@ -271,14 +254,16 @@ export default function CashRegisterPage() {
                     </p>
                   </div>
                 </div>
-                <span className="rounded-full bg-success-subtle px-3 py-1 text-label font-semibold text-success">Turno ativo</span>
+                <span className="rounded-full bg-success-subtle px-3 py-1 text-label font-semibold text-success">
+                  Turno ativo
+                </span>
               </div>
             </CardHeader>
           </Card>
 
           <CashSessionSummary session={current} showClosing={false} />
 
-          <div className="grid gap-6 xl:grid-cols-2">
+          <div className="grid items-start gap-6 xl:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle>Registrar sangria</CardTitle>
@@ -298,7 +283,12 @@ export default function CashRegisterPage() {
                   <Button variant="secondary" onClick={loadSuggestedAmount} loading={loadingSuggestion}>
                     Sugerir valor a retirar
                   </Button>
-                  <Button onClick={handleWithdrawal} loading={saving} disabled={withdrawalAmount === null || withdrawalAmount <= 0 || !withdrawalReason.trim()} leftIcon={<BanknoteArrowDown aria-hidden="true" />}>
+                  <Button
+                    onClick={handleWithdrawal}
+                    loading={saving}
+                    disabled={withdrawalAmount === null || withdrawalAmount <= 0 || !withdrawalReason.trim()}
+                    leftIcon={<BanknoteArrowDown aria-hidden="true" />}
+                  >
                     Registrar sangria
                   </Button>
                 </div>
@@ -329,7 +319,9 @@ export default function CashRegisterPage() {
                             <p>{withdrawal.reason}</p>
                             <p className="text-caption text-muted">{getOperatorName(withdrawal.createdBy)}</p>
                           </TableCell>
-                          <TableCell numeric className="font-semibold text-danger">{formatCurrencyBRL(withdrawal.amount)}</TableCell>
+                          <TableCell numeric className="font-semibold text-danger">
+                            {formatCurrencyBRL(withdrawal.amount)}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -339,7 +331,7 @@ export default function CashRegisterPage() {
             </Card>
           </div>
 
-          <Card>
+          <Card className="border-strong shadow-token-md">
             <CardHeader>
               <CardTitle>Fechar caixa</CardTitle>
               <p className="text-body text-muted">Conte apenas o dinheiro físico que ficou na gaveta.</p>
@@ -358,60 +350,96 @@ export default function CashRegisterPage() {
                 </div>
               </div>
               {requiresJustification && (
-                <Field label="Justificativa da diferença" required error={!closingNotes.trim() ? 'Informe por que o valor contado diverge do saldo esperado.' : undefined}>
+                <Field
+                  label="Justificativa da diferença"
+                  required
+                  error={!closingNotes.trim() ? 'Informe por que o valor contado diverge do saldo esperado.' : undefined}
+                >
                   <Textarea value={closingNotes} onChange={(event) => setClosingNotes(event.target.value)} placeholder="Descreva a causa da sobra ou falta." />
                 </Field>
               )}
-              <Button variant="danger" solid onClick={handleClose} loading={saving} disabled={closingAmount === null || (requiresJustification && !closingNotes.trim())}>
+              <Button
+                variant="danger"
+                solid
+                onClick={handleClose}
+                loading={saving}
+                disabled={closingAmount === null || (requiresJustification && !closingNotes.trim())}
+              >
                 Fechar caixa
               </Button>
             </CardContent>
           </Card>
         </>
-      )}
+      ) : (
+        <>
+          <Card className="border-primary bg-primary-subtle shadow-token-sm">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <span className="rounded-token-lg bg-surface p-3 text-primary"><Lock aria-hidden="true" /></span>
+                <div>
+                  <CardTitle>Abrir caixa</CardTitle>
+                  <p className="text-body text-muted">Informe o fundo inicial para começar um novo turno.</p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <Field label="Fundo de abertura">
+                <CurrencyInput value={openingAmount} onValueChange={setOpeningAmount} aria-label="Fundo de abertura" />
+              </Field>
+              <Button onClick={handleOpen} disabled={openingAmount === null} loading={saving} leftIcon={<Unlock aria-hidden="true" />}>
+                Abrir caixa
+              </Button>
+            </CardContent>
+          </Card>
 
-      {lastClosed && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Resumo do fechamento concluído</CardTitle>
-            <p className="text-body text-muted">
-              {formatDateTime(lastClosed.openedAt)} a {lastClosed.closedAt ? formatDateTime(lastClosed.closedAt) : '—'} ·
-              aberto por {getOperatorName(lastClosed.openedBy)} · fechado por {getOperatorName(lastClosed.closedBy)} ·
-              {lastClosed.orderCount || 0} pedido(s)
-            </p>
-          </CardHeader>
-          <CardContent><CashSessionSummary session={lastClosed} /></CardContent>
-        </Card>
-      )}
+          {lastClosed && (
+            <section>
+              <div className="mb-3">
+                <h2 className="text-heading text-default">Resumo do fechamento concluído</h2>
+                <p className="mt-1 text-body text-muted">
+                  {formatDateTime(lastClosed.openedAt)} a {lastClosed.closedAt ? formatDateTime(lastClosed.closedAt) : '—'} ·
+                  aberto por {getOperatorName(lastClosed.openedBy)} · fechado por {getOperatorName(lastClosed.closedBy)} ·
+                  {' '}{lastClosed.orderCount || 0} pedido(s)
+                </p>
+              </div>
+              <CashSessionSummary session={lastClosed} />
+            </section>
+          )}
 
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <WalletCards aria-hidden="true" className="text-muted" />
-          <h2 className="text-heading text-default">Fechamentos recentes</h2>
-        </div>
-        {!history.length ? (
-          <EmptyState title="Nenhum fechamento registrado" />
-        ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {history.filter((session) => session.status === 'CLOSED').slice(0, 4).map((session) => (
-              <Card key={session.id}>
-                <CardHeader>
-                  <CardTitle>{formatDateTime(session.openedAt)}</CardTitle>
-                  <p className="text-body text-muted">
-                    {getOperatorName(session.openedBy)} → {getOperatorName(session.closedBy)}
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-body text-muted">{session.orderCount || 0} pedido(s) no período</p>
-                  {session.closingAmount !== null && session.closingAmount !== undefined && (
-                    <CashDifferenceBadge difference={Number(session.closingAmount) - Number(session.expectedBalance || 0)} />
-                  )}
-                </CardContent>
+          <section>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <WalletCards aria-hidden="true" className="text-muted" />
+                <h2 className="text-heading text-default">Fechamentos recentes</h2>
+              </div>
+              <Link to="/pdv/history" className="text-body font-semibold text-primary hover:underline">
+                Ver histórico completo
+              </Link>
+            </div>
+            {!closedHistory.length ? (
+              <EmptyState title="Nenhum fechamento registrado" />
+            ) : (
+              <Card className="p-0">
+                <div className="divide-y divide-[rgb(var(--color-border-default))]">
+                  {closedHistory.map((session) => (
+                    <div key={session.id} className="flex flex-col gap-2 px-card py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-semibold text-default">{formatDateTime(session.openedAt)}</p>
+                        <p className="text-caption text-muted">
+                          {getOperatorName(session.openedBy)} → {getOperatorName(session.closedBy)} · {session.orderCount || 0} pedido(s)
+                        </p>
+                      </div>
+                      {session.closingAmount !== null && session.closingAmount !== undefined && (
+                        <CashDifferenceBadge difference={Number(session.closingAmount) - Number(session.expectedBalance || 0)} />
+                      )}
+                    </div>
+                  ))}
+                </div>
               </Card>
-            ))}
-          </div>
-        )}
-      </section>
+            )}
+          </section>
+        </>
+      )}
 
       <Modal open={pendingCloseOrders.length > 0} onClose={() => setPendingCloseOrders([])} size="lg">
         <ModalHeader>
@@ -438,7 +466,10 @@ export default function CashRegisterPage() {
         </ModalContent>
         <ModalFooter>
           <Button variant="secondary" onClick={() => setPendingCloseOrders([])}>Entendi</Button>
-          <Link to="/pdv/orders"><Button leftIcon={<AlertTriangle aria-hidden="true" />}>Resolver pedidos</Button></Link>
+          <Link to="/pdv/orders" className="inline-flex h-10 items-center justify-center gap-2 rounded-token-md border border-transparent bg-primary px-4 text-body font-medium text-primary-fg hover:bg-primary-hover">
+            <AlertTriangle aria-hidden="true" />
+            Resolver pedidos
+          </Link>
         </ModalFooter>
       </Modal>
     </div>
