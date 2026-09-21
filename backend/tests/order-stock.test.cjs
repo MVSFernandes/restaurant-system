@@ -3,7 +3,10 @@ const assert = require('node:assert/strict');
 process.env.SUPABASE_URL = 'https://stock.example.invalid';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-key';
 const { supabase } = require('../src/lib/supabase');
-const { orderService } = require('../src/services/order.service');
+const {
+  DATABASE_DELIVERY_TYPES,
+  orderService,
+} = require('../src/services/order.service');
 const { orderRepository } = require('../src/repositories/order.repository');
 const { productRepository } = require('../src/repositories/product.repository');
 const { categoryRepository } = require('../src/repositories/category.repository');
@@ -69,6 +72,167 @@ test('public creation rejects payment values outside the database constraint', a
   );
   assert.equal(requests.length, 0);
 });
+test('private delivery creation only persists delivery types accepted by the database constraint', async () => {
+  const actor = { id: 'admin', role: 'ADMIN' };
+  assert.deepEqual(DATABASE_DELIVERY_TYPES, ['URBAN', 'RURAL']);
+  const options = [
+    { deliveryType: 'URBAN', deliveryFee: 1 },
+    { deliveryType: 'RURAL', deliveryFee: 3 },
+    { deliveryType: 'CUSTOM', deliveryFee: 12.5 },
+    { deliveryType: 'NONE', deliveryFee: 99 },
+  ];
+
+  for (const [index, option] of options.entries()) {
+    await orderService.createOrder(
+      { ...input, type: 'DELIVERY', customerName: 'Cliente', ...option },
+      actor,
+      'delivery:' + index
+    );
+  }
+
+  assert.deepEqual(
+    requests.map(({ args }) => ({
+      deliveryType: args.p_order.delivery_type,
+      deliveryFee: args.p_order.delivery_fee,
+      total: args.p_order.total,
+    })),
+    [
+      { deliveryType: 'URBAN', deliveryFee: 1, total: 11 },
+      { deliveryType: 'RURAL', deliveryFee: 3, total: 13 },
+      { deliveryType: null, deliveryFee: 12.5, total: 22.5 },
+      { deliveryType: null, deliveryFee: 0, total: 10 },
+    ]
+  );
+});
+
+test('private delivery creation rejects values outside the database-compatible selections', async () => {
+  const actor = { id: 'admin', role: 'ADMIN' };
+  await assert.rejects(
+    orderService.createOrder(
+      {
+        ...input,
+        type: 'DELIVERY',
+        customerName: 'Cliente',
+        deliveryType: 'ON_DEMAND',
+        deliveryFee: 1,
+      },
+      actor
+    ),
+    error => error.status === 400 && /taxa de entrega válida/.test(error.message)
+  );
+  assert.equal(requests.length, 0);
+});
+
+test('private delivery creation rejects missing and negative fees', async () => {
+  const actor = { id: 'admin', role: 'ADMIN' };
+  await assert.rejects(
+    orderService.createOrder(
+      { ...input, type: 'DELIVERY', customerName: 'Cliente', deliveryType: 'CUSTOM' },
+      actor
+    ),
+    error => error.status === 400 && /valor da taxa/.test(error.message)
+  );
+  await assert.rejects(
+    orderService.createOrder(
+      {
+        ...input,
+        type: 'DELIVERY',
+        customerName: 'Cliente',
+        deliveryType: 'CUSTOM',
+        deliveryFee: -1,
+      },
+      actor
+    ),
+    error => error.status === 400 && /taxa de entrega válida/.test(error.message)
+  );
+  assert.equal(requests.length, 0);
+});
+
+test('editing an order does not recalculate its stored fee from current configuration', async () => {
+  const existing = {
+    id: 'delivery-order',
+    type: 'DELIVERY',
+    status: 'NEW',
+    waiterId: null,
+    deliveryFee: 1,
+    deliveryType: 'URBAN',
+  };
+  let savedPatch;
+  orderRepository.findById = async () => existing;
+  orderRepository.update = async (_id, patch) => {
+    savedPatch = patch;
+    return { ...existing, ...patch };
+  };
+
+  await orderService.updateOrder(
+    existing.id,
+    { customerName: 'Cliente atualizado' },
+    { id: 'admin', role: 'ADMIN' }
+  );
+
+  assert.deepEqual(savedPatch, { customerName: 'Cliente atualizado' });
+});
+
+test('editing only the delivery fee updates the persisted total', async () => {
+  const existing = {
+    id: 'delivery-order',
+    type: 'DELIVERY',
+    status: 'NEW',
+    waiterId: null,
+    deliveryFee: 1,
+    deliveryType: 'URBAN',
+  };
+  let savedPatch;
+  orderRepository.findById = async () => existing;
+  orderRepository.findItems = async () => [{ price: 10 }];
+  orderRepository.update = async (_id, patch) => {
+    savedPatch = patch;
+    return { ...existing, ...patch };
+  };
+
+  await orderService.updateOrder(
+    existing.id,
+    { deliveryType: 'CUSTOM', deliveryFee: 12.5 },
+    { id: 'admin', role: 'ADMIN' }
+  );
+
+  assert.deepEqual(savedPatch, {
+    deliveryType: null,
+    deliveryFee: 12.5,
+    total: 22.5,
+  });
+});
+
+test('editing to no fee clears the stored fee and recalculates the total', async () => {
+  const existing = {
+    id: 'delivery-order',
+    type: 'DELIVERY',
+    status: 'NEW',
+    waiterId: null,
+    deliveryFee: 12.5,
+    deliveryType: null,
+  };
+  let savedPatch;
+  orderRepository.findById = async () => existing;
+  orderRepository.findItems = async () => [{ price: 10 }];
+  orderRepository.update = async (_id, patch) => {
+    savedPatch = patch;
+    return { ...existing, ...patch };
+  };
+
+  await orderService.updateOrder(
+    existing.id,
+    { deliveryType: 'NONE' },
+    { id: 'admin', role: 'ADMIN' }
+  );
+
+  assert.deepEqual(savedPatch, {
+    deliveryType: null,
+    deliveryFee: 0,
+    total: 10,
+  });
+});
+
 test('stock errors are surfaced as HTTP 400 with a Portuguese message', async () => {
   supabase.rpc = async () => ({ error: { code: 'P0001', message: 'Insufficient stock of "Coca Lata".' }, data: null });
   await assert.rejects(orderService.createOrder(input, { id: 'admin', role: 'ADMIN' }), error =>

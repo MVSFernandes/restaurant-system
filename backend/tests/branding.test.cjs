@@ -9,6 +9,8 @@ const {
   validateBrandingImage,
   toPublicRestaurantConfig,
 } = require('../src/services/branding.service');
+const { configService } = require('../src/services/domain.services');
+const { restaurantConfigRepository } = require('../src/repositories/restaurantConfig.repository');
 
 const image = (mimetype, bytes, size = bytes.length) => ({
   mimetype,
@@ -42,6 +44,33 @@ test('public config exposes only identity and public ordering fields', () => {
     deliveryFee: 5,
     enabledPayments: 'CASH,PIX',
   });
+});
+
+test('configuration preserves zero for every delivery fee and rejects negative values', async () => {
+  restaurantConfigRepository.get = async () => ({
+    id: 'config',
+    nfceGroupItems: false,
+    nfceGroupedItemDescription: 'REFEICAO',
+  });
+  let saved;
+  restaurantConfigRepository.update = async (_id, patch) => {
+    saved = patch;
+    return patch;
+  };
+
+  await configService.update({
+    deliveryFee: 0,
+    urbanDeliveryFee: 0,
+    ruralDeliveryFee: 0,
+  });
+
+  assert.equal(saved.deliveryFee, 0);
+  assert.equal(saved.urbanDeliveryFee, 0);
+  assert.equal(saved.ruralDeliveryFee, 0);
+  await assert.rejects(
+    configService.update({ urbanDeliveryFee: -1 }),
+    error => error.status === 400 && /taxa de entrega válida/.test(error.message)
+  );
 });
 
 test('detects the supported image formats from binary signatures', () => {

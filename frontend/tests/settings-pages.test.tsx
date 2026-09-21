@@ -110,12 +110,15 @@ describe('Settings pages and routes', () => {
     const labels = [
       'Nome do Restaurante', 'Telefone', 'Endereço', 'Horário de Funcionamento',
       'Dias de Funcionamento', 'Logo do restaurante', 'Banner do cardápio digital',
-      'Taxa de Entrega',
+      'Taxa urbana', 'Taxa rural', 'Taxa do cardápio digital',
     ];
 
     await screen.findByRole('heading', { name: 'Restaurante' });
     labels.forEach((label) => expect(screen.getByLabelText(label)).toBeTruthy());
-    expect(labels).toHaveLength(8);
+    expect(labels).toHaveLength(10);
+    expect(screen.getByText('Aplicada em pedidos de entrega dentro da cidade, no PDV.')).toBeTruthy();
+    expect(screen.getByText('Aplicada em pedidos de entrega em zona rural, no PDV.')).toBeTruthy();
+    expect(screen.getByText('Cobrada em todos os pedidos de entrega feitos pelo cardápio online.')).toBeTruthy();
     expect(screen.queryByRole('tab')).toBeNull();
     expect(screen.getByLabelText('Localização atual').textContent).toBe('/settings/restaurant');
   });
@@ -139,7 +142,7 @@ describe('Settings pages and routes', () => {
 
   it('saves restaurant changes with the complete original config payload', async () => {
     renderSettings();
-    const deliveryFee = await screen.findByLabelText('Taxa de Entrega');
+    const deliveryFee = await screen.findByLabelText('Taxa do cardápio digital');
     fireEvent.change(deliveryFee, { target: { value: '13115' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
@@ -147,6 +150,21 @@ describe('Settings pages and routes', () => {
     expect(mocks.put).toHaveBeenCalledWith('/config', {
       ...apiConfig,
       deliveryFee: 131.15,
+      cnpj: '12345678000190',
+      nfceGroupedItemDescription: 'REFEICAO',
+    });
+  });
+
+  it('saves an emptied delivery fee explicitly as zero without losing the other fees', async () => {
+    renderSettings();
+    const urbanFee = await screen.findByLabelText('Taxa urbana');
+    fireEvent.change(urbanFee, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => expect(mocks.put).toHaveBeenCalledTimes(1));
+    expect(mocks.put).toHaveBeenCalledWith('/config', {
+      ...apiConfig,
+      urbanDeliveryFee: 0,
       cnpj: '12345678000190',
       nfceGroupedItemDescription: 'REFEICAO',
     });

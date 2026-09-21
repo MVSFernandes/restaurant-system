@@ -40,6 +40,8 @@ import { formatCurrencyBRL } from '../../utils/currency';
 import { CloseIcon, CreditCardIcon, CreditSaleIcon, DebitCardIcon, MoneyIcon, PixIcon } from '../../components/ui/icons';
 import { useAuth } from '../../hooks/useAuth';
 import { OrderFiscalDocumentPanel } from '../../components/fiscal/OrderFiscalDocumentPanel';
+import { DeliveryFeeSelector } from '../../components/orders/DeliveryFeeSelector';
+import { deliveryFeeForSelection, type DeliveryFeeType } from '../../lib/deliveryFees';
 
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
 const statusLabels = ORDER_STATUS_LABELS;
@@ -160,7 +162,9 @@ const OrdersPage: React.FC = () => {
   const [deliveryReference, setDeliveryReference] = useState('');
   const [deliveryPhone, setDeliveryPhone] = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
-  const [deliveryType, setDeliveryType] = useState<'URBAN' | 'RURAL' | ''>('');
+  const [deliveryType, setDeliveryType] = useState<DeliveryFeeType>('URBAN');
+  const [customDeliveryFee, setCustomDeliveryFee] = useState<number | null>(null);
+  const [customDeliveryFeeError, setCustomDeliveryFeeError] = useState<string | null>(null);
   const [config, setConfig] = useState<RestaurantConfig | null>(null);
   const [currentCash, setCurrentCash] = useState<CashRegisterSession | null>(null);
 
@@ -443,10 +447,8 @@ const OrdersPage: React.FC = () => {
 
   const currentDeliveryFee = useMemo(() => {
     if (orderType !== 'DELIVERY') return 0;
-    if (deliveryType === 'URBAN') return Number(config?.urbanDeliveryFee || 1);
-    if (deliveryType === 'RURAL') return Number(config?.ruralDeliveryFee || 3);
-    return 0;
-  }, [orderType, deliveryType, config]);
+    return deliveryFeeForSelection(deliveryType, config ?? {}, customDeliveryFee) ?? 0;
+  }, [orderType, deliveryType, customDeliveryFee, config]);
 
   const cartTotal =
     cart.reduce((sum, item) => {
@@ -492,7 +494,9 @@ const OrdersPage: React.FC = () => {
     setDeliveryReference('');
     setDeliveryPhone('');
     setDeliveryNotes('');
-    setDeliveryType('');
+    setDeliveryType('URBAN');
+    setCustomDeliveryFee(null);
+    setCustomDeliveryFeeError(null);
     setMarmitaProduct(null);
   };
 
@@ -536,6 +540,11 @@ const OrdersPage: React.FC = () => {
     }
 
     if (orderType === 'DELIVERY') {
+      if (deliveryType === 'CUSTOM' && customDeliveryFee === null) {
+        setCustomDeliveryFeeError('Informe o valor da taxa personalizada.');
+        showToast('error', 'Informe o valor da taxa personalizada.');
+        return;
+      }
       if (
         !customerName.trim() ||
         !deliveryStreet.trim() ||
@@ -573,7 +582,7 @@ const OrdersPage: React.FC = () => {
         tableId: orderType === 'DINE_IN' ? selectedTableId : undefined,
         waiterId: selectedWaiterId || undefined,
         deliveryFee: currentDeliveryFee,
-        deliveryType: orderType === 'DELIVERY' && deliveryType !== '' ? deliveryType : undefined,
+        deliveryType: orderType === 'DELIVERY' ? deliveryType : undefined,
         items: cart.map((item) => {
           const weight = getPayloadWeight(item);
           return {
@@ -1682,6 +1691,11 @@ const OrdersPage: React.FC = () => {
                         const newType = e.target.value;
                         setOrderType(newType);
 
+                        if (newType === 'DELIVERY') {
+                          setDeliveryType('URBAN');
+                          setCustomDeliveryFee(null);
+                          setCustomDeliveryFeeError(null);
+                        }
                         if (newType !== 'DINE_IN') {
                           setSelectedTableId('');
                         }
@@ -1759,41 +1773,23 @@ const OrdersPage: React.FC = () => {
                       <div className="mt-3 space-y-2">
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700">
-                            Tipo de Entrega
+                            Taxa de entrega
                           </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() =>
-                                setDeliveryType((prev) => (prev === 'URBAN' ? '' : 'URBAN'))
-                              }
-                              className={`p-3 rounded-lg border-2 transition-colors ${
-                                deliveryType === 'URBAN'
-                                  ? 'border-primary-600 bg-primary-50'
-                                  : 'border-gray-200 bg-white hover:border-gray-300'
-                              }`}
-                            >
-                              <div className="font-medium text-sm">Urbana</div>
-                              <div className="text-primary-600 font-bold">
-                                {formatCurrencyBRL(config?.urbanDeliveryFee || 1)}
-                              </div>
-                            </button>
-
-                            <button
-                              onClick={() =>
-                                setDeliveryType((prev) => (prev === 'RURAL' ? '' : 'RURAL'))
-                              }
-                              className={`p-3 rounded-lg border-2 transition-colors ${
-                                deliveryType === 'RURAL'
-                                  ? 'border-primary-600 bg-primary-50'
-                                  : 'border-gray-200 bg-white hover:border-gray-300'
-                              }`}
-                            >
-                              <div className="font-medium text-sm">Rural</div>
-                              <div className="text-primary-600 font-bold">
-                                {formatCurrencyBRL(config?.ruralDeliveryFee || 3)}
-                              </div>
-                            </button>
-                          </div>
+                          <DeliveryFeeSelector
+                            value={deliveryType}
+                            urbanFee={config?.urbanDeliveryFee}
+                            ruralFee={config?.ruralDeliveryFee}
+                            customFee={customDeliveryFee}
+                            customFeeError={customDeliveryFeeError ?? undefined}
+                            onValueChange={(value) => {
+                              setDeliveryType(value);
+                              setCustomDeliveryFeeError(null);
+                            }}
+                            onCustomFeeChange={(value) => {
+                              setCustomDeliveryFee(value);
+                              setCustomDeliveryFeeError(null);
+                            }}
+                          />
                         </div>
 
                         <input

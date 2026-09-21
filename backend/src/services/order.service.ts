@@ -15,6 +15,7 @@ import {
   OrderItem,
   OrderStatus,
   OrderType,
+  DeliveryType,
   Payment,
   PaymentMethod,
   SaleType,
@@ -122,6 +123,43 @@ export function validatePublicPaymentMethod(
     );
   }
   return normalized;
+}
+
+// orders_delivery_type_check accepts only these text values. Custom and no-fee
+// selections persist their amount in delivery_fee and use null for delivery_type.
+export const DATABASE_DELIVERY_TYPES: readonly DeliveryType[] = ['URBAN', 'RURAL'];
+type DeliveryFeeSelection = DeliveryType | 'CUSTOM' | 'NONE';
+
+function validatedDeliveryFeeSelection(
+  value: string | null | undefined
+): DeliveryFeeSelection {
+  const selections: DeliveryFeeSelection[] = [
+    ...DATABASE_DELIVERY_TYPES,
+    'CUSTOM',
+    'NONE',
+  ];
+  if (!selections.includes(value as DeliveryFeeSelection)) {
+    throw new ValidationError('deliveryType', 'Selecione uma taxa de entrega válida.');
+  }
+  return value as DeliveryFeeSelection;
+}
+
+function databaseDeliveryType(selection: DeliveryFeeSelection): DeliveryType | null {
+  return DATABASE_DELIVERY_TYPES.includes(selection as DeliveryType)
+    ? (selection as DeliveryType)
+    : null;
+}
+
+function validatedDeliveryFee(orderType: OrderType, value: unknown): number {
+  if (orderType !== 'DELIVERY') return 0;
+  if (value === null || value === undefined || value === '') {
+    throw new ValidationError('deliveryFee', 'Informe o valor da taxa de entrega.');
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    throw new ValidationError('deliveryFee', 'Informe uma taxa de entrega válida.');
+  }
+  return numeric;
 }
 
 function normalizeOrderItemWeight(
@@ -245,7 +283,15 @@ export const orderService = {
       resolvedItems.push(pricing);
     }
 
-    const deliveryFee = input.type === 'DELIVERY' ? (input.deliveryFee ?? 0) : 0;
+    const deliveryFeeSelection =
+      input.type === 'DELIVERY' ? validatedDeliveryFeeSelection(input.deliveryType) : null;
+    const deliveryType = deliveryFeeSelection
+      ? databaseDeliveryType(deliveryFeeSelection)
+      : null;
+    const deliveryFee =
+      deliveryFeeSelection === 'NONE'
+        ? 0
+        : validatedDeliveryFee(input.type, input.deliveryFee);
     total += deliveryFee;
 
     const orderId = createId();
@@ -261,7 +307,7 @@ export const orderService = {
       userId: actingUser.id,
       waiterId,
       cashRegisterSessionId: session.id,
-      deliveryType: (input.deliveryType as any) ?? null,
+      deliveryType,
       deliveryStreet: input.deliveryStreet ?? null,
       deliveryNumber: input.deliveryNumber ?? null,
       deliveryNeighborhood: input.deliveryNeighborhood ?? null,
@@ -499,8 +545,19 @@ export const orderService = {
     if (input.deliveryReference !== undefined) patch.deliveryReference = input.deliveryReference;
     if (input.deliveryPhone !== undefined) patch.deliveryPhone = input.deliveryPhone;
     if (input.deliveryNotes !== undefined) patch.deliveryNotes = input.deliveryNotes;
-    if (input.deliveryType !== undefined) patch.deliveryType = input.deliveryType as any;
-    if (input.deliveryFee !== undefined) patch.deliveryFee = input.deliveryFee;
+    if (input.deliveryType !== undefined) {
+      patch.deliveryType = order.type === 'DELIVERY'
+        ? databaseDeliveryType(validatedDeliveryFeeSelection(input.deliveryType))
+        : null;
+    }
+    let effectiveDeliveryFee = order.deliveryFee;
+    const removesDeliveryFee = input.deliveryType === 'NONE';
+    if (input.deliveryFee !== undefined || removesDeliveryFee) {
+      effectiveDeliveryFee = removesDeliveryFee
+        ? 0
+        : validatedDeliveryFee(order.type, input.deliveryFee);
+      patch.deliveryFee = effectiveDeliveryFee;
+    }
 
     if (input.items && input.items.length > 0) {
       const oldItems = await orderRepository.findItems(orderId);
@@ -523,8 +580,7 @@ export const orderService = {
         resolvedItems.push(pricing);
       }
 
-      const deliveryFee = input.deliveryFee ?? order.deliveryFee;
-      patch.total = newTotal + deliveryFee;
+      patch.total = newTotal + effectiveDeliveryFee;
 
       for (const item of resolvedItems) {
         await orderRepository.addItem({
@@ -543,6 +599,10 @@ export const orderService = {
 
       const newStockPayload = toStockRpcItems(resolvedItems);
       if (newStockPayload.length > 0) await orderRepository.consumeStock(newStockPayload);
+    } else if (input.deliveryFee !== undefined || removesDeliveryFee) {
+      const currentItems = await orderRepository.findItems(orderId);
+      const itemsTotal = currentItems.reduce((sum, item) => sum + Number(item.price), 0);
+      patch.total = itemsTotal + effectiveDeliveryFee;
     }
 
     return orderRepository.update(orderId, patch);
