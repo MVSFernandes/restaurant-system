@@ -79,6 +79,7 @@ type StockRpcItem = { product_id: string; quantity: number; weight: number | nul
 // Resultado de pricing de um item
 interface ResolvedItemPricing {
   productId: string;
+  productName: string;
   quantity: number;
   weight: number | null;
   price: number;
@@ -213,6 +214,7 @@ async function resolveItemPricing(item: CreateOrderItemInput): Promise<ResolvedI
 
   return {
     productId: item.productId,
+    productName: product.name,
     quantity: item.quantity ?? 1,
     weight: normalizedWeight,
     price: itemPrice,
@@ -587,6 +589,7 @@ export const orderService = {
           id: createId(),
           orderId,
           productId: item.productId,
+          productName: item.productName,
           quantity: item.quantity,
           weight: item.weight,
           price: item.price,

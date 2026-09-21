@@ -70,6 +70,7 @@ export interface OrderItem {
   saleType?: OrderItemSaleType;
   notes?: string;
   productId: string;
+  productName: string;
   product?: Product;
   orderId: string;
 }
@@ -281,32 +282,46 @@ export interface MarmitaMenuItem {
   updatedAt?: string;
 }
 
+export type OperatorSummary = Pick<User, 'id' | 'name'>;
+
 export interface CashWithdrawal {
   id: string;
   amount: number;
   reason: string;
   createdAt: string;
-  createdBy?: User;
+  createdById?: string | null;
+  createdBy?: OperatorSummary | null;
 }
 
+export interface FiscalDocumentSummary {
+  authorizedNfceCount: number;
+  authorizedNfceTotal: number;
+  authorizedNfeCount: number;
+  authorizedNfeTotal: number;
+  pendingOrRejectedCount: number;
+}
 export interface CashRegisterSession {
   id: string;
   status: string;
   openingAmount: number;
   closingAmount?: number | null;
   withdrawalTotal?: number;
-  notes?: string;
+  notes?: string | null;
   openedAt: string;
   closedAt?: string | null;
-  openedBy?: User;
-  closedBy?: User;
+  openedById?: string | null;
+  closedById?: string | null;
+  openedBy?: OperatorSummary | null;
+  closedBy?: OperatorSummary | null;
   withdrawals?: CashWithdrawal[];
-  
-  // --- Campos calculados/enriquecidos pelo backend ---
   totalEntries?: number;
   totalWithdrawals?: number;
   expectedBalance?: number;
   pixTotal?: number;
   creditTotal?: number;
   debitTotal?: number;
+  onAccountTotal?: number;
+  totalRevenue?: number;
+  orderCount?: number;
+  fiscalDocuments?: FiscalDocumentSummary;
 }

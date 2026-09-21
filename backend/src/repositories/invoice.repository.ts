@@ -37,6 +37,16 @@ export const invoiceRepository = {
     return data ? toInvoiceDomain(data as any) : null;
   },
 
+  async findAllForOrders(orderIds: string[]): Promise<Invoice[]> {
+    if (!orderIds.length) return [];
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .in('order_id', orderIds)
+      .order('created_at', { ascending: false });
+    if (error) throw mapSupabaseError(error, { entity: 'Invoice' });
+    return (data ?? []).map((row) => toInvoiceDomain(row as any));
+  },
   async findForOrders(orderIds: string[]): Promise<Invoice[]> {
     if (!orderIds.length) return [];
     const { data, error } = await supabase.from(TABLE).select('*').in('order_id', orderIds)

@@ -771,9 +771,9 @@ const OrdersPage: React.FC = () => {
                           manualPrice !== null && manualPrice !== undefined
                             ? 'FIXO'
                             : weightInKg.toFixed(3) + 'KG'
-                        }&nbsp;&nbsp;&nbsp;${escapeHtml(normalizeText(item.product?.name))}`
+                        }&nbsp;&nbsp;&nbsp;${escapeHtml(normalizeText(item.productName || item.product?.name || 'Produto removido'))}`
                       : `${Number(item.quantity || 0)}&nbsp;&nbsp;&nbsp;${escapeHtml(
-                          normalizeText(item.product?.name)
+                          normalizeText(item.productName || item.product?.name || 'Produto removido')
                         )}`
                   }
                 </div>
@@ -1325,7 +1325,7 @@ const OrdersPage: React.FC = () => {
                                         : weightInKg.toFixed(3) + 'kg'
                                     }`
                                   : `${item.quantity}x`}{' '}
-                                {item.product?.name}
+                                {item.productName || item.product?.name || 'Produto removido'}
                               </span>
 
                               <span className="text-[11px] text-gray-500 whitespace-nowrap">

@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { cashRegisterService } from '../services/cashRegister.service';
 import { orderRepository } from '../repositories/order.repository';
 import { paymentRepository } from '../repositories/payment.repository';
+import { tableRepository } from '../repositories/table.repository';
+import { userRepository } from '../repositories/user.repository';
 import { DomainError } from '../types/errors';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
@@ -94,10 +96,10 @@ export const createCashWithdrawal = async (req: Request, res: Response) => {
  */
 export const getClosedOrdersHistory = async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, customerName } = req.query;
 
     const sessions = await cashRegisterService.getHistory(30);
-    const closed = sessions.filter((s) => s.status === 'CLOSED');
+    const closed = sessions.filter((session) => session.status === 'CLOSED');
 
     const history = await Promise.all(
       closed.map(async (session) => {
@@ -108,19 +110,30 @@ export const getClosedOrdersHistory = async (req: Request, res: Response) => {
         }
 
         const orders = await orderRepository.findBySession(session.id);
-        const nonCanceled = orders.filter((o) => o.status !== 'CANCELED');
+        const nonCanceled = orders.filter((order) => order.status !== 'CANCELED');
+        const normalizedCustomerName = String(customerName || '').trim().toLocaleLowerCase('pt-BR');
+        const matchingOrders = normalizedCustomerName
+          ? nonCanceled.filter((order) =>
+              (order.customerName || '').toLocaleLowerCase('pt-BR').includes(normalizedCustomerName)
+            )
+          : nonCanceled;
 
-        // Enriquece cada pedido com seus itens (frontend usa order.items.map)
         const enrichedOrders = await Promise.all(
-          nonCanceled.map(async (o) => {
-            const [items, payments] = await Promise.all([
-              orderRepository.findItems(o.id),
-              paymentRepository.findByOrder(o.id),
+          matchingOrders.map(async (order) => {
+            const [items, payments, table, waiter, user] = await Promise.all([
+              orderRepository.findItems(order.id),
+              paymentRepository.findByOrder(order.id),
+              order.tableId ? tableRepository.findById(order.tableId) : Promise.resolve(null),
+              order.waiterId ? userRepository.findById(order.waiterId) : Promise.resolve(null),
+              order.userId ? userRepository.findById(order.userId) : Promise.resolve(null),
             ]);
             return {
-              ...o,
+              ...order,
               items,
               payment: payments[payments.length - 1] ?? null,
+              table: table ? { id: table.id, number: table.number } : null,
+              waiter: waiter ? { id: waiter.id, name: waiter.name } : null,
+              user: user ? { id: user.id, name: user.name } : null,
             };
           })
         );
@@ -128,7 +141,7 @@ export const getClosedOrdersHistory = async (req: Request, res: Response) => {
         return {
           ...session,
           matchedOrdersCount: enrichedOrders.length,
-          totalOrdersInSession: enrichedOrders.length,
+          totalOrdersInSession: nonCanceled.length,
           orders: enrichedOrders,
         };
       })

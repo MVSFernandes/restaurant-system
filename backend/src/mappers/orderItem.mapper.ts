@@ -10,6 +10,7 @@ export function toOrderItemDomain(row: OrderItemRow): OrderItem {
     id: row.id,
     orderId: row.order_id,
     productId: row.product_id,
+    productName: row.product_name,
     quantity: row.quantity,
     weight: row.weight,
     price: row.price,
@@ -25,6 +26,7 @@ export function toOrderItemInsert(domain: OrderItem): OrderItemInsert {
     id: domain.id,
     order_id: domain.orderId,
     product_id: domain.productId,
+    product_name: domain.productName,
     quantity: domain.quantity,
     weight: domain.weight,
     price: domain.price,
@@ -37,6 +39,7 @@ export function toOrderItemInsert(domain: OrderItem): OrderItemInsert {
 
 export function toOrderItemUpdate(patch: Partial<OrderItem>): OrderItemUpdate {
   const update: OrderItemUpdate = {};
+  if (patch.productName !== undefined) update.product_name = patch.productName;
   if (patch.quantity !== undefined) update.quantity = patch.quantity;
   if (patch.weight !== undefined) update.weight = patch.weight;
   if (patch.price !== undefined) update.price = patch.price;
