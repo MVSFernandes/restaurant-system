@@ -50,6 +50,11 @@ export function DeliveryFeeSelector({
             label: 'Outra',
             description: 'Informe um valor específico para este pedido.',
           },
+          {
+            value: 'NONE',
+            label: 'Sem taxa',
+            description: formatCurrencyBRL(0),
+          },
         ]}
       />
 

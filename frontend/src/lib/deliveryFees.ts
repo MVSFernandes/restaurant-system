@@ -1,4 +1,4 @@
-export type DeliveryFeeType = 'URBAN' | 'RURAL' | 'CUSTOM';
+export type DeliveryFeeType = 'URBAN' | 'RURAL' | 'CUSTOM' | 'NONE';
 
 export function normalizeDeliveryFee(value: number | null | undefined): number {
   const numeric = Number(value ?? 0);
@@ -10,6 +10,7 @@ export function deliveryFeeForSelection(
   fees: { urbanDeliveryFee?: number | null; ruralDeliveryFee?: number | null },
   customFee: number | null
 ): number | null {
+  if (type === 'NONE') return 0;
   if (type === 'CUSTOM') return customFee;
   return type === 'RURAL'
     ? normalizeDeliveryFee(fees.ruralDeliveryFee)

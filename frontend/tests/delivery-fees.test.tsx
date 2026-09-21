@@ -95,7 +95,7 @@ afterEach(() => {
 });
 
 describe('delivery fee choices', () => {
-  it('supports urban zero, rural and a required custom numeric value', () => {
+  it('supports urban zero, rural, a required custom value and an explicit no-fee choice', () => {
     render(<SelectorHarness />);
 
     expect((screen.getByRole('radio', { name: /Urbana/ }) as HTMLInputElement).checked).toBe(true);
@@ -111,6 +111,10 @@ describe('delivery fee choices', () => {
       target: { value: '1250' },
     });
     expect(screen.getByLabelText('Taxa atual').textContent).toBe('12.5');
+
+    fireEvent.click(screen.getByRole('radio', { name: /Sem taxa/ }));
+    expect(screen.getByLabelText('Taxa atual').textContent).toBe('0');
+    expect(screen.queryByLabelText('Valor da taxa personalizada', { exact: false })).toBeNull();
   });
 
   it('keeps the fee stored on an existing order when configuration changes', async () => {

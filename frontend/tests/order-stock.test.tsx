@@ -137,6 +137,24 @@ describe('PDV delivery fee selection', () => {
     const customFee = screen.getByLabelText('Valor da taxa personalizada', { exact: false }) as HTMLInputElement;
     fireEvent.change(customFee, { target: { value: '0' } });
     expect(customFee.value).toContain('0,00');
+
+    fireEvent.click(screen.getByRole('radio', { name: /Sem taxa/ }));
+    expect(screen.queryByLabelText('Valor da taxa personalizada', { exact: false })).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText('Cliente da entrega'), { target: { value: 'Cliente' } });
+    fireEvent.change(screen.getByPlaceholderText('Telefone *'), { target: { value: '11999999999' } });
+    fireEvent.change(screen.getByPlaceholderText('Rua *'), { target: { value: 'Rua A' } });
+    fireEvent.change(screen.getByPlaceholderText('Número *'), { target: { value: '10' } });
+    fireEvent.change(screen.getByPlaceholderText('Bairro *'), { target: { value: 'Centro' } });
+    mocks.post.mockResolvedValue({ data: { id: 'order' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pedido' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
+    expect(mocks.post.mock.calls[0][1]).toMatchObject({
+      type: 'DELIVERY',
+      deliveryType: 'NONE',
+      deliveryFee: 0,
+    });
   });
 });
 

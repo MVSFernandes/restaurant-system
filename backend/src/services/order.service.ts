@@ -125,13 +125,29 @@ export function validatePublicPaymentMethod(
   return normalized;
 }
 
-const DELIVERY_TYPES: DeliveryType[] = ['URBAN', 'RURAL', 'CUSTOM'];
+// orders_delivery_type_check accepts only these text values. Custom and no-fee
+// selections persist their amount in delivery_fee and use null for delivery_type.
+export const DATABASE_DELIVERY_TYPES: readonly DeliveryType[] = ['URBAN', 'RURAL'];
+type DeliveryFeeSelection = DeliveryType | 'CUSTOM' | 'NONE';
 
-function validatedDeliveryType(value: string | null | undefined): DeliveryType {
-  if (!DELIVERY_TYPES.includes(value as DeliveryType)) {
+function validatedDeliveryFeeSelection(
+  value: string | null | undefined
+): DeliveryFeeSelection {
+  const selections: DeliveryFeeSelection[] = [
+    ...DATABASE_DELIVERY_TYPES,
+    'CUSTOM',
+    'NONE',
+  ];
+  if (!selections.includes(value as DeliveryFeeSelection)) {
     throw new ValidationError('deliveryType', 'Selecione uma taxa de entrega válida.');
   }
-  return value as DeliveryType;
+  return value as DeliveryFeeSelection;
+}
+
+function databaseDeliveryType(selection: DeliveryFeeSelection): DeliveryType | null {
+  return DATABASE_DELIVERY_TYPES.includes(selection as DeliveryType)
+    ? (selection as DeliveryType)
+    : null;
 }
 
 function validatedDeliveryFee(orderType: OrderType, value: unknown): number {
@@ -267,9 +283,15 @@ export const orderService = {
       resolvedItems.push(pricing);
     }
 
-    const deliveryType =
-      input.type === 'DELIVERY' ? validatedDeliveryType(input.deliveryType) : null;
-    const deliveryFee = validatedDeliveryFee(input.type, input.deliveryFee);
+    const deliveryFeeSelection =
+      input.type === 'DELIVERY' ? validatedDeliveryFeeSelection(input.deliveryType) : null;
+    const deliveryType = deliveryFeeSelection
+      ? databaseDeliveryType(deliveryFeeSelection)
+      : null;
+    const deliveryFee =
+      deliveryFeeSelection === 'NONE'
+        ? 0
+        : validatedDeliveryFee(input.type, input.deliveryFee);
     total += deliveryFee;
 
     const orderId = createId();
@@ -524,12 +546,16 @@ export const orderService = {
     if (input.deliveryPhone !== undefined) patch.deliveryPhone = input.deliveryPhone;
     if (input.deliveryNotes !== undefined) patch.deliveryNotes = input.deliveryNotes;
     if (input.deliveryType !== undefined) {
-      patch.deliveryType =
-        order.type === 'DELIVERY' ? validatedDeliveryType(input.deliveryType) : null;
+      patch.deliveryType = order.type === 'DELIVERY'
+        ? databaseDeliveryType(validatedDeliveryFeeSelection(input.deliveryType))
+        : null;
     }
     let effectiveDeliveryFee = order.deliveryFee;
-    if (input.deliveryFee !== undefined) {
-      effectiveDeliveryFee = validatedDeliveryFee(order.type, input.deliveryFee);
+    const removesDeliveryFee = input.deliveryType === 'NONE';
+    if (input.deliveryFee !== undefined || removesDeliveryFee) {
+      effectiveDeliveryFee = removesDeliveryFee
+        ? 0
+        : validatedDeliveryFee(order.type, input.deliveryFee);
       patch.deliveryFee = effectiveDeliveryFee;
     }
 
@@ -573,7 +599,7 @@ export const orderService = {
 
       const newStockPayload = toStockRpcItems(resolvedItems);
       if (newStockPayload.length > 0) await orderRepository.consumeStock(newStockPayload);
-    } else if (input.deliveryFee !== undefined) {
+    } else if (input.deliveryFee !== undefined || removesDeliveryFee) {
       const currentItems = await orderRepository.findItems(orderId);
       const itemsTotal = currentItems.reduce((sum, item) => sum + Number(item.price), 0);
       patch.total = itemsTotal + effectiveDeliveryFee;

@@ -81,9 +81,11 @@ const parseNotesAndExtras = (originalNotes: string) => {
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categories, onClose, onSave }) => {
   const getCategoryForProduct = (product: Product) => categories.find((cat) => cat.id === product.categoryId);
   const initialDeliveryType: DeliveryFeeType =
-    order.deliveryType === 'URBAN' || order.deliveryType === 'RURAL' || order.deliveryType === 'CUSTOM'
+    order.deliveryType === 'URBAN' || order.deliveryType === 'RURAL'
       ? order.deliveryType
-      : 'CUSTOM';
+      : Number(order.deliveryFee ?? 0) === 0
+        ? 'NONE'
+        : 'CUSTOM';
 
   const [config, setConfig] = useState<RestaurantConfig | null>(null);
   
