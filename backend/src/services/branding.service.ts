@@ -23,6 +23,18 @@ export interface BrandingImageFile {
   size: number;
 }
 
+export function toPublicRestaurantConfig(config: Awaited<ReturnType<typeof configService.get>>) {
+  return {
+    name: config.name || null,
+    logoUrl: config.logoUrl || null,
+    bannerUrl: config.bannerUrl || null,
+    openingHours: config.openingHours || null,
+    openingDays: config.openingDays || null,
+    deliveryFee: config.deliveryFee ?? null,
+    enabledPayments: config.enabledPayments || null,
+  };
+}
+
 export function detectImageMime(buffer: Buffer): string | null {
   if (
     buffer.length >= 8 &&
@@ -117,13 +129,9 @@ async function removeStoredFile(url: string | null): Promise<void> {
 }
 
 export const brandingService = {
-  async getPublicIdentity() {
+  async getPublicConfig() {
     const config = await configService.get();
-    return {
-      name: config.name || null,
-      logoUrl: config.logoUrl || null,
-      bannerUrl: config.bannerUrl || null,
-    };
+    return toPublicRestaurantConfig(config);
   },
 
   async upload(kind: BrandingImageKind, file?: BrandingImageFile) {

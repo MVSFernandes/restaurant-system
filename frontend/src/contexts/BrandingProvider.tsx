@@ -18,6 +18,10 @@ function requestBranding(force = false): Promise<BrandingIdentity> {
         name: data.name || null,
         logoUrl: data.logoUrl || null,
         bannerUrl: data.bannerUrl || null,
+        openingHours: data.openingHours || null,
+        openingDays: data.openingDays || null,
+        deliveryFee: data.deliveryFee ?? null,
+        enabledPayments: data.enabledPayments || null,
       }))
       .catch((error) => {
         brandingRequest = null;

@@ -5,6 +5,7 @@ import { productRepository } from '../repositories/product.repository';
 import { categoryRepository } from '../repositories/category.repository';
 import { paymentRepository } from '../repositories/payment.repository';
 import { cashRegisterRepository } from '../repositories/cashRegister.repository';
+import { restaurantConfigRepository } from '../repositories/restaurantConfig.repository';
 import { tableRepository } from '../repositories/table.repository';
 import { customerRepository } from '../repositories/customer.repository';
 import { creditTransactionRepository } from '../repositories/creditTransaction.repository';
@@ -15,6 +16,7 @@ import {
   OrderStatus,
   OrderType,
   Payment,
+  PaymentMethod,
   SaleType,
   UserRole,
 } from '../types/domain';
@@ -88,6 +90,39 @@ interface ResolvedItemPricing {
 // ---------------------------------------------------------------------------
 // Helpers privados
 // ---------------------------------------------------------------------------
+
+const PUBLIC_PAYMENT_METHODS: PaymentMethod[] = [
+  'CASH',
+  'PIX',
+  'CREDIT_CARD',
+  'DEBIT_CARD',
+];
+
+export function publicPaymentMethods(enabledPayments?: string | null): PaymentMethod[] {
+  if (!enabledPayments?.trim()) return [...PUBLIC_PAYMENT_METHODS];
+
+  const configured = new Set(
+    enabledPayments
+      .split(',')
+      .map((method) => method.trim().toUpperCase())
+      .filter(Boolean)
+  );
+  return PUBLIC_PAYMENT_METHODS.filter((method) => configured.has(method));
+}
+
+export function validatePublicPaymentMethod(
+  method: string | null | undefined,
+  enabledPayments?: string | null
+): PaymentMethod {
+  const normalized = String(method ?? '').trim().toUpperCase() as PaymentMethod;
+  if (!publicPaymentMethods(enabledPayments).includes(normalized)) {
+    throw new ValidationError(
+      'paymentMethod',
+      'Selecione uma forma de pagamento válida e habilitada.'
+    );
+  }
+  return normalized;
+}
 
 function normalizeOrderItemWeight(
   saleType: SaleType | string | null | undefined,
@@ -256,6 +291,8 @@ export const orderService = {
     if (!session) throw new CashRegisterClosedError();
 
     const type = input.type ?? 'TAKE_AWAY';
+    const config = await restaurantConfigRepository.get();
+    const paymentMethod = validatePublicPaymentMethod(input.paymentMethod, config.enabledPayments);
 
     if (type !== 'DINE_IN' && !String(input.customerName ?? '').trim()) {
       throw new ValidationError('customerName', 'Informe o nome do cliente.');
@@ -302,7 +339,11 @@ export const orderService = {
       resolvedItems.push(pricing);
     }
 
-    const deliveryFee = type === 'DELIVERY' ? (input.deliveryFee ?? 0) : 0;
+    const requestedDeliveryFee = Number(config.deliveryFee ?? 0);
+    if (!Number.isFinite(requestedDeliveryFee) || requestedDeliveryFee < 0) {
+      throw new ValidationError('deliveryFee', 'Informe uma taxa de entrega válida.');
+    }
+    const deliveryFee = type === 'DELIVERY' ? requestedDeliveryFee : 0;
     total += deliveryFee;
 
     const orderId = createId();
@@ -329,10 +370,10 @@ export const orderService = {
       updatedAt: new Date(),
     };
 
-    const payment: Payment | undefined = input.paymentMethod ? {
-      id: createId(), orderId, method: input.paymentMethod as Payment['method'],
+    const payment: Payment = {
+      id: createId(), orderId, method: paymentMethod,
       amount: total, status: 'PENDING', transactionId: null, createdAt: new Date(),
-    } : undefined;
+    };
     return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems), payment, storedKey);
   },
 

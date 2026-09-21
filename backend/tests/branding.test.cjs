@@ -7,6 +7,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-service-key';
 const {
   detectImageMime,
   validateBrandingImage,
+  toPublicRestaurantConfig,
 } = require('../src/services/branding.service');
 
 const image = (mimetype, bytes, size = bytes.length) => ({
@@ -14,6 +15,33 @@ const image = (mimetype, bytes, size = bytes.length) => ({
   buffer: Buffer.from(bytes),
   originalname: 'marca.png',
   size,
+});
+
+test('public config exposes only identity and public ordering fields', () => {
+  const publicConfig = toPublicRestaurantConfig({
+    name: 'Restaurante',
+    logoUrl: 'logo.png',
+    bannerUrl: 'banner.png',
+    openingHours: '11h às 14h',
+    openingDays: 'segunda a domingo',
+    deliveryFee: 5,
+    enabledPayments: 'CASH,PIX',
+    cnpj: '00000000000100',
+    legalName: 'Razão Social',
+    stateRegistration: '123',
+    fiscalStreet: 'Rua Fiscal',
+    nfceCsc: 'segredo',
+  });
+
+  assert.deepEqual(publicConfig, {
+    name: 'Restaurante',
+    logoUrl: 'logo.png',
+    bannerUrl: 'banner.png',
+    openingHours: '11h às 14h',
+    openingDays: 'segunda a domingo',
+    deliveryFee: 5,
+    enabledPayments: 'CASH,PIX',
+  });
 });
 
 test('detects the supported image formats from binary signatures', () => {

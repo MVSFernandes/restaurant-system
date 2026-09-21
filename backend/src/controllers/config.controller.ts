@@ -20,9 +20,9 @@ export const getConfig = async (_req: Request, res: Response) => {
 
 export const getPublicBranding = async (_req: Request, res: Response) => {
   try {
-    res.json(await brandingService.getPublicIdentity());
+    res.json(await brandingService.getPublicConfig());
   } catch (error) {
-    handleError(res, error, 'Erro ao buscar identidade do restaurante');
+    handleError(res, error, 'Erro ao buscar configurações públicas do restaurante');
   }
 };
 
