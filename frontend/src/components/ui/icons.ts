@@ -34,4 +34,5 @@ export {
   PanelLeftOpen as SidebarExpandIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
+  History as HistoryIcon,
 } from 'lucide-react';

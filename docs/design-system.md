@@ -229,7 +229,7 @@ Todos em `frontend/src/components/ui/`, exportados pelo `index.ts`. Usam
 |---|---|
 | `Button` | Toda ação. Variantes: `primary`, `secondary`, `ghost`, `danger`, `link`. Tamanhos `sm`, `md`, `lg`. Prop `iconOnly` para botão só de ícone. Prop `solid` só vale para `danger`: troca o contorno vermelho pelo preenchimento vermelho, usado no botão de confirmar do `ConfirmDialog`. |
 | `buttonClasses` | As mesmas classes do `Button`, para elemento que precisa parecer botão mas não pode ser `<button>` — em especial `<Link>` do React Router, que precisa continuar sendo link (abrir em nova aba, clique do meio). Em `components/ui/buttonClasses.ts`. |
-| `Card` | Agrupamento de conteúdo relacionado, com `CardHeader`, `CardContent`, `CardFooter`. |
+| `Card` | Agrupamento de conteúdo relacionado, com `CardHeader`, `CardContent`, `CardFooter`. Para cartão sem padding (conteúdo de borda a borda), usar `!p-0`: `p-0` sozinho perde para o `p-card` do componente, porque o Tailwind gera `p-card` depois. |
 | `Field` | Envolve todo campo de formulário: rótulo, texto de apoio, mensagem de erro, associação de `id` por contexto. |
 | `Input` / `Textarea` / `Select` | Entradas de texto. Sempre dentro de `Field`. |
 | `CurrencyInput` | **Todo campo de dinheiro.** Digitar `13115` resulta em R$ 131,15. Não usar `Input` com máscara manual. Há uma exceção registrada, ver "Exceções em aberto" abaixo. |
@@ -330,6 +330,41 @@ ajustar as duas.
 > **Pendência (PR 2):** essas duas telas mostram um vão branco nas laterais,
 > anterior à casca nova. Corrigir junto com a migração das telas.
 
+### Fita de números
+
+Padrão para resumir números de uma tela (criado no Dashboard, `DashboardPage.tsx`,
+componente `NumberRibbon`). Substitui a fileira de cartões de KPI idênticos.
+Usado duas vezes no Dashboard: a fita do turno (com célula principal) e o
+bloco "Agora" (quatro células iguais, na ordem real do fluxo do pedido).
+
+- **Um único `Card` com `!p-0`**, dividido em células por linhas verticais
+  `border-default` que vão de borda a borda, como a fita de uma registradora.
+- **Uma célula principal**, a primeira, mais larga (`1.75fr` contra `1fr`)
+  e com o único número grande da tela (`text-display`). As demais usam
+  `text-title`. Valor em dinheiro separa o `R$` em `text-heading` `text-muted`.
+- **Rótulo em cima, valor embaixo**, rótulo em `text-label` `text-muted`,
+  primeira letra maiúscula, sem ícone.
+- **Três linhas por célula:** rótulo, valor e apoio (ex.: "R$ 312,00 em
+  aberto" sob "7 de 12"). Cada célula é `row-span-3 grid grid-rows-subgrid`
+  e o valor usa `self-baseline`, então os valores de todas as células ficam
+  na mesma linha de base — 30px e 24px alinhados, mesmo com rótulo quebrando
+  em duas linhas no celular — e a linha de apoio também alinha entre elas.
+- **Estado por célula** quando a célula vem de outra fonte: a célula de
+  mesas usa `/tables`, as outras `/cash-register/current`; se só uma falha,
+  só ela mostra "Não disponível".
+- **Sem célula principal** (quatro iguais): 2×2 no celular, uma linha no
+  desktop.
+- **Todo número com `tabular-nums` e `tracking-tight`.**
+- **Cor só quando significa algo:** célula em atenção pinta o número em
+  `text-warning-strong` e ganha um ponto `bg-warning` ao lado do rótulo.
+  Zero fica neutro.
+- **Estados:** `Skeleton` do tamanho do número ao carregar; "Não disponível"
+  em `text-body` `text-muted` quando o dado não chegou.
+- **Célula clicável** quando leva a uma tela: a célula inteira é o link,
+  com hover em `surface-hover`.
+- **Celular:** a célula principal ocupa a linha inteira; as outras dividem a
+  linha de baixo.
+
 > Configuração em página separada por rota, não em aba dentro da página. Isso
 > foi decidido depois de uma implementação com `Tabs` que precisou ser
 > refeita. O padrão é o do grupo Financeiro.
@@ -374,6 +409,12 @@ existindo só até as telas do garçom e a de gestão de garçons migrarem.
 registro de responsável). "Produto removido" quando o item foi excluído do
 cardápio. Nunca um traço solto, nunca um valor inventado.
 
+"Não disponível" quando o dado existe mas **não chegou**: a chamada falhou
+ou o perfil não tem acesso. Nunca mostrar zero no lugar — "R$ 0,00" lido
+como faturamento do dia é informação inventada, em qualquer tamanho de
+fonte. Isso é estado de erro da interface; a causa, se for do backend, vai
+para o `backlog.md`.
+
 ---
 
 ## 6. Acessibilidade
@@ -394,7 +435,7 @@ cardápio. Nunca um traço solto, nunca um valor inventado.
 | Tela | Estado |
 |---|---|
 | Login | Refeita na etapa de White Label, com fundo minimalista |
-| Dashboard | Funcional, contagem por dia (deveria ser por turno) |
+| Dashboard | Redesenhada: números do turno (`/cash-register/current`), fluxo de pedidos, pagamentos por destino, pendências; cada bloco some sem permissão e mostra "Não disponível" se a chamada falhar |
 | Pedidos (PDV) | Tempo real e identificação de origem aplicados |
 | Histórico de pedidos | Nova, precisa de refinamento visual |
 | Fechamentos de caixa | Nova, precisa de refinamento visual |
