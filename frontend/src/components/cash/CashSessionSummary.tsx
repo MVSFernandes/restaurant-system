@@ -18,7 +18,7 @@ import {
 export function CashDifferenceBadge({ difference }: { difference: number }) {
   if (Math.abs(difference) < 0.005) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-token-md bg-success-subtle px-2.5 py-1 text-label font-semibold text-success">
+      <span className="inline-flex items-center gap-1.5 rounded-token-md bg-success-subtle px-2.5 py-1 text-label font-semibold text-success-strong">
         <CheckCircle2 aria-hidden="true" />
         Fechamento exato
       </span>
@@ -27,7 +27,7 @@ export function CashDifferenceBadge({ difference }: { difference: number }) {
 
   if (difference > 0) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-token-md bg-warning-subtle px-2.5 py-1 text-label font-semibold text-warning">
+      <span className="inline-flex items-center gap-1.5 rounded-token-md bg-warning-subtle px-2.5 py-1 text-label font-semibold text-warning-strong">
         <TrendingUp aria-hidden="true" />
         Sobra de {formatCurrencyBRL(difference)}
       </span>
@@ -35,7 +35,7 @@ export function CashDifferenceBadge({ difference }: { difference: number }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-token-md bg-danger-subtle px-2.5 py-1 text-label font-semibold text-danger">
+    <span className="inline-flex items-center gap-1.5 rounded-token-md bg-danger-subtle px-2.5 py-1 text-label font-semibold text-danger-strong">
       <AlertTriangle aria-hidden="true" />
       Falta de {formatCurrencyBRL(Math.abs(difference))}
     </span>

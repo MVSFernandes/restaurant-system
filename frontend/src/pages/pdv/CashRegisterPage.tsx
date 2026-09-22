@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BanknoteArrowDown,
-  Loader2,
   Lock,
   Unlock,
   WalletCards,
@@ -10,7 +9,9 @@ import {
 import { Link } from 'react-router-dom';
 import { CashDifferenceBadge, CashSessionSummary } from '../../components/cash/CashSessionSummary';
 import {
+  Badge,
   Button,
+  buttonClasses,
   Card,
   CardContent,
   CardHeader,
@@ -25,6 +26,8 @@ import {
   ModalHeader,
   ModalTitle,
   PageHeader,
+  Skeleton,
+  SkeletonCard,
   Table,
   TableBody,
   TableCell,
@@ -224,10 +227,30 @@ export default function CashRegisterPage() {
     }
   };
 
+  const header = (
+    <PageHeader
+      title="Gestão de caixa"
+      description="Abertura, sangrias, conferência da gaveta e auditoria do turno."
+    />
+  );
+
   if (loading) {
     return (
-      <div className="flex min-h-64 items-center justify-center text-muted">
-        <Loader2 className="animate-spin" aria-label="Carregando caixa" />
+      <div className="space-y-6">
+        {header}
+        <div role="status" className="space-y-6">
+          <span className="sr-only">Carregando caixa</span>
+          <Card>
+            <CardContent className="flex items-center gap-3">
+              <Skeleton className="h-12 w-12 rounded-token-lg" />
+              <div className="flex-1 space-y-2"><Skeleton className="h-5 w-40" /><Skeleton className="h-3 w-64" /></div>
+            </CardContent>
+          </Card>
+          <div className="grid gap-6 xl:grid-cols-2">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
       </div>
     );
   }
@@ -237,11 +260,8 @@ export default function CashRegisterPage() {
     .slice(0, 4);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader
-        title="Gestão de caixa"
-        description="Abertura, sangrias, conferência da gaveta e auditoria do turno."
-      />
+    <div className="space-y-6">
+      {header}
 
       {current ? (
         <>
@@ -257,9 +277,9 @@ export default function CashRegisterPage() {
                     </p>
                   </div>
                 </div>
-                <span className="rounded-full bg-success-subtle px-3 py-1 text-label font-semibold text-success">
+                <Badge variant="success" size="md" dot>
                   Turno ativo
-                </span>
+                </Badge>
               </div>
             </CardHeader>
           </Card>
@@ -280,7 +300,7 @@ export default function CashRegisterPage() {
                   <Textarea value={withdrawalReason} onChange={(event) => setWithdrawalReason(event.target.value)} placeholder="Ex.: pagamento de fornecedor" />
                 </Field>
                 {suggestionMessage && (
-                  <p role="status" className="rounded-token-md bg-info-subtle p-3 text-body text-info">{suggestionMessage}</p>
+                  <p role="status" className="rounded-token-md bg-info-subtle p-3 text-body text-info-strong">{suggestionMessage}</p>
                 )}
                 <div className="flex flex-wrap gap-2">
                   <Button variant="secondary" onClick={loadSuggestedAmount} loading={loadingSuggestion}>
@@ -400,7 +420,7 @@ export default function CashRegisterPage() {
               <div className="mb-3">
                 <h2 className="text-heading text-default">Resumo do fechamento concluído</h2>
                 <p className="mt-1 text-body text-muted">
-                  {formatDateTime(lastClosed.openedAt)} a {lastClosed.closedAt ? formatDateTime(lastClosed.closedAt) : '—'} ·
+                  {formatDateTime(lastClosed.openedAt)} a {lastClosed.closedAt ? formatDateTime(lastClosed.closedAt) : 'não registrado'} ·
                   aberto por {getOperatorName(lastClosed.openedBy)} · fechado por {getOperatorName(lastClosed.closedBy)} ·
                   {' '}{lastClosed.orderCount || 0} pedido(s)
                 </p>
@@ -423,7 +443,7 @@ export default function CashRegisterPage() {
               <EmptyState title="Nenhum fechamento registrado" />
             ) : (
               <Card className="p-0">
-                <div className="divide-y divide-[rgb(var(--color-border-default))]">
+                <div className="divide-y divide-default">
                   {closedHistory.map((session) => (
                     <div key={session.id} className="flex flex-col gap-2 px-card py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
@@ -469,7 +489,7 @@ export default function CashRegisterPage() {
         </ModalContent>
         <ModalFooter>
           <Button variant="secondary" onClick={() => setPendingCloseOrders([])}>Entendi</Button>
-          <Link to="/pdv/orders" className="inline-flex h-10 items-center justify-center gap-2 rounded-token-md border border-transparent bg-primary px-4 text-body font-medium text-primary-fg hover:bg-primary-hover">
+          <Link to="/pdv/orders" className={buttonClasses()}>
             <AlertTriangle aria-hidden="true" />
             Resolver pedidos
           </Link>
