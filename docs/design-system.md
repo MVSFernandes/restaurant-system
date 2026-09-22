@@ -88,14 +88,34 @@ anterior (`203 213 225`), para que os cards se apoiem na borda sem pesar.
 
 | Token | Variantes | Papel | Onde aparece |
 |---|---|---|---|
-| `primary` | `-hover`, `-subtle`, `-fg` | Ação primária, marca de "onde estou" na navegação | Botão principal, ícone do item ativo |
-| `success` | `-subtle` | Confirmação, dinheiro recebido, nota autorizada | Badge de pago, fechamento exato |
-| `warning` | `-subtle` | Atenção, pendência | Pagamento a receber, nota em processamento |
-| `danger` | `-subtle`, `-fg` | Erro, cancelamento, falta de caixa | Badge de cancelado, nota rejeitada, botão de excluir |
-| `info` | `-subtle` | Informação neutra | Aviso de contexto, banner de filtro ativo |
+| `primary` | `-hover`, `-subtle`, `-strong`, `-fg` | Ação primária, marca de "onde estou" na navegação | Botão principal, ícone do item ativo |
+| `success` | `-subtle`, `-strong` | Confirmação, dinheiro recebido, nota autorizada | Badge de pago, fechamento exato |
+| `warning` | `-subtle`, `-strong` | Atenção, pendência | Pagamento a receber, nota em processamento |
+| `danger` | `-subtle`, `-strong`, `-fg` | Erro, cancelamento, falta de caixa | Badge de cancelado, nota rejeitada, botão de excluir |
+| `info` | `-subtle`, `-strong` | Informação neutra | Aviso de contexto, banner de filtro ativo |
 
-`-subtle` é o fundo de badge e aviso; `-fg` é o texto sobre a cor sólida.
-Não existe variante `-strong`.
+- `-subtle` é o fundo de badge e aviso.
+- `-strong` é o **texto sobre o fundo `-subtle`**. A cor base (`text-warning`
+  etc.) não serve para isso: sobre o próprio `-subtle` ela fica abaixo de
+  4,5:1 no tema claro (warning chegava a 2,07).
+- `-fg` é o texto sobre a cor sólida.
+
+`-strong` usa tons da mesma matiz da paleta: mais escuro no tema claro
+(`*-700`/`*-800`), mais claro no escuro (`*-300`).
+
+Contraste de texto `-strong` sobre `-subtle`, medido no Chrome com o CSS
+compilado (`getComputedStyle`), no tamanho do `Badge` (12px/500):
+
+| Variante do `Badge` | Claro | Escuro |
+|---|---|---|
+| `neutral` (`text-muted` sobre `surface-sunken`) | 7,24 | 5,71 |
+| `primary` | 6,88 | 9,28 |
+| `success` | 7,29 | 9,94 |
+| `warning` | 6,84 | 10,39 |
+| `danger` | 5,91 | 8,51 |
+| `info` | 6,16 | 8,15 |
+
+Qualquer mudança nesses tokens precisa ser medida de novo no navegador.
 
 > O `tailwind.config.js` ainda expõe a escala literal `primary-50` …
 > `primary-900`. Ela existe só por compatibilidade com telas antigas e **não
@@ -170,13 +190,14 @@ Todos em `frontend/src/components/ui/`, exportados pelo `index.ts`. Usam
 
 | Componente | Quando usar |
 |---|---|
-| `Button` | Toda ação. Variantes: `primary`, `secondary`, `ghost`, `danger`. Tamanhos `sm`, `md`, `lg`. Prop `iconOnly` para botão só de ícone. |
+| `Button` | Toda ação. Variantes: `primary`, `secondary`, `ghost`, `danger`, `link`. Tamanhos `sm`, `md`, `lg`. Prop `iconOnly` para botão só de ícone. Prop `solid` só vale para `danger`: troca o contorno vermelho pelo preenchimento vermelho, usado no botão de confirmar do `ConfirmDialog`. |
+| `buttonClasses` | As mesmas classes do `Button`, para elemento que precisa parecer botão mas não pode ser `<button>` — em especial `<Link>` do React Router, que precisa continuar sendo link (abrir em nova aba, clique do meio). Em `components/ui/buttonClasses.ts`. |
 | `Card` | Agrupamento de conteúdo relacionado, com `CardHeader`, `CardContent`, `CardFooter`. |
 | `Field` | Envolve todo campo de formulário: rótulo, texto de apoio, mensagem de erro, associação de `id` por contexto. |
 | `Input` / `Textarea` / `Select` | Entradas de texto. Sempre dentro de `Field`. |
-| `CurrencyInput` | **Todo campo de dinheiro.** Digitar `13115` resulta em R$ 131,15. Não usar `Input` com máscara manual. |
+| `CurrencyInput` | **Todo campo de dinheiro.** Digitar `13115` resulta em R$ 131,15. Não usar `Input` com máscara manual. Há uma exceção registrada, ver "Exceções em aberto" abaixo. |
 | `Checkbox` / `Switch` / `RadioGroup` | `Switch` para ligar/desligar com efeito imediato; `Checkbox` para seleção que só vale ao salvar. |
-| `Badge` | Situação: pago, a receber, cancelado, autorizada, rejeitada. Cor pelo token de estado. |
+| `Badge` | Situação: pago, a receber, cancelado, autorizada, rejeitada. Cor pelo token de estado; texto em `-strong` sobre `-subtle`. Para situação de pedido, usar `getOrderStatusBadgeVariant` (`constants/orders.ts`). |
 | `Table` | Listagem tabular. Cabeçalho em `surface-sunken`. |
 | `EmptyState` | Lista vazia. **Nunca deixar texto solto** no lugar. |
 | `Skeleton` | Carregamento. Não usar spinner para conteúdo de lista. |
@@ -186,6 +207,19 @@ Todos em `frontend/src/components/ui/`, exportados pelo `index.ts`. Usam
 | `PageHeader` | Topo de toda página: título (`text-title`), descrição opcional (limitada a `max-w-prose`) e ações à direita, alinhadas pela base do bloco. 32px de espaço abaixo, sem linha divisória. O caminho fica no breadcrumb da barra de topo, não no cabeçalho. |
 | `Toast` | Retorno de ação. Sucesso some sozinho; erro permanece até ser dispensado. |
 | `ImageUpload` | Envio de arquivo de imagem. **Não usar campo de URL** para logo ou foto de produto. |
+
+### Exceções em aberto
+
+**Preço ajustado na tela de Pedidos continua `<input type="number">`, não
+`CurrencyInput`.** É o campo que caixa e administrador usam para fixar o
+valor de um item no carrinho do Novo pedido (`OrdersPage.tsx`). Trocar para
+`CurrencyInput` muda a forma de digitar: hoje o operador digita o valor com
+casas decimais; com `CurrencyInput`, digita só os dígitos (`1350` para
+R$ 13,50). O motivo para não trocar é
+**risco operacional, não técnico**: mudar a digitação de um campo usado no
+meio do atendimento, com fila no balcão, gera valor errado lançado até o
+operador se acostumar. A troca fica pendente até poder ser combinada e
+comunicada ao restaurante. Qualquer tela nova segue a regra normal.
 
 ### Débito técnico conhecido
 
@@ -279,6 +313,24 @@ quebrava a impressão da comanda.
 Sempre em português, sempre por extenso, nunca a constante do banco.
 `CRED_CARD` aparece como "Crédito"; `PUBLIC_MENU` como "Cardápio digital".
 
+Cor da situação do pedido (`ORDER_STATUS_BADGE_VARIANT`):
+
+| Situação | Variante | Por quê |
+|---|---|---|
+| Novo | `info` | Chegou, ainda sem ação |
+| Em preparo | `warning` | Em andamento, pede atenção |
+| Pronto | `success` | Cozinha concluiu |
+| Entregue | `primary` | Momento em que o caixa precisa cobrar |
+| Finalizado | `neutral` | Encerrado, sai do foco |
+| Cancelado | `danger` | Cancelado |
+
+> "Entregue" em `primary` está **em observação**: o laranja é reservado ao
+> botão primário. Se, no navegador, a tela de Pedidos ficar com laranja
+> competindo com o botão principal, troca-se a variante.
+
+`ORDER_STATUS_BADGE_CLASSES` (classes `.badge-*` com cor literal) continua
+existindo só até as telas do garçom e a de gestão de garçons migrarem.
+
 ### Ausência de dado
 
 "Não registrado" quando o dado nunca existiu (sessão de caixa anterior ao
@@ -323,7 +375,8 @@ cardápio. Nunca um traço solto, nunca um valor inventado.
 - **Fonte local.** Nada de carregar fonte de CDN.
 - **Nenhuma cor literal do Tailwind.** Tudo por token.
 - **Nenhum emoji.**
-- **`CurrencyInput` em todo campo de dinheiro.**
+- **`CurrencyInput` em todo campo de dinheiro.** Única exceção registrada: o
+  preço ajustado da tela de Pedidos (seção 3, "Exceções em aberto").
 - **Regras de negócio.** Refinamento visual não altera cálculo de caixa,
   emissão fiscal, validação de pedido ou qualquer regra de banco.
 - **Comportamento de tempo real.** Broadcast sai do backend; o frontend não

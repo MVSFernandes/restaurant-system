@@ -11,11 +11,11 @@ export type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 
 const variants: Record<BadgeVariant, string> = {
   neutral: 'bg-surface-sunken text-muted',
-  primary: 'bg-primary-subtle text-primary',
-  success: 'bg-success-subtle text-success',
-  warning: 'bg-warning-subtle text-warning',
-  danger: 'bg-danger-subtle text-danger',
-  info: 'bg-info-subtle text-info',
+  primary: 'bg-primary-subtle text-primary-strong',
+  success: 'bg-success-subtle text-success-strong',
+  warning: 'bg-warning-subtle text-warning-strong',
+  danger: 'bg-danger-subtle text-danger-strong',
+  info: 'bg-info-subtle text-info-strong',
 };
 
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(

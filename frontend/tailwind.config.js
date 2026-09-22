@@ -30,6 +30,7 @@ export default {
           DEFAULT: 'rgb(var(--color-primary) / <alpha-value>)',
           hover: 'rgb(var(--color-primary-hover) / <alpha-value>)',
           subtle: 'rgb(var(--color-primary-subtle) / <alpha-value>)',
+          strong: 'rgb(var(--color-primary-strong) / <alpha-value>)',
           fg: 'rgb(var(--color-primary-fg) / <alpha-value>)',
           50: '#fff7ed',
           100: '#ffedd5',
@@ -45,19 +46,23 @@ export default {
         danger: {
           DEFAULT: 'rgb(var(--color-danger) / <alpha-value>)',
           subtle: 'rgb(var(--color-danger-subtle) / <alpha-value>)',
+          strong: 'rgb(var(--color-danger-strong) / <alpha-value>)',
           fg: 'rgb(var(--color-danger-fg) / <alpha-value>)',
         },
         success: {
           DEFAULT: 'rgb(var(--color-success) / <alpha-value>)',
           subtle: 'rgb(var(--color-success-subtle) / <alpha-value>)',
+          strong: 'rgb(var(--color-success-strong) / <alpha-value>)',
         },
         warning: {
           DEFAULT: 'rgb(var(--color-warning) / <alpha-value>)',
           subtle: 'rgb(var(--color-warning-subtle) / <alpha-value>)',
+          strong: 'rgb(var(--color-warning-strong) / <alpha-value>)',
         },
         info: {
           DEFAULT: 'rgb(var(--color-info) / <alpha-value>)',
           subtle: 'rgb(var(--color-info-subtle) / <alpha-value>)',
+          strong: 'rgb(var(--color-info-strong) / <alpha-value>)',
         },
         'focus-ring': 'rgb(var(--color-focus-ring) / <alpha-value>)',
         sidebar: {

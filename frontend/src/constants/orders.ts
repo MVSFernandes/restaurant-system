@@ -1,4 +1,5 @@
 import type { OrderStatus, OrderType } from '../types';
+import type { BadgeVariant } from '../components/ui/Badge';
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: 'Novo',
@@ -17,6 +18,21 @@ export const ORDER_STATUS_BADGE_CLASSES: Record<OrderStatus, string> = {
   FINISHED: 'badge-gray',
   CANCELED: 'badge-red',
 };
+
+// Variante do Badge do kit para cada situação. Substitui
+// ORDER_STATUS_BADGE_CLASSES, que continua existindo só até as telas do garçom
+// e a de gestão de garçons migrarem.
+export const ORDER_STATUS_BADGE_VARIANT: Record<OrderStatus, BadgeVariant> = {
+  NEW: 'info',
+  IN_PROGRESS: 'warning',
+  READY: 'success',
+  DELIVERED: 'primary',
+  FINISHED: 'neutral',
+  CANCELED: 'danger',
+};
+
+export const getOrderStatusBadgeVariant = (status: OrderStatus | string): BadgeVariant =>
+  ORDER_STATUS_BADGE_VARIANT[status as OrderStatus] ?? 'neutral';
 
 export const ORDER_TYPE_LABELS: Record<OrderType, string> = {
   DINE_IN: 'Mesa',

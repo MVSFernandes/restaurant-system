@@ -1,5 +1,6 @@
 export * from './Badge';
 export * from './Button';
+export { buttonClasses, type ButtonClassOptions } from './buttonClasses';
 export * from './Card';
 export * from './Checkbox';
 export * from './ConfirmDialog';
