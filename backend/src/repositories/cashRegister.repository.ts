@@ -145,6 +145,7 @@ export const cashRegisterRepository = {
       .from('orders')
       .select('id,type,status,total,created_at,payments(id,status,method)')
       .eq('cash_register_session_id', sessionId)
+      .neq('status', 'CANCELED')
       .order('created_at', { ascending: true });
 
     if (error) throw mapSupabaseError(error, { entity: 'Order' });

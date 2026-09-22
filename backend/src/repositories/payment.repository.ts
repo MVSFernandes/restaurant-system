@@ -57,6 +57,16 @@ export const paymentRepository = {
     return (data ?? []).map(toPaymentDomain);
   },
 
+  async cancelPendingByOrder(orderId: string): Promise<void> {
+    const { error } = await supabase
+      .from(TABLE)
+      .update({ status: 'CANCELED' })
+      .eq('order_id', orderId)
+      .eq('status', 'PENDING');
+
+    if (error) throw mapSupabaseError(error, { entity: 'Payment' });
+  },
+
   async create(payment: Payment): Promise<Payment> {
     const payload = toPaymentInsert(payment);
     const { data, error } = await supabase

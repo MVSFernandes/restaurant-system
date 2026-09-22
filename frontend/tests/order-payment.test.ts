@@ -22,6 +22,16 @@ describe('order receipt payment summary', () => {
     expect(summary.isPaid).toBe(false);
   });
 
+  it('shows the retained method without treating a canceled payment as receivable', () => {
+    const summary = getOrderPaymentSummary(
+      { method: 'PIX', status: 'CANCELED' },
+      20,
+    );
+
+    expect(summary.receiptText).toBe('PIX (CANCELADO)');
+    expect(summary.isPaid).toBe(false);
+  });
+
   it('supports the stored credit-card key and only says not informed without a method', () => {
     expect(getOrderPaymentSummary(
       { method: 'CREDIT_CARD', status: 'PENDING' },

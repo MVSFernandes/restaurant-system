@@ -13,7 +13,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export interface OrderPaymentSummary {
   methodLabel: string;
-  statusLabel: 'JÁ PAGO' | 'A RECEBER' | 'NÃO INFORMADO';
+  statusLabel: 'JÁ PAGO' | 'A RECEBER' | 'CANCELADO' | 'NÃO INFORMADO';
   receiptText: string;
   isPaid: boolean;
 }
@@ -33,9 +33,10 @@ export function getOrderPaymentSummary(
   }
 
   const isPaid = payment.status === 'PAID';
-  const statusLabel = isPaid ? 'JÁ PAGO' : 'A RECEBER';
+  const isCanceled = payment.status === 'CANCELED';
+  const statusLabel = isCanceled ? 'CANCELADO' : isPaid ? 'JÁ PAGO' : 'A RECEBER';
   const printableTotal = formatCurrencyBRL(orderTotal).replace(/\u00a0/g, ' ');
-  const charge = !isPaid && payment.method === 'CASH'
+  const charge = !isPaid && !isCanceled && payment.method === 'CASH'
     ? ` — COBRAR ${printableTotal}`
     : '';
 

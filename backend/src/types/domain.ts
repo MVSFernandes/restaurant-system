@@ -39,7 +39,7 @@ export type PaymentMethod =
   | 'DEBIT_CARD'
   | 'CREDIT';
 
-export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CANCELED';
 
 export type CreditTransactionType = 'CHARGE' | 'PAYMENT';
 

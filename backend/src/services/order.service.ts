@@ -471,6 +471,10 @@ export const orderService = {
 
     const updated = await orderRepository.update(orderId, { status: newStatus });
 
+    if (newStatus === 'CANCELED') {
+      await paymentRepository.cancelPendingByOrder(orderId);
+    }
+
     if (newStatus === 'FINISHED' || newStatus === 'CANCELED') {
       await releaseTableIfEmpty(order.tableId);
     }
