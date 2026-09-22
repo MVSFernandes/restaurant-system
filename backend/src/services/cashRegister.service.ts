@@ -57,8 +57,18 @@ export interface SuggestWithdrawalResult {
 type PaymentTotals = Record<PaymentMethod, number>;
 
 async function getPaymentTotals(sessionId: string): Promise<PaymentTotals> {
-  const payments = await paymentRepository.findBySession(sessionId);
-  const paid = payments.filter((payment) => payment.status === 'PAID');
+  const [payments, orders] = await Promise.all([
+    paymentRepository.findBySession(sessionId),
+    orderRepository.findBySession(sessionId),
+  ]);
+  const nonCanceledOrderIds = new Set(
+    orders
+      .filter((order) => order.status !== 'CANCELED')
+      .map((order) => order.id)
+  );
+  const paid = payments.filter(
+    (payment) => payment.status === 'PAID' && nonCanceledOrderIds.has(payment.orderId)
+  );
   const totals: PaymentTotals = {
     CASH: 0,
     PIX: 0,

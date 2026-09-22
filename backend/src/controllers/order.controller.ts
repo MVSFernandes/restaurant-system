@@ -3,6 +3,12 @@ import { orderService } from '../services/order.service';
 import { orderRepository } from '../repositories/order.repository';
 import { cashRegisterRepository } from '../repositories/cashRegister.repository';
 import { notifyStockChanged } from '../services/stockRealtime.service';
+import {
+  notifyOrderChanged,
+  notifyOrderIdChanged,
+  orderMutationEvent,
+} from '../services/orderRealtime.service';
+import { ORDER_EVENTS } from '../constants/realtime';
 import { DomainError } from '../types/errors';
 import { productRepository } from '../repositories/product.repository';
 import { paymentRepository } from '../repositories/payment.repository';
@@ -226,6 +232,7 @@ export const createOrder = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const order = await orderService.createOrder(req.body, { id: user.id, role: user.role }, getScopedIdempotencyKey(req, 'orders:create'));
     void notifyStockChanged();
+    void notifyOrderChanged(ORDER_EVENTS.created, order);
     return { status: 201, body: await getCreatedOrderBody(order) };
   }, 'Erro ao criar pedido');
 };
@@ -234,6 +241,7 @@ export const createPublicOrder = async (req: Request, res: Response) => {
   await runIdempotent(req, res, 'orders:create-public', async () => {
     const order = await orderService.createPublicOrder(req.body, getScopedIdempotencyKey(req, 'orders:create-public'));
     void notifyStockChanged();
+    void notifyOrderChanged(ORDER_EVENTS.created, order);
     return { status: 201, body: await getCreatedOrderBody(order) };
   }, 'Erro ao criar pedido público');
 };
@@ -247,6 +255,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       { id: user.id, role: user.role }
     );
     void notifyStockChanged();
+    void notifyOrderChanged(orderMutationEvent(order.status), order);
     const items = await getItemsWithProduct(order.id);
     res.json({ ...order, items });
   } catch (error) {
@@ -260,6 +269,7 @@ export const processPayment = async (req: Request, res: Response) => {
     const payment = await orderService.processPayment(
       req.params.id, method, amount ? Number(amount) : undefined, customerId
     );
+    void notifyOrderIdChanged(ORDER_EVENTS.updated, req.params.id);
     res.json(payment);
   } catch (error) {
     handleError(res, error, 'Erro ao processar pagamento');
@@ -275,6 +285,7 @@ export const updateOrder = async (req: Request, res: Response) => {
       { id: user.id, role: user.role }
     );
     void notifyStockChanged();
+    void notifyOrderChanged(orderMutationEvent(order.status), order);
     const items = await getItemsWithProduct(order.id);
     res.json({ ...order, items });
   } catch (error) {
@@ -286,6 +297,7 @@ export const deleteOrder = async (req: Request, res: Response) => {
   try {
     await orderService.deleteOrder(req.params.id);
     void notifyStockChanged();
+    void notifyOrderIdChanged(ORDER_EVENTS.canceled, req.params.id);
     res.status(204).send();
   } catch (error) {
     handleError(res, error, 'Erro ao excluir pedido');

@@ -48,9 +48,10 @@ export interface ProductStockLink {
 // --- Tipos de Mesa e Pedido ---
 export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'CLOSED';
 export type OrderType = 'DINE_IN' | 'TAKE_AWAY' | 'DELIVERY';
+export type OrderSource = 'PDV' | 'PUBLIC_MENU' | 'WAITER';
 export type OrderStatus = 'NEW' | 'IN_PROGRESS' | 'READY' | 'DELIVERED' | 'CANCELED' | 'FINISHED';
 export type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'PIX' | 'CREDIT' | 'ON_DELIVERY' | 'ON_PICKUP';
-export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CANCELED';
 
 export interface Table {
   id: string;
@@ -87,6 +88,7 @@ export interface Payment {
 export interface Order {
   id: string;
   type: OrderType;
+  source?: OrderSource;
   status: OrderStatus;
   total: number;
   createdAt: string;

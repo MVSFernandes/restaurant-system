@@ -72,6 +72,7 @@ const paymentStatusLabels: Record<string, string> = {
   PAID: 'Pago',
   FAILED: 'Falhou',
   REFUNDED: 'Estornado',
+  CANCELED: 'Cancelado',
 };
 
 const paymentMethodLabels: Record<string, string> = {
@@ -179,7 +180,9 @@ export default function CashRegisterPage() {
       const response = (error as ApiError).response?.data;
       const pendingOrders = response?.details?.pendingOrders;
       if (response?.code === 'CASH_REGISTER_PENDING_ORDERS' && Array.isArray(pendingOrders)) {
-        setPendingCloseOrders(pendingOrders);
+        setPendingCloseOrders(
+          pendingOrders.filter((order) => order.orderStatus !== 'CANCELED')
+        );
       }
       toast({ title: 'Erro ao fechar caixa', description: response?.message || 'Revise os dados e tente novamente.', variant: 'error' });
     } finally {

@@ -51,6 +51,7 @@ test('private creation sends the entire order to one transaction with short IDs 
   assert.equal(requests[0].args.p_items[0].order_id, requests[0].args.p_order.id);
   assert.equal(requests[0].args.p_items[0].quantity, 2);
   assert.equal(requests[0].args.p_items[0].product_name, 'Coca Lata');
+  assert.equal(requests[0].args.p_order.source, 'PDV');
 });
 test('product names are captured at sale time and do not change when the catalog is renamed', async () => {
   const actor = { id: 'admin', role: 'ADMIN' };
@@ -82,6 +83,17 @@ test('public delivery creation includes a DB-valid payment and the delivery fee 
   assert.equal(requests[0].args.p_order.total, 15);
   assert.equal(requests[0].args.p_order.delivery_fee, 5);
   assert.equal(requests[0].args.p_payment.order_id, requests[0].args.p_order.id);
+  assert.equal(requests[0].args.p_order.source, 'PUBLIC_MENU');
+});
+
+test('public PIX orders remain pending until receipt is confirmed', async () => {
+  await orderService.createPublicOrder(
+    { ...input, paymentMethod: 'PIX' },
+    'public:pix'
+  );
+  assert.equal(requests[0].args.p_payment.method, 'PIX');
+  assert.equal(requests[0].args.p_payment.status, 'PENDING');
+  assert.equal(requests[0].args.p_order.source, 'PUBLIC_MENU');
 });
 
 test('public creation rejects payment values outside the database constraint', async () => {

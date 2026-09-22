@@ -15,15 +15,21 @@ const stockController = require('../src/controllers/stock.controller');
 const orderController = require('../src/controllers/order.controller');
 
 const calls = [];
+const orderCalls = [];
 let send = async () => ({ success: true });
-let channelCreations = 0;
+const channelCreations = new Map();
 supabase.channel = (topic) => {
-  channelCreations += 1;
-  assert.equal(topic, 'stock-events');
-  return { httpSend: (...args) => { calls.push(args); return send(...args); } };
+  channelCreations.set(topic, (channelCreations.get(topic) ?? 0) + 1);
+  return {
+    httpSend: (...args) => {
+      (topic === 'order-events' ? orderCalls : calls).push(args);
+      return send(...args);
+    },
+  };
 };
 
-const { publishStockUpdated, publishStockLow } = require('../src/lib/realtime');
+const { publishStockUpdated, publishStockLow, publishOrderChanged } = require('../src/lib/realtime');
+const { ORDER_EVENTS } = require('../src/constants/realtime');
 const { notifyStockChanged } = require('../src/services/stockRealtime.service');
 const item = { id: 'rice', name: 'Arroz', quantity: 1, minQuantity: 10, unit: 'kg' };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -37,6 +43,7 @@ const response = () => ({
 
 beforeEach(() => {
   calls.length = 0;
+  orderCalls.length = 0;
   send = async () => ({ success: true });
   stockItemRepository.findLowStock = async () => [item];
 });
@@ -45,10 +52,23 @@ beforeEach(() => {
 test('publishes HTTP-only events with IDs and reuses one channel', async () => {
   await publishStockUpdated();
   await publishStockLow([{ ...item, supplier: 'private', customerPhone: 'private' }]);
-  assert.equal(channelCreations, 1);
+  assert.equal(channelCreations.get('stock-events'), 1);
   assert.deepEqual(calls, [
     ['stock_updated', {}, { timeout: 3000 }],
     ['stock_low', { items: [{ id: 'rice' }] }, { timeout: 3000 }],
+  ]);
+});
+
+test('publishes order invalidations without exposing order details', async () => {
+  await publishOrderChanged(ORDER_EVENTS.created, {
+    orderId: 'order-1',
+    source: 'PUBLIC_MENU',
+  });
+  await publishOrderChanged(ORDER_EVENTS.updated, { orderId: 'order-1' });
+  assert.equal(channelCreations.get('order-events'), 1);
+  assert.deepEqual(orderCalls, [
+    ['order_created', { orderId: 'order-1', source: 'PUBLIC_MENU' }, { timeout: 3000 }],
+    ['order_updated', { orderId: 'order-1' }, { timeout: 3000 }],
   ]);
 });
 
@@ -93,11 +113,12 @@ test('failed stock mutations do not broadcast', async () => {
   assert.ok(res.code >= 400);
 });
 
-test('all five order mutation paths preserve notifications while Broadcast is offline', async () => {
+test('all order mutation paths preserve notifications while Broadcast is offline', async () => {
   send = async () => { throw new Error('Realtime offline'); };
   for (const name of ['createOrder', 'createPublicOrder', 'updateStatus', 'updateOrder']) {
-    orderService[name] = async () => ({ id: 'order' });
+    orderService[name] = async () => ({ id: 'order', source: 'PUBLIC_MENU', status: 'NEW' });
   }
+  orderService.processPayment = async () => ({ id: 'payment' });
   orderService.deleteOrder = async () => {};
   orderRepository.findItems = async () => [];
   const req = { body: {}, params: { id: 'order' }, user: { id: 'operator', role: 'ADMIN' }, get: () => undefined };
@@ -106,6 +127,7 @@ test('all five order mutation paths preserve notifications while Broadcast is of
     [orderController.createPublicOrder, 201],
     [orderController.updateOrderStatus, 200],
     [orderController.updateOrder, 200],
+    [orderController.processPayment, 200],
     [orderController.deleteOrder, 204],
   ]) {
     const res = response();
@@ -114,6 +136,15 @@ test('all five order mutation paths preserve notifications while Broadcast is of
   }
   await tick();
   assert.equal(calls.filter(([event]) => event === 'stock_updated').length, 5);
+  assert.deepEqual(orderCalls.map(([event]) => event), [
+    'order_created',
+    'order_created',
+    'order_updated',
+    'order_updated',
+    'order_updated',
+    'order_canceled',
+  ]);
+  assert.deepEqual(orderCalls[1][1], { orderId: 'order', source: 'PUBLIC_MENU' });
 });
 
 

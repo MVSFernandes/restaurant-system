@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { CashSessionSummary } from '../src/components/cash/CashSessionSummary';
@@ -98,6 +98,67 @@ describe('cash register audit', () => {
     expect(pageText.indexOf('Caixa aberto')).toBeLessThan(pageText.indexOf('Conferência da gaveta'));
     expect(pageText.indexOf('Conferência da gaveta')).toBeLessThan(pageText.indexOf('Registrar sangria'));
     expect(pageText.indexOf('Registrar sangria')).toBeLessThan(pageText.indexOf('Fechar caixa'));
+  });
+
+  it('never lists canceled orders in the cash-close blocking modal', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/cash-register/current') {
+        return {
+          data: {
+            ...closedSession,
+            status: 'OPEN',
+            closingAmount: null,
+            closedAt: null,
+            closedBy: null,
+            expectedBalance: 200,
+          },
+        };
+      }
+      return { data: [closedSession] };
+    });
+    vi.mocked(api.post).mockRejectedValue({
+      response: {
+        data: {
+          code: 'CASH_REGISTER_PENDING_ORDERS',
+          message: 'Existem pedidos pendentes.',
+          details: {
+            pendingOrders: [
+              {
+                id: 'public-canceled',
+                type: 'DELIVERY',
+                orderStatus: 'CANCELED',
+                total: 17.75,
+                paymentStatus: 'PENDING',
+                paymentMethod: 'PIX',
+              },
+              {
+                id: 'active-pending',
+                type: 'DELIVERY',
+                orderStatus: 'NEW',
+                total: 20,
+                paymentStatus: 'PENDING',
+                paymentMethod: 'PIX',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    render(
+      <ToastProvider>
+        <MemoryRouter>
+          <CashRegisterPage />
+        </MemoryRouter>
+      </ToastProvider>
+    );
+
+    const counted = await screen.findByLabelText('Valor contado no fechamento');
+    fireEvent.change(counted, { target: { value: '20000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar caixa' }));
+
+    await waitFor(() => expect(screen.getByText('Pedido #ENDING')).toBeTruthy());
+    expect(screen.queryByText('Pedido #NCELED')).toBeNull();
   });
 
   it('shows opening, last closing summary and compact recent history while the register is closed', async () => {
