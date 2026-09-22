@@ -122,22 +122,37 @@ anterior (`203 213 225`), para que os cards se apoiem na borda sem pesar.
 > `text-success`, `text-danger` etc. como texto, e isso é esperado até a vez
 > delas.
 
-`-strong` usa tons da mesma matiz da paleta: mais escuro no tema claro
-(`*-700`/`*-800`), mais claro no escuro (`*-300`).
+**Como `-strong` é calibrado:** é o tom da mesma matiz da cor base que fica
+**mais perto da base** e ainda dá pelo menos 4,8:1 contra o **pior** fundo
+em que texto pode cair (`-subtle`, `surface`, `surface-sunken`, `canvas`).
+Mais escuro que a base no tema claro, e o mais escuro que ainda passa no
+escuro. A folga de 0,3 sobre o mínimo é intencional; tom muito acima disso
+(7:1 ou mais) deixa a cor quase preta e ela para de comunicar estado.
 
-Contraste de texto `-strong` sobre `-subtle`, medido no Chrome com o CSS
-compilado (`getComputedStyle`), no tamanho do `Badge` (12px/500):
+Contraste medido no Chrome com o CSS compilado (`getComputedStyle`):
 
-| Variante do `Badge` | Claro | Escuro |
-|---|---|---|
-| `neutral` (`text-muted` sobre `surface-sunken`) | 7,24 | 5,71 |
-| `primary` | 6,88 | 9,28 |
-| `success` | 7,29 | 9,94 |
-| `warning` | 6,84 | 10,39 |
-| `danger` | 5,91 | 8,51 |
-| `info` | 6,16 | 8,15 |
+| Token | Tema | `-subtle` | `surface` | `surface-sunken` | `canvas` |
+|---|---|---|---|---|---|
+| `primary-strong` `187 70 10` | claro | 4,95 | 5,26 | 5,03 | 4,80 |
+| `success-strong` `4 123 86` | claro | 5,02 | 5,29 | 5,05 | 4,83 |
+| `warning-strong` `150 96 6` | claro | 5,10 | 5,29 | 5,05 | 4,83 |
+| `danger-strong` `210 34 34` | claro | 4,81 | 5,26 | 5,03 | 4,80 |
+| `info-strong` `35 97 235` | claro | 4,85 | 5,28 | 5,04 | 4,82 |
+| `primary-strong` `246 104 6` | escuro | 5,14 | 5,87 | 4,81 | 6,63 |
+| `success-strong` `15 169 118` | escuro | 5,02 | 5,91 | 4,85 | 6,68 |
+| `warning-strong` `191 139 3` | escuro | 4,93 | 5,87 | 4,81 | 6,64 |
+| `danger-strong` `242 103 103` | escuro | 5,31 | 5,88 | 4,81 | 6,64 |
+| `info-strong` `85 147 247` | escuro | 4,83 | 5,87 | 4,81 | 6,63 |
 
-Qualquer mudança nesses tokens precisa ser medida de novo no navegador.
+No escuro, o `canvas` fica acima de 5,5 porque é muito mais escuro que o
+`surface-sunken`; com um só valor por token, baixar o `canvas` derrubaria o
+`sunken` abaixo de 4,5.
+
+A variante `neutral` do `Badge` (`text-muted` sobre `surface-sunken`) dá
+7,24 no claro e 5,71 no escuro.
+
+Qualquer mudança nesses tokens precisa ser medida de novo no navegador, nos
+quatro fundos.
 
 > O `tailwind.config.js` ainda expõe a escala literal `primary-50` …
 > `primary-900`. Ela existe só por compatibilidade com telas antigas e **não
