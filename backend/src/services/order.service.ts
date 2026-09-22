@@ -425,7 +425,7 @@ export const orderService = {
       orderId,
       method: paymentMethod,
       amount: total,
-      status: paymentMethod === 'PIX' ? 'PAID' : 'PENDING',
+      status: 'PENDING',
       transactionId: null,
       createdAt: new Date(),
     };

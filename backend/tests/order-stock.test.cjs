@@ -86,13 +86,13 @@ test('public delivery creation includes a DB-valid payment and the delivery fee 
   assert.equal(requests[0].args.p_order.source, 'PUBLIC_MENU');
 });
 
-test('public PIX orders are stored as paid from creation', async () => {
+test('public PIX orders remain pending until receipt is confirmed', async () => {
   await orderService.createPublicOrder(
     { ...input, paymentMethod: 'PIX' },
     'public:pix'
   );
   assert.equal(requests[0].args.p_payment.method, 'PIX');
-  assert.equal(requests[0].args.p_payment.status, 'PAID');
+  assert.equal(requests[0].args.p_payment.status, 'PENDING');
   assert.equal(requests[0].args.p_order.source, 'PUBLIC_MENU');
 });
 

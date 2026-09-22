@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { getOrderPaymentSummary } from '../src/lib/orderPayment';
 
 describe('order receipt payment summary', () => {
-  it('shows a public PIX payment as already paid before order status changes', () => {
+  it('shows a public PIX payment as receivable until receipt is confirmed', () => {
     const summary = getOrderPaymentSummary(
-      { method: 'PIX', status: 'PAID' },
+      { method: 'PIX', status: 'PENDING' },
       16,
     );
 
-    expect(summary.receiptText).toBe('PIX (JÁ PAGO)');
-    expect(summary.isPaid).toBe(true);
+    expect(summary.receiptText).toBe('PIX (A RECEBER)');
+    expect(summary.isPaid).toBe(false);
   });
 
   it('shows pending cash as receivable with the exact amount to collect', () => {
