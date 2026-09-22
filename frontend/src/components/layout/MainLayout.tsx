@@ -27,7 +27,8 @@ const navItems: NavItem[] = [
       { label: 'Abertura/Fechamento', path: '/pdv/cash-register', icon: null },
       { label: 'Mesas', path: '/pdv/tables', icon: null },
       { label: 'Pedidos', path: '/pdv/orders', icon: null },
-      { label: 'Histórico', path: '/pdv/history', icon: null },
+      { label: 'Histórico de pedidos', path: '/pdv/orders-history', icon: null },
+      { label: 'Fechamentos de caixa', path: '/pdv/cash-closures', icon: null },
     ]
   },
   {

@@ -12,6 +12,7 @@ import { ORDER_EVENTS } from '../constants/realtime';
 import { DomainError } from '../types/errors';
 import { productRepository } from '../repositories/product.repository';
 import { paymentRepository } from '../repositories/payment.repository';
+import { orderHistoryRepository, OrderHistoryFilters } from '../repositories/orderHistory.repository';
 import type { Order, Payment } from '../types/domain';
 
 type IdempotencyResult = {
@@ -213,6 +214,38 @@ export const getRecentOrders = async (req: Request, res: Response) => {
   }
 };
 
+const queryValue = (value: unknown) => typeof value === 'string' ? value.trim() : '';
+const allowedQueryValue = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined => {
+  const normalized = queryValue(value) as T;
+  return allowed.includes(normalized) ? normalized : undefined;
+};
+
+export const getOrderHistory = async (req: Request, res: Response) => {
+  try {
+    const rawPage = Number(req.query.page ?? 1);
+    const rawPageSize = Number(req.query.pageSize ?? 20);
+    const filters: OrderHistoryFilters = {
+      page: Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+      pageSize: Number.isInteger(rawPageSize) ? Math.min(Math.max(rawPageSize, 1), 50) : 20,
+      startDate: queryValue(req.query.startDate) || undefined,
+      endDate: queryValue(req.query.endDate) || undefined,
+      customerName: queryValue(req.query.customerName) || undefined,
+      code: queryValue(req.query.code).replace(/^#/, '') || undefined,
+      type: allowedQueryValue(req.query.type, ['DINE_IN', 'TAKE_AWAY', 'DELIVERY'] as const),
+      paymentMethod: allowedQueryValue(req.query.paymentMethod, ['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'PIX', 'CREDIT'] as const),
+      paymentStatus: allowedQueryValue(req.query.paymentStatus, ['PAID', 'PENDING', 'CANCELED'] as const),
+      orderStatus: allowedQueryValue(req.query.orderStatus, ['FINISHED', 'CANCELED'] as const),
+      source: allowedQueryValue(req.query.source, ['PDV', 'PUBLIC_MENU', 'WAITER'] as const),
+      fiscalStatus: allowedQueryValue(req.query.fiscalStatus, ['AUTHORIZED', 'WITHOUT', 'REJECTED'] as const),
+      sessionId: queryValue(req.query.sessionId) || undefined,
+    };
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await orderHistoryRepository.search(filters));
+  } catch (error) {
+    handleError(res, error, 'Erro ao buscar histórico de pedidos');
+  }
+};
 export const getOrderById = async (req: Request, res: Response) => {
   try {
     const order = await orderRepository.findById(req.params.id);

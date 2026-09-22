@@ -415,7 +415,7 @@ export default function CashRegisterPage() {
                 <WalletCards aria-hidden="true" className="text-muted" />
                 <h2 className="text-heading text-default">Fechamentos recentes</h2>
               </div>
-              <Link to="/pdv/history" className="text-body font-semibold text-primary hover:underline">
+              <Link to="/pdv/cash-closures" className="text-body font-semibold text-primary hover:underline">
                 Ver histórico completo
               </Link>
             </div>

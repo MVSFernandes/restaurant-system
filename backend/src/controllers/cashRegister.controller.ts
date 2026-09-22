@@ -36,6 +36,21 @@ export const getCashRegisterHistory = async (_req: Request, res: Response) => {
   }
 };
 
+export const getCashClosuresHistory = async (req: Request, res: Response) => {
+  try {
+    const rawPage = Number(req.query.page ?? 1);
+    const rawPageSize = Number(req.query.pageSize ?? 10);
+    const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+    const pageSize = Number.isInteger(rawPageSize) ? Math.min(Math.max(rawPageSize, 1), 30) : 10;
+    const startDate = typeof req.query.startDate === 'string' && req.query.startDate ? req.query.startDate : undefined;
+    const endDate = typeof req.query.endDate === 'string' && req.query.endDate ? req.query.endDate : undefined;
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await cashRegisterService.getHistoryPage({ page, pageSize, startDate, endDate }));
+  } catch (error) {
+    handleError(res, error, 'Erro ao buscar fechamentos de caixa');
+  }
+};
 export const suggestWithdrawalAmount = async (_req: Request, res: Response) => {
   try {
     const result = await cashRegisterService.suggestWithdrawal();

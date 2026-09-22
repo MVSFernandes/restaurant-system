@@ -85,6 +85,31 @@ export const cashRegisterRepository = {
     return (data ?? []).map(toCashRegisterSessionDomain);
   },
 
+  async findSessionsPage(filters: {
+    page: number;
+    pageSize: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{ sessions: CashRegisterSession[]; total: number }> {
+    const from = (filters.page - 1) * filters.pageSize;
+    const to = from + filters.pageSize - 1;
+    let query = supabase
+      .from(SESSION_TABLE)
+      .select('*', { count: 'exact' });
+
+    if (filters.startDate) query = query.gte('opened_at', `${filters.startDate}T00:00:00.000-03:00`);
+    if (filters.endDate) query = query.lte('opened_at', `${filters.endDate}T23:59:59.999-03:00`);
+
+    const { data, error, count } = await query
+      .order('opened_at', { ascending: false })
+      .range(from, to);
+
+    if (error) throw mapSupabaseError(error, { entity: 'CashRegisterSession' });
+    return {
+      sessions: (data ?? []).map(toCashRegisterSessionDomain),
+      total: count ?? 0,
+    };
+  },
   async openSession(session: CashRegisterSession): Promise<CashRegisterSession> {
     const payload = toCashRegisterSessionInsert(session);
     const { data, error } = await supabase

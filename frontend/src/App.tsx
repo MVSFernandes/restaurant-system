@@ -10,7 +10,8 @@ const DesignSystemPage = lazy(() => import('./pages/DesignSystemPage'));
 const TablesPage = lazy(() => import('./pages/pdv/TablesPage'));
 const OrdersPage = lazy(() => import('./pages/pdv/OrdersPage'));
 const CashRegisterPage = lazy(() => import('./pages/pdv/CashRegisterPage'));
-const HistoryPage = lazy(() => import('./pages/pdv/HistoryPage'));
+const OrderHistoryPage = lazy(() => import('./pages/pdv/OrderHistoryPage'));
+const CashClosuresPage = lazy(() => import('./pages/pdv/CashClosuresPage'));
 
 const WaiterTablesPage = lazy(() => import('./pages/waiter/WaiterTablesPage'));
 const WaiterHistoryPage = lazy(() => import('./pages/waiter/WaiterHistoryPage'));
@@ -61,7 +62,9 @@ const router = createBrowserRouter([
           { path: '/pdv/tables', element: <TablesPage /> },
           { path: '/pdv/orders', element: <OrdersPage /> },
           { path: '/pdv/cash-register', element: <CashRegisterPage /> },
-          { path: '/pdv/history', element: <HistoryPage /> },
+          { path: '/pdv/history', element: <Navigate to="/pdv/orders-history" replace /> },
+          { path: '/pdv/orders-history', element: <OrderHistoryPage /> },
+          { path: '/pdv/cash-closures', element: <CashClosuresPage /> },
         ],
       },
       {
