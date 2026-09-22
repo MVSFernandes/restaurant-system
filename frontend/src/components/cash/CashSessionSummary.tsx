@@ -76,11 +76,11 @@ export function CashSessionSummary({ session, showClosing = true }: Props) {
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted">+ Vendas em dinheiro</dt>
-              <dd className="font-semibold tabular-nums text-success">{formatCurrencyBRL(cash)}</dd>
+              <dd className="font-semibold tabular-nums text-success-strong">{formatCurrencyBRL(cash)}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted">− Sangrias</dt>
-              <dd className="font-semibold tabular-nums text-danger">{formatCurrencyBRL(withdrawals)}</dd>
+              <dd className="font-semibold tabular-nums text-danger-strong">{formatCurrencyBRL(withdrawals)}</dd>
             </div>
             <div className="flex justify-between gap-4 border-t border-default pt-2">
               <dt className="font-semibold text-default">= Saldo esperado</dt>

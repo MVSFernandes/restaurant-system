@@ -100,10 +100,27 @@ anterior (`203 213 225`), para que os cards se apoiem na borda sem pesar.
 | `info` | `-subtle`, `-strong` | Informação neutra | Aviso de contexto, banner de filtro ativo |
 
 - `-subtle` é o fundo de badge e aviso.
-- `-strong` é o **texto sobre o fundo `-subtle`**. A cor base (`text-warning`
-  etc.) não serve para isso: sobre o próprio `-subtle` ela fica abaixo de
-  4,5:1 no tema claro (warning chegava a 2,07).
+- `-strong` é a cor de **todo texto em cor de estado** (ver regra abaixo).
 - `-fg` é o texto sobre a cor sólida.
+- A cor base (`success`, `danger`…) fica para o que não é texto: ícone,
+  borda, preenchimento sólido, indicador. Para esses, o mínimo é 3:1.
+
+> **Regra: cor de estado usada como texto sempre usa `-strong`, qualquer que
+> seja o fundo** — `-subtle`, `surface`, `surface-sunken` ou `canvas`. A cor
+> base não serve para texto: sobre o próprio `-subtle` fica abaixo de 4,5:1
+> no tema claro (warning chegava a 2,07), e mesmo sobre `surface` branco o
+> `text-success` dá 3,77.
+>
+> **Pendente — links:** `text-primary` também é cor de estado como texto e
+> dá 3,56:1 sobre `surface` no tema claro. Isso inclui a variante `link` do
+> `Button` e links soltos com `text-primary`. Ainda não decidido se links
+> passam para `text-primary-strong` (7,31:1) ou outro tratamento; até lá, não
+> criar link novo com `text-primary`.
+>
+> **Aplicação:** a regra entra tela a tela, junto com a migração de cada
+> uma. Não há varredura geral: telas ainda não migradas podem ter
+> `text-success`, `text-danger` etc. como texto, e isso é esperado até a vez
+> delas.
 
 `-strong` usa tons da mesma matiz da paleta: mais escuro no tema claro
 (`*-700`/`*-800`), mais claro no escuro (`*-300`).
