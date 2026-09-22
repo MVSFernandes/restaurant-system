@@ -26,6 +26,7 @@ export default {
           sunken: 'rgb(var(--color-bg-surface-sunken) / <alpha-value>)',
           hover: 'rgb(var(--color-bg-surface-hover) / <alpha-value>)',
         },
+        'fill-neutral': 'rgb(var(--color-bg-fill-neutral) / <alpha-value>)',
         primary: {
           DEFAULT: 'rgb(var(--color-primary) / <alpha-value>)',
           hover: 'rgb(var(--color-primary-hover) / <alpha-value>)',

@@ -56,6 +56,11 @@ O tema escuro é ativado pela classe `dark` no `<html>` (`darkMode: 'class'`).
 | `bg-surface` | `--color-bg-surface` | Fundo de card, modal, tabela, barra de topo |
 | `bg-surface-sunken` | `--color-bg-surface-sunken` | Área recuada: cabeçalho de tabela, campo desabilitado, bloco de totais |
 | `bg-surface-hover` | `--color-bg-surface-hover` | Hover de linha, botão `secondary` e `ghost` |
+| `bg-fill-neutral` | `--color-bg-fill-neutral` | Preenchimento neutro visível sobre `surface`: esqueleto de carregamento |
+
+`fill-neutral` tem hoje o mesmo valor de `border-default` no tema claro, mas
+**é outro papel e outro token**. Não trocar um pelo outro: se a borda for
+clareada, o esqueleto não pode sumir junto.
 
 Não existe token de superfície sobreposta (dropdown, popover): usar
 `bg-surface` com `shadow-token-md`.

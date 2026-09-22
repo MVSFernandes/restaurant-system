@@ -8,6 +8,7 @@
     --color-bg-surface: 255 255 255;
     --color-bg-surface-sunken: 248 250 252;
     --color-bg-surface-hover: 241 245 249;
+    --color-bg-fill-neutral: 226 232 240;
     --color-border-default: 226 232 240;
     --color-border-strong: 148 163 184;
     --color-text-default: 15 23 42;
@@ -60,6 +61,7 @@
     --color-bg-surface: 15 23 42;
     --color-bg-surface-sunken: 30 41 59;
     --color-bg-surface-hover: 30 41 59;
+    --color-bg-fill-neutral: 51 65 85;
     --color-border-default: 255 255 255 / 0.08;
     --color-border-strong: 255 255 255 / 0.14;
     --color-text-default: 241 245 249;
