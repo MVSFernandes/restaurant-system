@@ -8,7 +8,7 @@
     --color-bg-surface: 255 255 255;
     --color-bg-surface-sunken: 248 250 252;
     --color-bg-surface-hover: 241 245 249;
-    --color-border-default: 203 213 225;
+    --color-border-default: 226 232 240;
     --color-border-strong: 148 163 184;
     --color-text-default: 15 23 42;
     --color-text-muted: 71 85 105;
@@ -44,6 +44,10 @@
     --space-page: 24px;
     --space-section: 24px;
     --space-card: 20px;
+    --sidebar-width: 256px;
+    --sidebar-width-collapsed: 72px;
+    --topbar-height: 64px;
+    --content-max-width: 1440px;
   }
 
   .dark {
