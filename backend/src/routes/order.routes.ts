@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 import {
-  getOrders, getRecentOrders, getOrderById, createOrder, updateOrderStatus,
+  getOrders, getRecentOrders, getOrderHistory, getOrderById, createOrder, updateOrderStatus,
   deleteOrder, createPublicOrder, processPayment, getOrderReceipt, updateOrder
 } from '../controllers/order.controller';
 
@@ -14,6 +14,7 @@ router.use(authenticate);
 
 router.get('/', getOrders);
 router.get('/recent', getRecentOrders);
+router.get('/history', authorize('ADMIN', 'CASHIER'), getOrderHistory);
 router.get('/:id', getOrderById);
 router.post('/', createOrder);
 router.patch('/:id', updateOrder);

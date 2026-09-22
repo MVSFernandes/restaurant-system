@@ -164,6 +164,16 @@ export const cashRegisterService = {
     return Promise.all(sessions.map(enrichSession));
   },
 
+  async getHistoryPage(filters: { page: number; pageSize: number; startDate?: string; endDate?: string }) {
+    const result = await cashRegisterRepository.findSessionsPage(filters);
+    return {
+      data: await Promise.all(result.sessions.map(enrichSession)),
+      total: result.total,
+      page: filters.page,
+      pageSize: filters.pageSize,
+      totalPages: Math.max(1, Math.ceil(result.total / filters.pageSize)),
+    };
+  },
   async suggestWithdrawal(): Promise<SuggestWithdrawalResult> {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
