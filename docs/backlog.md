@@ -86,6 +86,91 @@ quando o item foi registrado (2026-09-22, branch
 
 ---
 
+## Backend: prioridade alta
+
+Registrados no mapeamento de dados para o Dashboard (2026-09-22). Não são
+bugs de tela: afetam números que o restaurante usa para decidir.
+
+### 9. PRIORIDADE ALTA: fuso do "hoje" pode estar errado
+
+- **Onde:** `backend/src/services/finance.service.ts:20-37`
+  (`periodToDates`).
+- **O que acontece:** o início do período é calculado com `new Date()` e
+  `setHours(0, 0, 0, 0)` na hora **do servidor**. Se o servidor roda em UTC,
+  o "hoje" começa às 21h do dia anterior no horário de Brasília, e "semana",
+  "mês" e "ano" ficam deslocados em 3 horas.
+- **Por que é prioridade:** afeta o **relatório financeiro** e tudo que usa
+  esses períodos, não só o Dashboard. Vendas das 21h às 24h caem no dia
+  seguinte. Precisa ser conferido também no fechamento de caixa e em
+  qualquer outro cálculo de data feito no servidor.
+- **Não verificado:** em que fuso o servidor de produção roda. Primeiro
+  passo é conferir isso.
+
+### 10. PRIORIDADE ALTA: consultas que multiplicam com o uso real
+
+Pioram conforme o restaurante tem mais mesas, pedidos e clientes, e várias
+são chamadas em intervalos (a cada 30s ou por evento de tempo real).
+
+- **`GET /tables`** (`backend/src/controllers/table.controller.ts`,
+  `getTables`): para **cada mesa**, faz 4 consultas `findByStatus` e filtra
+  em memória — e essas consultas trazem pedidos de **todas as sessões**,
+  não só do turno. Com 20 mesas, 80 consultas por chamada.
+- **`GET /orders`** (`backend/src/controllers/order.controller.ts`,
+  `getOrders`): para cada pedido busca os itens, e para cada item busca o
+  produto, uma consulta por vez (N+1 em dois níveis).
+- **`GET /customers/credit`** (`backend/src/services/credit.service.ts`,
+  `listCustomerCredits`): uma consulta por cliente cadastrado.
+
+---
+
+## Backend: dados que faltam
+
+Do mapeamento para o Dashboard. Nenhum foi criado; o Dashboard mostra só o
+que já existe.
+
+### 11. Série por hora do turno e do dia
+
+Faturamento e número de pedidos por hora, agregados no banco. Atende
+"faturamento por hora" e "horário de pico". Derivar no navegador a partir de
+`/orders` não serve: é caro (item 10) e usa a hora do pedido, não a do
+pagamento.
+
+### 12. Comparação com período equivalente
+
+"Ontem até esta hora" ou "mesmo dia da semana passada". Hoje
+`/finance/reports` só aceita `today`, `week`, `month` e `year`, sem datas
+livres. O que existe é comparar com o turno anterior **completo**
+(`/cash-register/history`).
+
+### 13. Ticket médio consistente
+
+Dividir `totalRevenue` por `orderCount` de `/cash-register/current` dá
+número errado: o faturamento soma só pagamentos **pagos**, a contagem inclui
+pedidos **ainda não pagos**. No meio do turno, o ticket sai subestimado. O
+backend precisa devolver as duas grandezas sobre o mesmo conjunto.
+
+### 14. Versionar a função `finance_report`
+
+A RPC `finance_report`, chamada por `getFinanceReports`
+(`backend/src/controllers/finance.controller.ts`), só existe no banco
+Supabase; não está no repositório. Não dá para auditar como faturamento,
+mais vendidos e divisão por pagamento são calculados, nem saber o limite de
+`topProducts` ou se cancelados entram. Deve virar migração versionada.
+
+### 15. Horário de abertura da mesa
+
+A mesa só tem `id`, `number` e `status` (`backend/src/types/domain.ts`,
+`Table`). Sem `openedAt`, a tela do garçom mostra o tempo desde o pedido
+ativo mais antigo, que é aproximação.
+
+### 16. Dashboard do Caixa (ver item 1)
+
+Continua valendo: `/finance/reports` bloqueia o Caixa. O Dashboard novo
+passa a usar `/cash-register/current` para os números do turno, mas
+"produtos mais vendidos" segue restrito.
+
+---
+
 ## Pendências visuais relacionadas
 
 - `CreditPage` e `DesignSystemPage`: vão branco nas laterais, anterior à casca
