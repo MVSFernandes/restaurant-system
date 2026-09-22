@@ -34,56 +34,108 @@ Os tokens são variáveis CSS definidas no `index.css` e mapeadas no
 `text-gray-700`) em componente nenhum: toda cor passa por token, porque o
 tema escuro depende disso.
 
+Os nomes abaixo são as **classes reais** do Tailwind. Cada variável é um
+trio RGB (`--color-bg-surface: 255 255 255`), o que permite opacidade:
+`bg-surface/95`, `text-sidebar-fg/60`.
+
 O tema escuro é ativado pela classe `dark` no `<html>` (`darkMode: 'class'`).
+
+> **Estado atual do tema escuro:** os valores existem no `index.css`, mas
+> **nada no app aplica a classe `dark`** ainda — só a página interna
+> `/design-system` a aplica num bloco de pré-visualização. A casca (sidebar,
+> barra de topo, cabeçalho de página) já está toda em token e pronta para o
+> tema escuro. O alternador de tema só entra depois que as telas forem
+> convertidas de cor literal para token; antes disso, metade do sistema
+> apareceria quebrada.
 
 ### Superfícies
 
-| Token | Papel |
-|---|---|
-| `surface-base` | Fundo da página |
-| `surface` | Fundo de card, modal, tabela |
-| `surface-sunken` | Fundo de área recuada: cabeçalho de tabela, campo desabilitado, bloco de totais |
-| `surface-raised` | Fundo de elemento sobreposto: dropdown, popover, tooltip |
+| Classe | Variável | Papel |
+|---|---|---|
+| `bg-canvas` | `--color-bg-canvas` | Fundo da página |
+| `bg-surface` | `--color-bg-surface` | Fundo de card, modal, tabela, barra de topo |
+| `bg-surface-sunken` | `--color-bg-surface-sunken` | Área recuada: cabeçalho de tabela, campo desabilitado, bloco de totais |
+| `bg-surface-hover` | `--color-bg-surface-hover` | Hover de linha, botão `secondary` e `ghost` |
+
+Não existe token de superfície sobreposta (dropdown, popover): usar
+`bg-surface` com `shadow-token-md`.
 
 ### Texto
 
-| Token | Papel |
-|---|---|
-| `text-primary` | Texto principal, títulos, valores |
-| `text-secondary` | Rótulo, texto de apoio, coluna secundária de tabela |
-| `text-muted` | Placeholder, texto desabilitado, metadado discreto |
-| `text-inverse` | Texto sobre fundo de cor sólida (botão primário, badge preenchido) |
+| Classe | Variável | Papel |
+|---|---|---|
+| `text-default` | `--color-text-default` | Texto principal, títulos, valores |
+| `text-muted` | `--color-text-muted` | Rótulo, texto de apoio, descrição, coluna secundária |
+| `text-subtle` | `--color-text-subtle` | Placeholder, metadado discreto, separador de breadcrumb |
+| `text-inverse` | `--color-text-inverse` | Texto sobre fundo de cor sólida |
 
 ### Bordas
 
-| Token | Papel |
-|---|---|
-| `border-default` | Borda de card, tabela, campo em repouso |
-| `border-strong` | Borda de campo em foco, divisória que precisa ser vista |
+| Classe | Variável | Papel |
+|---|---|---|
+| `border-default` | `--color-border-default` | Borda de card, tabela, campo em repouso, barra de topo |
+| `border-strong` | `--color-border-strong` | Divisória que precisa ser vista |
+
+No tema claro, `border-default` é `226 232 240` — mais leve que o valor
+anterior (`203 213 225`), para que os cards se apoiem na borda sem pesar.
 
 > **Cuidado conhecido:** no tema escuro, borda e superfície chegaram a ficar
 > com o mesmo valor, o que fez as bordas sumirem. Os valores atuais são
-> `rgba(255,255,255,.08)` e `rgba(255,255,255,.14)`. Qualquer mudança no tema
+> `255 255 255 / 0.08` e `255 255 255 / 0.14`. Qualquer mudança no tema
 > escuro precisa ser conferida no navegador, não só no build.
 
 ### Cores de estado
 
-| Token | Papel | Onde aparece |
-|---|---|---|
-| `brand` | Ação primária, item ativo da navegação | Botão principal, aba selecionada |
-| `success` | Confirmação, dinheiro recebido, nota autorizada | Badge de pago, fechamento exato |
-| `warning` | Atenção, pendência | Pagamento a receber, nota em processamento |
-| `danger` | Erro, cancelamento, falta de caixa | Badge de cancelado, nota rejeitada, botão de excluir |
-| `info` | Informação neutra | Aviso de contexto, banner de filtro ativo |
+| Token | Variantes | Papel | Onde aparece |
+|---|---|---|---|
+| `primary` | `-hover`, `-subtle`, `-fg` | Ação primária, marca de "onde estou" na navegação | Botão principal, ícone do item ativo |
+| `success` | `-subtle` | Confirmação, dinheiro recebido, nota autorizada | Badge de pago, fechamento exato |
+| `warning` | `-subtle` | Atenção, pendência | Pagamento a receber, nota em processamento |
+| `danger` | `-subtle`, `-fg` | Erro, cancelamento, falta de caixa | Badge de cancelado, nota rejeitada, botão de excluir |
+| `info` | `-subtle` | Informação neutra | Aviso de contexto, banner de filtro ativo |
 
-Cada uma tem variantes `-subtle` (fundo) e `-strong` (texto sobre o fundo
-subtle), para os badges e avisos.
+`-subtle` é o fundo de badge e aviso; `-fg` é o texto sobre a cor sólida.
+Não existe variante `-strong`.
+
+> O `tailwind.config.js` ainda expõe a escala literal `primary-50` …
+> `primary-900`. Ela existe só por compatibilidade com telas antigas e **não
+> deve ser usada** em código novo: não muda com o tema.
+
+`focus-ring` (`--color-focus-ring`) é a cor do anel de foco.
+
+### Sidebar
+
+A sidebar é uma superfície escura nos dois temas e tem tokens próprios.
+
+| Classe | Papel |
+|---|---|
+| `bg-sidebar-bg` | Fundo da sidebar; com `/60`, o fundo do overlay no celular |
+| `text-sidebar-fg` | Texto de item em repouso; com `/60`, rótulo de seção |
+| `text-sidebar-fg-active` | Texto de item ativo e em hover, nome do restaurante |
+| `bg-sidebar-item-hover` | Fundo de hover e de item ativo |
+| `sidebar-item-active` | Cor de "onde estou": ícone ativo e trecho da linha-guia (aponta para `primary`) |
+| `border-sidebar-border` / `bg-sidebar-border` | Divisórias e linha-guia do submenu |
 
 ### Espaçamento, raio e sombra
 
-Escala de espaçamento em múltiplos de 4px. Raio: `rounded-md` para campos e
-botões, `rounded-lg` para cards e modais. Sombras são discretas — o sistema
-não flutua, ele se apoia em bordas.
+Escala de espaçamento em múltiplos de 4px.
+
+| Classe | Variável | Valor |
+|---|---|---|
+| `p-page` | `--space-page` | 24px |
+| `gap-section` | `--space-section` | 24px |
+| `p-card` | `--space-card` | 20px |
+| `w-sidebar` | `--sidebar-width` | 256px |
+| `w-sidebar-collapsed` | `--sidebar-width-collapsed` | 72px |
+| `h-topbar` | `--topbar-height` | 64px |
+| `max-w-content` | `--content-max-width` | 1440px |
+
+Raio: `rounded-token-sm` (6px) para botão `sm`, `rounded-token-md` (8px) para
+campos, botões e itens de navegação, `rounded-token-lg` (12px) para cards e
+modais, `rounded-token-xl` (16px) para superfícies grandes.
+
+Sombra: `shadow-token-xs`, `shadow-token-sm`, `shadow-token-md`. São
+discretas — o sistema não flutua, ele se apoia em bordas.
 
 ### Tipografia
 
@@ -91,16 +143,21 @@ Fonte **Inter Variable**, empacotada localmente via
 `@fontsource-variable/inter`. Funciona sem internet, o que é requisito: o
 restaurante não pode depender de conexão para renderizar a tela.
 
-| Uso | Tamanho | Peso |
-|---|---|---|
-| Título de página | 24px | 600 |
-| Título de seção / card | 18px | 600 |
-| Corpo | 14px | 400 |
-| Rótulo de campo | 13px | 500 |
-| Metadado, texto de apoio | 12px | 400 |
-| Valor monetário em destaque | 20–24px | 600, tabular |
+| Classe | Tamanho / linha | Peso | Uso |
+|---|---|---|---|
+| `text-display` | 30 / 36px | 700 | Destaque isolado (inicial da marca no login). **Não** é título de página |
+| `text-title` | 24 / 32px | 600 | Título de página (`PageHeader`, com `tracking-tight`) |
+| `text-heading` | 18 / 26px | 600 | Título de seção e de card |
+| `text-body-lg` | 16 / 24px | 400 | Botão `lg`, texto de destaque |
+| `text-body` | 14 / 20px | 400 | Corpo, item de navegação |
+| `text-label` | 13 / 18px | 500 | Rótulo de campo, item de submenu |
+| `text-caption` | 12 / 16px | 400 | Metadado, texto de apoio, botão `sm` |
 
-Valores em dinheiro usam **numerais tabulares** para que as colunas alinhem.
+A única exceção fora da escala é o rótulo de seção da sidebar: 11px,
+maiúsculas, `tracking-[0.08em]`.
+
+Valores em dinheiro usam **numerais tabulares** (`tabular-nums`) para que as
+colunas alinhem.
 
 ---
 
@@ -126,7 +183,7 @@ Todos em `frontend/src/components/ui/`, exportados pelo `index.ts`. Usam
 | `Modal` | Sobreposição. Trava o scroll da página por trás, foca o primeiro elemento e fecha com `Esc`. |
 | `ConfirmDialog` | Toda ação destrutiva. |
 | `Tabs` | Abas dentro de uma mesma página. **Não** usar para navegação entre rotas — isso é papel do submenu da sidebar. |
-| `PageHeader` | Topo de toda página: título, descrição opcional e ações à direita. |
+| `PageHeader` | Topo de toda página: título (`text-title`), descrição opcional (limitada a `max-w-prose`) e ações à direita, alinhadas pela base do bloco. 32px de espaço abaixo, sem linha divisória. O caminho fica no breadcrumb da barra de topo, não no cabeçalho. |
 | `Toast` | Retorno de ação. Sucesso some sozinho; erro permanece até ser dispensado. |
 | `ImageUpload` | Envio de arquivo de imagem. **Não usar campo de URL** para logo ou foto de produto. |
 
@@ -140,21 +197,71 @@ navegador, porque o build passa mesmo com o ícone renderizando a 6px.
 
 ---
 
-## 4. Navegação
+## 4. Casca do app e navegação
 
-A sidebar usa **grupos expansíveis**. Clicar no grupo abre os itens abaixo
-dele; cada item é uma rota própria.
+A casca vive inteira em `components/layout/MainLayout.tsx` e usa só tokens.
 
-Grupos existentes: **PDV** (Pedidos, Histórico de pedidos, Fechamentos de
-caixa, Gestão de Caixa), **Financeiro**, **Configurações** (Restaurante,
-Documentos fiscais).
+```
+┌──────────────┬───────────────────────────────────────────┐
+│ marca + nome │ breadcrumb                                │  h-topbar (64px), mesma linha
+├──────────────┼───────────────────────────────────────────┤
+│ OPERAÇÃO     │   PageHeader                              │
+│ GESTÃO       │   conteúdo (max-w-content, centralizado)  │
+│ ADMINISTRAÇÃO│                                           │
+├──────────────┤                                           │
+│ pessoa, sair │                                           │
+│ recolher     │                                           │
+└──────────────┴───────────────────────────────────────────┘
+```
+
+### Sidebar
+
+- **Seções com rótulo:** Operação (Dashboard, PDV, Mesas do garçom), Gestão
+  (Cardápio, Estoque, Financeiro), Administração (Configurações, Garçons).
+  Seção sem nenhum item visível para o perfil não aparece.
+- **Grupos expansíveis.** Clicar no grupo abre os itens abaixo dele; cada item
+  é uma rota própria. O grupo da rota atual abre sozinho.
+- **Geometria fixa:** item de 36px de altura, `px-3`, ícone de 18px com traço
+  1.75, `gap-3`. Filho de 32px em `text-label`. A linha-guia do submenu passa
+  no centro do ícone do pai (21px) e o texto do filho alinha com o texto do
+  pai (42px). 24px entre seções, 2px entre itens.
+- **"Onde estou" é discreto.** Item ativo: fundo `sidebar-item-hover`, texto
+  `sidebar-fg-active` e ícone em `sidebar-item-active`. Filho ativo: texto
+  claro e o trecho da linha-guia em laranja. Nunca bloco laranja sólido — o
+  laranja da tela pertence ao botão primário.
+- **Recolhida (72px):** só ícones, alvos de 40px, `aria-label` e `title` em
+  cada item. Clicar num grupo expande a sidebar.
+- **Rodapé:** iniciais, nome e perfil por extenso (`ROLE_LABELS` em
+  `constants/roles.ts`); "Sair" é botão só de ícone, sem vermelho — sair não
+  é ação destrutiva. Abaixo, "Recolher menu".
+- **Celular:** a sidebar abre por cima, com overlay; fecha com `Esc`, clique
+  fora ou troca de rota.
+- Rótulos com só a primeira letra maiúscula ("Contas a pagar").
+
+### Barra de topo
+
+64px, `bg-surface/95` com desfoque, borda `border-default`, fixa enquanto o
+conteúdo rola. À esquerda, o breadcrumb, montado a partir do próprio
+`navSections` (no celular, só a página atual). Não há busca nem
+notificações: seriam recursos de fachada.
+
+A situação do caixa **não** está na barra: não existe hook nem contexto que
+forneça a sessão aberta, e cada tela consulta `/cash-register/current` por
+conta própria. Entra quando esse contexto existir.
+
+### Área de conteúdo
+
+`max-w-content` (1440px), centralizada, com `p-4` no celular e `p-page`
+(24px) a partir do tablet. `CreditPage` e `DesignSystemPage` usam margem
+negativa (`-m-4 md:-m-6`) presa a esse padding — mudar o padding exige
+ajustar as duas.
+
+> **Pendência (PR 2):** essas duas telas mostram um vão branco nas laterais,
+> anterior à casca nova. Corrigir junto com a migração das telas.
 
 > Configuração em página separada por rota, não em aba dentro da página. Isso
 > foi decidido depois de uma implementação com `Tabs` que precisou ser
 > refeita. O padrão é o do grupo Financeiro.
-
-O submenu atual está com proporções irregulares (recuo, altura de linha e
-espaçamento entre grupos) — é um dos itens a refinar.
 
 ---
 
@@ -182,8 +289,9 @@ cardápio. Nunca um traço solto, nunca um valor inventado.
 
 ## 6. Acessibilidade
 
-- Foco visível em todo elemento interativo, usando `border-strong` com
-  `ring-2`. Não remover outline sem colocar algo no lugar.
+- Foco visível em todo elemento interativo. O padrão global é `outline` de
+  2px em `focus-ring`; componentes do kit usam `ring-2 ring-focus-ring`. Não
+  remover outline sem colocar algo no lugar.
 - Contraste mínimo 4.5:1 para texto e 3:1 para elementos de interface, nos
   dois temas.
 - Modal com foco preso dentro, retornando ao elemento que o abriu ao fechar.

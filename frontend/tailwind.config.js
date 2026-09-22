@@ -94,6 +94,12 @@ export default {
         page: 'var(--space-page)',
         section: 'var(--space-section)',
         card: 'var(--space-card)',
+        sidebar: 'var(--sidebar-width)',
+        'sidebar-collapsed': 'var(--sidebar-width-collapsed)',
+        topbar: 'var(--topbar-height)',
+      },
+      maxWidth: {
+        content: 'var(--content-max-width)',
       },
     },
   },
