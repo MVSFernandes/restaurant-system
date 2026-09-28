@@ -64,11 +64,8 @@ const TablesPage: React.FC = () => {
   };
 
   const handleOpenTable = async () => {
-    if (!selectedTable) return;
-    if (cashClosed) {
-      alert('Nao e possivel abrir mesas com o caixa fechado. Abra o caixa primeiro.');
-      return;
-    }
+    // Com o caixa fechado o botão já fica desabilitado e o aviso aparece no topo.
+    if (!selectedTable || cashClosed) return;
     try {
       await api.patch(`/tables/${selectedTable.id}/status`, { status: 'OCCUPIED' });
       await fetchTables();
