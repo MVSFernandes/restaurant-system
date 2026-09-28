@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { useAuth } from '../hooks/useAuth';
-import { useMenuViewers } from '../hooks/useMenuViewers';
+import { useMenuViewers, type MenuViewers } from '../hooks/useMenuViewers';
 import { useOrderEvents } from '../hooks/useOrderEvents';
 import api from '../services/api';
 import type { CashRegisterSession, Order, Table as RestaurantTable } from '../types';
@@ -402,21 +402,30 @@ const TopProducts: React.FC<{ resource: Resource<TopProduct[]> }> = ({ resource 
   </Card>
 );
 
-const LiveViewers: React.FC<{ count: number }> = ({ count: viewers }) => (
-  <span
-    role="status"
-    aria-live="polite"
-    className="inline-flex h-10 items-center gap-2.5 rounded-full border border-default bg-surface px-4 text-body text-muted"
-  >
-    <span aria-hidden="true" className="relative flex h-2 w-2">
-      <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-60 motion-safe:animate-ping" />
-      <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+// O ponto verde afirma "ao vivo": só aparece com o canal conectado e a
+// presença sincronizada. Sem Realtime configurado, o selo não existe.
+const LiveViewers: React.FC<{ viewers: MenuViewers }> = ({ viewers }) =>
+  viewers.available ? (
+    <span
+      role="status"
+      aria-live="polite"
+      className="inline-flex h-10 items-center gap-2.5 rounded-full border border-default bg-surface px-4 text-body text-muted"
+    >
+      {viewers.count === null ? (
+        <span>No cardápio digital: {UNAVAILABLE.toLocaleLowerCase('pt-BR')}</span>
+      ) : (
+        <>
+          <span aria-hidden="true" className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-60 motion-safe:animate-ping" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+          </span>
+          <span>
+            <span className="font-semibold tabular-nums text-default">{count(viewers.count)}</span> no cardápio digital
+          </span>
+        </>
+      )}
     </span>
-    <span>
-      <span className="font-semibold tabular-nums text-default">{count(viewers)}</span> no cardápio digital
-    </span>
-  </span>
-);
+  ) : null;
 
 // ---------------------------------------------------------------------------
 // Tela
@@ -623,7 +632,7 @@ const DashboardPage: React.FC = () => {
         description={description}
         actions={
           <>
-            <LiveViewers count={viewers} />
+            <LiveViewers viewers={viewers} />
             {canOperate && (
               <Link to="/pdv/orders" className={buttonClasses()}>
                 <OrderIcon aria-hidden="true" />
