@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import type { Table } from '../../types';
 import { clsx } from 'clsx';
@@ -18,6 +19,7 @@ const getStatusConfig = (status: string) =>
   statusConfig[status as keyof typeof statusConfig] ?? unknownStatus;
 
 const TablesPage: React.FC = () => {
+  const navigate = useNavigate();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
@@ -174,7 +176,7 @@ const TablesPage: React.FC = () => {
               {selectedTable.status === 'OCCUPIED' && (
                 <>
                   <button
-                    onClick={() => { setShowModal(false); window.location.href = `/pdv/orders?tableId=${selectedTable.id}`; }}
+                    onClick={() => { setShowModal(false); navigate(`/pdv/orders?tableId=${encodeURIComponent(selectedTable.id)}`); }}
                     className="btn-primary w-full py-3 flex items-center justify-center gap-2"
                   >
                     <Plus size={18} />
