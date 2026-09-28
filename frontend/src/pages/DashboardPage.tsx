@@ -53,13 +53,19 @@ function useResource<T>(load: () => Promise<T>) {
     try {
       const data = await load();
       setResource({ status: 'ready', data });
+      return true;
     } catch (error) {
       console.error(error);
       setResource({ status: 'error' });
+      return false;
     }
   }, [load]);
 
-  return [resource, refresh] as const;
+  // Dado que não pode mais ser confirmado vira "Não disponível", em vez de
+  // continuar na tela como se fosse atual.
+  const forget = React.useCallback(() => setResource({ status: 'error' }), []);
+
+  return [resource, refresh, forget] as const;
 }
 
 const UNAVAILABLE = 'Não disponível';
@@ -429,24 +435,62 @@ const DashboardPage: React.FC = () => {
   const [current, refreshCurrent] = useResource(fetchCurrent);
   const [orders, refreshOrders] = useResource(fetchOrders);
   const [tables, refreshTables] = useResource(fetchTables);
-  const [lowStock, refreshLowStock] = useResource(fetchLowStock);
-  const [topProducts, refreshTopProducts] = useResource(fetchTopProducts);
-  const [payables, refreshPayables] = useResource(fetchPayables);
+  const [lowStock, refreshLowStock, forgetLowStock] = useResource(fetchLowStock);
+  const [topProducts, refreshTopProducts, forgetTopProducts] = useResource(fetchTopProducts);
+  const [payables, refreshPayables, forgetPayables] = useResource(fetchPayables);
 
-  const refreshLive = React.useCallback(() => {
-    void refreshCurrent();
-    void refreshOrders();
-    void refreshTables();
-  }, [refreshCurrent, refreshOrders, refreshTables]);
-
-  React.useEffect(() => {
-    refreshLive();
+  // Insumos, contas e mais vendidos não entram no ciclo de 30s (backlog, itens
+  // 10 e 14): são buscados ao montar, ao voltar o foco para a aba e na virada
+  // do dia.
+  const refreshOnDemand = React.useCallback(() => {
     void refreshLowStock();
     if (canSeeFinance) {
       void refreshTopProducts();
       void refreshPayables();
     }
-  }, [refreshLive, refreshLowStock, refreshTopProducts, refreshPayables, canSeeFinance]);
+  }, [refreshLowStock, refreshTopProducts, refreshPayables, canSeeFinance]);
+
+  const liveDown = React.useRef(false);
+  const day = React.useRef(new Date().toDateString());
+
+  const refreshLive = React.useCallback(async () => {
+    const answered = await Promise.all([refreshCurrent(), refreshOrders(), refreshTables()]);
+
+    // As três falharam: o backend está inalcançável, então o que foi buscado
+    // antes também não pode ser confirmado.
+    if (!answered.some(Boolean)) {
+      liveDown.current = true;
+      forgetLowStock();
+      forgetTopProducts();
+      forgetPayables();
+      return;
+    }
+
+    const today = new Date().toDateString();
+    if (liveDown.current || today !== day.current) {
+      liveDown.current = false;
+      day.current = today;
+      refreshOnDemand();
+    }
+  }, [refreshCurrent, refreshOrders, refreshTables, forgetLowStock, forgetTopProducts, forgetPayables, refreshOnDemand]);
+
+  React.useEffect(() => {
+    void refreshLive();
+    refreshOnDemand();
+  }, [refreshLive, refreshOnDemand]);
+
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      // A recarga abaixo já cobre a volta do backend e a virada do dia.
+      liveDown.current = false;
+      day.current = new Date().toDateString();
+      void refreshLive();
+      refreshOnDemand();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refreshLive, refreshOnDemand]);
 
   // Turno, pedidos e mesas acompanham os eventos de pedido (com reforço a cada 30s).
   useOrderEvents(refreshLive);
