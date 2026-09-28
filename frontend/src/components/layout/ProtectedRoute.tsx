@@ -11,6 +11,13 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
   const { isAuthenticated, user } = useAuthStore();
 
+  // O Dashboard é o destino de quem volta pelo menu. Com o código já baixado,
+  // ele abre mesmo se a conexão cair, mostrando "Não disponível" nos blocos em
+  // vez da tela de erro.
+  React.useEffect(() => {
+    if (isAuthenticated) void import('../../pages/DashboardPage').catch(() => {});
+  }, [isAuthenticated]);
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
