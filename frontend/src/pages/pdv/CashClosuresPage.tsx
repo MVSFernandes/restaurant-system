@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Clock3, Loader2, RotateCcw, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock3, RotateCcw, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CashDifferenceBadge, CashSessionSummary } from '../../components/cash/CashSessionSummary';
 import {
-  Badge, Button, Card, CardContent, EmptyState, Field, Input, PageHeader,
+  Badge, Button, Card, CardContent, EmptyState, Field, Input, PageHeader, Skeleton,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useToast,
 } from '../../components/ui';
 import api from '../../services/api';
@@ -68,14 +68,25 @@ export default function CashClosuresPage() {
     <PageHeader title="Fechamentos de caixa" description="Confira turnos, responsáveis, movimentações e diferenças de caixa." actions={<Badge variant="info">{result.total} turno(s)</Badge>} />
     <Card><CardContent><div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end"><Field label="Data inicial"><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></Field><Field label="Data final"><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></Field><Button onClick={search} leftIcon={<Search />}>Pesquisar</Button><Button variant="secondary" onClick={clear} leftIcon={<RotateCcw />}>Limpar</Button></div></CardContent></Card>
 
-    {loading ? <div className="flex min-h-48 items-center justify-center text-muted"><Loader2 className="animate-spin" aria-label="Carregando fechamentos" /></div> : !result.data.length ? <EmptyState icon={<Clock3 />} title="Nenhum turno encontrado" description="Ajuste o período para ampliar a busca." /> : <div className="space-y-3">
+    {loading ? <div role="status" className="space-y-3">
+      <span className="sr-only">Carregando fechamentos</span>
+      {[0, 1, 2].map((row) => <Card key={row}>
+        <CardContent className="grid gap-3 lg:grid-cols-[1.4fr_1fr_auto_auto_auto] lg:items-center">
+          <div className="space-y-2"><Skeleton className="h-4 w-44" /><Skeleton className="h-3 w-36" /></div>
+          <div className="space-y-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-4 w-28" /></div>
+          <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-28" /></div>
+          <Skeleton className="h-5 w-24 rounded-full" />
+          <Skeleton className="h-8 w-8" />
+        </CardContent>
+      </Card>)}
+    </div> : !result.data.length ? <EmptyState icon={<Clock3 />} title="Nenhum turno encontrado" description="Ajuste o período para ampliar a busca." /> : <div className="space-y-3">
       {result.data.map((session) => {
         const open = expanded.has(session.id);
         const difference = getCashDifference(session);
         return <Card key={session.id}>
           <CardContent className="space-y-4">
             <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_auto_auto_auto] lg:items-center">
-              <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold text-default">{formatDateTime(session.openedAt)}</p>{session.status === 'OPEN' ? <Badge variant="success">Em andamento</Badge> : <Badge variant="neutral">Fechado</Badge>}</div><p className="text-caption text-muted">Fechamento: {session.closedAt ? formatDateTime(session.closedAt) : 'em andamento'}</p></div>
+              <div><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-default">{formatDateTime(session.openedAt)}</p>{session.status === 'OPEN' ? <Badge variant="success">Em andamento</Badge> : <Badge variant="neutral">Fechado</Badge>}</div><p className="text-caption text-muted">Fechamento: {session.closedAt ? formatDateTime(session.closedAt) : 'em andamento'}</p></div>
               <div className="text-body"><p>Abriu: {getOperatorName(session.openedBy)}</p><p className="text-muted">Fechou: {getOperatorName(session.closedBy)}</p></div>
               <div><p className="font-semibold text-default">{session.orderCount || 0} pedido(s)</p><p className="text-caption text-muted">{formatCurrencyBRL(Number(session.totalRevenue || 0))} faturados</p></div>
               <div>{session.status === 'OPEN' || difference === null ? <span className="text-body text-muted">Sem conferência</span> : <CashDifferenceBadge difference={difference} />}</div>

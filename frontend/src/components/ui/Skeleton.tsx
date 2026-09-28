@@ -2,7 +2,7 @@ import type { HTMLAttributes } from 'react';
 import { clsx } from 'clsx';
 
 export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div aria-hidden="true" className={clsx('animate-pulse rounded-token-md bg-slate-200 dark:bg-slate-700', className)} {...props} />;
+  return <div aria-hidden="true" className={clsx('animate-pulse rounded-token-md bg-fill-neutral', className)} {...props} />;
 }
 
 export type SkeletonTextProps = HTMLAttributes<HTMLDivElement> & { lines?: number };

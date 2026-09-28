@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, FileText, History, Loader2, Printer, RotateCcw, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, History, Printer, RotateCcw, Search } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Badge, Button, Card, CardContent, EmptyState, Field, Input, PageHeader, Select,
+  Badge, Button, buttonClasses, Card, CardContent, EmptyState, Field, Input, PageHeader, Select, Skeleton,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useToast,
 } from '../../components/ui';
 import api from '../../services/api';
@@ -149,7 +149,23 @@ export default function OrderHistoryPage() {
         </CardContent>
       </Card>
 
-      {loading ? <div className="flex min-h-48 items-center justify-center text-muted"><Loader2 className="animate-spin" aria-label="Carregando pedidos" /></div> : !result.data.length ? (
+      {loading ? (
+        <div role="status" className="space-y-3">
+          <span className="sr-only">Carregando pedidos</span>
+          {[0, 1, 2].map((row) => (
+            <Card key={row}>
+              <CardContent className="grid gap-3 lg:grid-cols-[auto_1.2fr_1fr_1fr_auto_auto] lg:items-center">
+                <div className="space-y-2"><Skeleton className="h-4 w-20" /><Skeleton className="h-3 w-32" /></div>
+                <div className="space-y-2"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-28" /></div>
+                <div className="space-y-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-3 w-20" /></div>
+                <Skeleton className="h-5 w-24 rounded-full" />
+                <Skeleton className="h-5 w-20" />
+                <div className="flex gap-2"><Skeleton className="h-8 w-8" /><Skeleton className="h-8 w-8" /></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : !result.data.length ? (
         <EmptyState icon={<History />} title="Nenhum pedido encontrado" description="Ajuste os filtros para ampliar a busca." />
       ) : <div className="space-y-3">
         {result.data.map((order) => {
@@ -158,18 +174,18 @@ export default function OrderHistoryPage() {
           return <Card key={order.id} className={order.status === 'CANCELED' ? 'border-danger bg-danger-subtle' : undefined}>
             <CardContent className="space-y-4">
               <div className="grid gap-3 lg:grid-cols-[auto_1.2fr_1fr_1fr_auto_auto] lg:items-center">
-                <div><p className="font-bold text-default">#{order.id.slice(-6).toUpperCase()}</p><p className="text-caption text-muted">{formatDateTime(order.createdAt)}</p></div>
+                <div><p className="font-semibold tabular-nums text-default">#{order.id.slice(-6).toUpperCase()}</p><p className="text-caption text-muted">{formatDateTime(order.createdAt)}</p></div>
                 <div><p className="font-medium text-default">{order.customerName || 'Cliente não informado'}</p><p className="text-caption text-muted">{orderTypeLabels[order.type]} · {sourceLabels[order.source || 'PDV']}</p></div>
                 <div><p>{order.payment ? paymentMethodLabels[order.payment.method] : 'Sem pagamento'}</p><p className="text-caption text-muted">{order.payment ? paymentStatusLabels[order.payment.status] : 'não registrado'}</p></div>
                 <div>{order.invoice ? <Badge variant={order.invoice.status === 'authorized' ? 'success' : order.invoice.status === 'error' || order.invoice.status === 'canceled' ? 'danger' : 'warning'}>{invoiceStatusLabels[order.invoice.status]}</Badge> : <Badge variant="neutral">Sem nota</Badge>}</div>
-                <p className="font-bold tabular-nums text-default">{formatCurrencyBRL(order.total)}</p>
+                <p className="font-semibold tabular-nums text-default">{formatCurrencyBRL(order.total)}</p>
                 <div className="flex gap-2"><Button size="sm" variant="secondary" iconOnly aria-label={`Imprimir pedido ${order.id}`} onClick={() => void printOrder(order)}><Printer /></Button><Button size="sm" variant="secondary" iconOnly aria-label={`${open ? 'Recolher' : 'Expandir'} pedido ${order.id}`} onClick={() => toggle(order.id)}>{open ? <ChevronUp /> : <ChevronDown />}</Button></div>
               </div>
               {order.status === 'CANCELED' && <Badge variant="danger">Pedido cancelado</Badge>}
               {open && <div className="space-y-4 border-t border-default pt-4">
                 <div className="grid gap-2 text-body text-muted md:grid-cols-3"><p><strong className="text-default">Mesa:</strong> {order.table?.number ?? 'não informada'}</p><p><strong className="text-default">Responsável:</strong> {responsible}</p><p><strong className="text-default">Taxa de entrega:</strong> {formatCurrencyBRL(Number(order.deliveryFee || 0))}</p></div>
                 <Table><TableHeader><TableRow><TableHead>Quantidade</TableHead><TableHead>Produto vendido</TableHead><TableHead numeric>Valor</TableHead></TableRow></TableHeader><TableBody>{order.items.map((item) => <TableRow key={item.id}><TableCell>{quantityLabel(item)}</TableCell><TableCell><p className="font-medium">{item.productName || 'Produto removido'}</p>{item.notes && <p className="text-caption text-muted whitespace-pre-line">{item.notes}</p>}</TableCell><TableCell numeric>{formatCurrencyBRL(item.price)}</TableCell></TableRow>)}</TableBody></Table>
-                <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => void printOrder(order)} leftIcon={<Printer />}>Imprimir comanda</Button>{order.invoice?.danfeUrl && <a href={order.invoice.danfeUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-2 rounded-token-md bg-primary px-3 text-label font-semibold text-primary-fg"><FileText />Ver documento fiscal</a>}{order.invoice?.xmlUrl && <a href={order.invoice.xmlUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-token-md border border-default px-3 text-label font-semibold text-default">Baixar XML</a>}</div>
+                <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => void printOrder(order)} leftIcon={<Printer />}>Imprimir comanda</Button>{order.invoice?.danfeUrl && <a href={order.invoice.danfeUrl} target="_blank" rel="noreferrer" className={buttonClasses({ variant: 'secondary', size: 'sm' })}><FileText aria-hidden="true" />Ver documento fiscal</a>}{order.invoice?.xmlUrl && <a href={order.invoice.xmlUrl} target="_blank" rel="noreferrer" className={buttonClasses({ variant: 'secondary', size: 'sm' })}>Baixar XML</a>}</div>
               </div>}
             </CardContent>
           </Card>;
