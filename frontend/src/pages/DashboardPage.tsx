@@ -313,16 +313,21 @@ type AttentionItem = {
   unavailable?: boolean;
 };
 
-const AttentionList: React.FC<{ items: AttentionItem[]; loading: boolean }> = ({ items, loading }) => (
+/** Situação das fontes da lista: só dá para afirmar "nada pendente" com todas respondendo. */
+type AttentionSources = 'loading' | 'unreachable' | 'partial' | 'checked';
+
+const AttentionList: React.FC<{ items: AttentionItem[]; sources: AttentionSources }> = ({ items, sources }) => (
   <Card>
     <SectionTitle>Precisa de atenção</SectionTitle>
-    {loading ? (
+    {sources === 'loading' ? (
       <div role="status" className="mt-4 space-y-4">
         <span className="sr-only">Carregando pendências</span>
         {[0, 1, 2].map((row) => (
           <div key={row} className="space-y-2"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-28" /></div>
         ))}
       </div>
+    ) : sources === 'unreachable' || (items.length === 0 && sources !== 'checked') ? (
+      <p className="mt-3 text-body text-muted">Não foi possível conferir as pendências.</p>
     ) : items.length === 0 ? (
       <p className="mt-3 text-body text-muted">Nada pendente agora.</p>
     ) : (
@@ -540,8 +545,14 @@ const DashboardPage: React.FC = () => {
 
   // --- Precisa de atenção --------------------------------------------------
   const attention: AttentionItem[] = [];
-  const attentionLoading =
-    current.status === 'loading' || lowStock.status === 'loading' || (canSeeFinance && payables.status === 'loading');
+  const attentionStates = [current.status, lowStock.status, ...(canSeeFinance ? [payables.status] : [])];
+  const attentionSources: AttentionSources = attentionStates.includes('loading')
+    ? 'loading'
+    : attentionStates.every((state) => state === 'error')
+      ? 'unreachable'
+      : attentionStates.every((state) => state === 'ready')
+        ? 'checked'
+        : 'partial';
 
   if (current.status === 'error') {
     attention.push({ key: 'fiscal', label: 'Notas fiscais pendentes ou rejeitadas', value: '', unavailable: true });
@@ -640,7 +651,7 @@ const DashboardPage: React.FC = () => {
           (ordem de urgência); no desktop vai para a coluna da direita. */}
       <div className="mt-section grid items-start gap-section lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="lg:col-start-2 lg:row-start-1">
-          <AttentionList items={attention} loading={attentionLoading} />
+          <AttentionList items={attention} sources={attentionSources} />
         </div>
         <div className="space-y-section lg:col-start-1 lg:row-start-1">
           {!shiftClosed &&
