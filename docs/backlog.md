@@ -28,6 +28,10 @@ quando o item foi registrado (2026-09-22, branch
 
 ### 2. Tela de Mesas quebra com situação de mesa desconhecida
 
+> **Resolvido** na branch `fix/frontend-integrity` (`b2253d7`). A mesa com
+> situação desconhecida aparece neutra, como "Situação desconhecida", sem
+> ações além de Cancelar.
+
 - **Onde:** `frontend/src/pages/pdv/TablesPage.tsx:137` e `:144`.
 - **O que acontece:** a tela procura a situação da mesa num mapa com só três
   chaves (`AVAILABLE`, `OCCUPIED`, `CLOSED`). Se o backend devolver qualquer
@@ -42,12 +46,22 @@ quando o item foi registrado (2026-09-22, branch
 
 ### 3. Dashboard: link de alertas de estoque aponta para rota inexistente
 
+> **Resolvido** pelo redesenho do Dashboard (PR #29): o link foi para
+> `/stock/items`. Conferido no navegador na branch `fix/frontend-integrity`;
+> `/inventory/stock` não aparece mais no código.
+
 - **Onde:** `frontend/src/pages/DashboardPage.tsx:320`.
 - **O que acontece:** "Alertas de Estoque" leva a `/inventory/stock`, que não
   existe. A rota coringa redireciona para o Dashboard. A rota certa é
   `/stock/items`.
 
 ### 4. Dashboard: cartões apontam para rotas que o perfil não acessa
+
+> **Resolvido** pelo redesenho do Dashboard (PR #29): todo link depende do
+> perfil (`canOperate`, `canSeeFinance`). Conferido no navegador na branch
+> `fix/frontend-integrity`: com todos os blocos preenchidos, os 14 links de
+> Administrador, Caixa e Financeiro abrem a tela certa; Garçom não recebe
+> link.
 
 - **Onde:** `frontend/src/pages/DashboardPage.tsx:306`, `:313` e `:327`.
 - **O que acontece:** Caixa clica em "Faturamento Hoje" (`/finance/reports`)
@@ -56,12 +70,19 @@ quando o item foi registrado (2026-09-22, branch
 
 ### 5. Mesas: alerta de caixa fechado nunca aparece
 
+> **Resolvido** na branch `fix/frontend-integrity` (`bbe8538`). O `alert()`
+> saiu; a proteção continua (botão desabilitado e retorno no início da
+> função).
+
 - **Onde:** `frontend/src/pages/pdv/TablesPage.tsx:62`, com o botão em `:165`.
 - **O que acontece:** o `alert()` só roda se o caixa estiver fechado, mas o
   botão "Abrir Mesa" já fica desabilitado nesse caso. É código inalcançável.
   O texto também está sem acento ("Nao e possivel").
 
 ### 6. Mesas: "Adicionar Pedido" recarrega o app inteiro
+
+> **Resolvido** na branch `fix/frontend-integrity` (`279466b`). Navega pelo
+> React Router para a mesma URL. Ver item 17: o destino ignora o `tableId`.
 
 - **Onde:** `frontend/src/pages/pdv/TablesPage.tsx:173`.
 - **O que acontece:** usa `window.location.href` em vez de navegar pelo React
@@ -77,6 +98,9 @@ quando o item foi registrado (2026-09-22, branch
   `setTimeout` de 2 segundos sem aviso de falha.
 
 ### 8. Arquivo morto: `pdv/HistoryPage.tsx`
+
+> **Resolvido** na branch `fix/frontend-integrity` (`e930f87`). O arquivo foi
+> removido junto com o único teste que o renderizava (ver item 19).
 
 - **Onde:** `frontend/src/pages/pdv/HistoryPage.tsx` (336 linhas). A rota fica
   em `frontend/src/App.tsx:65`.
@@ -171,6 +195,49 @@ passa a usar `/cash-register/current` para os números do turno, mas
 
 ---
 
+## Encontrados na branch `fix/frontend-integrity` (2026-09-28)
+
+Vistos durante a correção; nenhum foi corrigido nela.
+
+### 17. Pedidos: `tableId` da URL é ignorado
+
+- **Onde:** `frontend/src/pages/pdv/OrdersPage.tsx`; o link sai de
+  `TablesPage.tsx` ("Adicionar Pedido").
+- **O que acontece:** Mesas abre `/pdv/orders?tableId=…`, mas a tela de
+  Pedidos não lê esse parâmetro. A mesa não vem selecionada: o caixa escolhe
+  de novo. Era assim também antes da troca do `window.location.href`.
+
+### 18. Teste da sidebar de Configurações falhando na `main`
+
+- **Onde:** `frontend/tests/settings-pages.test.tsx` ("expands like other
+  groups and highlights the active settings child").
+- **O que acontece:** o teste procura o link "Documentos Fiscais"; a sidebar
+  (`MainLayout.tsx`) diz "Documentos fiscais", seguindo a regra de só a
+  primeira letra maiúscula. O teste está desatualizado, não a tela. Também
+  há 10 erros de lint anteriores (`no-explicit-any`, `prefer-const`) em
+  `EditOrderModal`, `WaitersManagementPage`, `OrdersPage` e outras.
+
+### 19. Cobertura que só existia contra o `HistoryPage` morto
+
+- **Onde:** o teste removido de `frontend/tests/cash-register-audit.test.tsx`.
+- **O que acontece:** ele verificava mesa, garçom responsável, autor da
+  sangria e "aberto por / fechado por" num histórico. As telas vivas
+  (`OrderHistoryPage`, `CashClosuresPage`) mostram esses dados, mas
+  `history-pages.test.tsx` só confere nome gravado do produto e taxa de
+  entrega. Vale portar essas asserções para as telas vivas.
+
+### 20. Telas abertas sem internet pela primeira vez
+
+- **Onde:** rotas lazy em `frontend/src/App.tsx`.
+- **O que acontece:** o código de cada tela só é baixado na primeira visita.
+  Sem conexão, uma tela ainda não visitada mostra a tela de erro de rota
+  ("Esta tela não carregou"), não os dados. Só o Dashboard é carregado de
+  antemão. Carregar as telas de operação (Pedidos, Mesas, Caixa) de antemão
+  é uma decisão de produto: mais download no login, em troca de operar com a
+  conexão instável.
+
+---
+
 ## Pendências visuais relacionadas
 
 - `CreditPage` e `DesignSystemPage`: vão branco nas laterais, anterior à casca
@@ -178,3 +245,6 @@ passa a usar `/cash-register/current` para os números do turno, mas
 - Preço ajustado de Pedidos continua `<input type="number">` em vez de
   `CurrencyInput`, por risco operacional (ver `design-system.md`, seção 3,
   "Exceções em aberto").
+- Mesas (`TablesPage`) segue com cor literal e não foi migrada: no tema
+  escuro o título "Mesas" some. Os textos do aviso de caixa fechado e da
+  confirmação de fechamento estão sem acento ("Nao e possivel", "sera").
