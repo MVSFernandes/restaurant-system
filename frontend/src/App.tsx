@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react';
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 'react-router-dom';
 import ProtectedRoute from './components/layout/ProtectedRoute';
+import RouteError from './components/layout/RouteError';
 import { BrandingRouteEffects } from './contexts/BrandingProvider';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
@@ -40,59 +41,63 @@ const LoadingFallback = () => (
   </div>
 );
 
+// Erro de uma tela aparece dentro da casca: a sidebar continua utilizável.
+const insideShell = (children: RouteObject[]): RouteObject[] => [{ errorElement: <RouteError />, children }];
+
 const router = createBrowserRouter([
   {
     element: <BrandingRouteEffects />,
+    errorElement: <RouteError standalone />,
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/cardapio', element: <PublicMenuPage /> },
       {
         element: <ProtectedRoute />,
-        children: [
+        children: insideShell([
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/settings', element: <Navigate to="/settings/restaurant" replace /> },
           { path: '/settings/restaurant', element: <RestaurantSettingsPage /> },
           { path: '/settings/fiscal', element: <FiscalSettingsPage /> },
           { path: '/design-system', element: <DesignSystemPage /> },
-        ],
+        ]),
       },
       {
         element: <ProtectedRoute allowedRoles={['ADMIN', 'CASHIER']} />,
-        children: [
+        children: insideShell([
           { path: '/pdv/tables', element: <TablesPage /> },
           { path: '/pdv/orders', element: <OrdersPage /> },
           { path: '/pdv/cash-register', element: <CashRegisterPage /> },
           { path: '/pdv/history', element: <Navigate to="/pdv/orders-history" replace /> },
           { path: '/pdv/orders-history', element: <OrderHistoryPage /> },
           { path: '/pdv/cash-closures', element: <CashClosuresPage /> },
-        ],
+        ]),
       },
       {
         element: <ProtectedRoute allowedRoles={['ADMIN', 'WAITER']} />,
-        children: [
+        children: insideShell([
           { path: '/waiter/tables', element: <WaiterTablesPage /> },
           { path: '/waiter/history', element: <WaiterHistoryPage /> },
-        ],
+        ]),
       },
       {
         element: <ProtectedRoute allowedRoles={['ADMIN']} />,
-        children: [
+        children: insideShell([
           { path: '/menu/categories', element: <CategoriesPage /> },
           { path: '/menu/products', element: <ProductsPage /> },
           { path: '/menu/marmita-menu', element: <MarmitaMenuPage /> },
           { path: '/admin/waiters', element: <WaitersManagementPage /> },
-        ],
+        ]),
       },
       {
         element: <ProtectedRoute allowedRoles={['ADMIN', 'FINANCE']} />,
-        children: [
+        children: insideShell([
           { path: '/stock/items', element: <StockItemsPage /> },
           { path: '/stock/suppliers', element: <SuppliersPage /> },
           { path: '/stock/comparison', element: <SupplierComparisonPage /> },
           { path: '/finance/reports', element: <FinanceReportsPage /> },
           { path: '/finance/payables', element: <PayablesPage /> },
           { path: '/finance/credit', element: <CreditPage /> },
-        ],
+        ]),
       },
       { path: '/', element: <Navigate to="/dashboard" replace /> },
       { path: '*', element: <Navigate to="/dashboard" replace /> },

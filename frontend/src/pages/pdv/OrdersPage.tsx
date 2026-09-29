@@ -9,7 +9,6 @@ import type {
   User,
   MarmitaMenuItem,
   RestaurantConfig,
-  CashRegisterSession,
   Customer,
 } from '../../types';
 import { clsx } from 'clsx';
@@ -66,6 +65,10 @@ interface ToastState {
   type: 'success' | 'error';
   message: string;
 }
+
+type CashState = 'open' | 'closed' | 'unknown';
+
+const CASH_UNKNOWN_MESSAGE = 'Não foi possível confirmar a situação do caixa.';
 
 const getPayloadWeight = (item: Pick<CartItem, 'saleType' | 'weight'>) => {
   const weight = Number(item.weight);
@@ -169,6 +172,7 @@ const OrdersPage: React.FC = () => {
   const [selectedTableId, setSelectedTableId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [loading, setLoading] = useState(true);
+  const [ordersLoadFailed, setOrdersLoadFailed] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [searchCustomer, setSearchCustomer] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(savedOrderSoundPreference);
@@ -190,7 +194,8 @@ const OrdersPage: React.FC = () => {
   const [customDeliveryFee, setCustomDeliveryFee] = useState<number | null>(null);
   const [customDeliveryFeeError, setCustomDeliveryFeeError] = useState<string | null>(null);
   const [config, setConfig] = useState<RestaurantConfig | null>(null);
-  const [currentCash, setCurrentCash] = useState<CashRegisterSession | null>(null);
+  // 'unknown' until /cash-register/current answers; a failed call never means closed.
+  const [cashState, setCashState] = useState<CashState>('unknown');
 
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -339,6 +344,7 @@ const OrdersPage: React.FC = () => {
     knownOrderIdsRef.current = new Set(nextOrders.map((order) => order.id));
     ordersLoadedRef.current = true;
     setOrders(nextOrders);
+    setOrdersLoadFailed(false);
   }, [notifyIncomingOnlineOrder]);
 
   const refreshOperationalData = useCallback(async () => {
@@ -350,7 +356,7 @@ const OrdersPage: React.FC = () => {
       ]);
       applyOrderSnapshot(ordersRes.data);
       setTables(tablesRes.data.filter((table: Table) => table.status === 'OCCUPIED'));
-      setCurrentCash(cashRes.data);
+      setCashState(cashRes.data ? 'open' : 'closed');
     } catch (error) {
       // Realtime and polling are recovery paths; a temporary outage must not break the page.
       console.error('Erro ao atualizar pedidos em segundo plano:', error);
@@ -420,7 +426,7 @@ const OrdersPage: React.FC = () => {
         customersRes,
         marmitaMenuRes,
         configRes,
-        cashRes,
+        nextCashState,
       ] = await Promise.all([
         api.get('/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED'),
         api.get('/categories?includeProducts=true'),
@@ -429,7 +435,9 @@ const OrdersPage: React.FC = () => {
         api.get('/customers').catch(() => ({ data: [] })),
         api.get(`/marmita-menu/day/${getCurrentWeekDay()}`).catch(() => ({ data: [] })),
         api.get('/config').catch(() => ({ data: null })),
-        api.get('/cash-register/current').catch(() => ({ data: null })),
+        api.get('/cash-register/current')
+          .then((res): CashState => (res.data ? 'open' : 'closed'))
+          .catch((): CashState => 'unknown'),
       ]);
 
       applyOrderSnapshot(ordersRes.data);
@@ -439,13 +447,14 @@ const OrdersPage: React.FC = () => {
       setCustomers(customersRes.data || []);
       setMarmitaMenuItems(marmitaMenuRes.data || []);
       setConfig(configRes.data || null);
-      setCurrentCash(cashRes.data || null);
+      setCashState(nextCashState);
 
       if (categoriesRes.data.length > 0) {
         setSelectedCategory(categoriesRes.data[0].id);
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
+      setOrdersLoadFailed(true);
       if (!options.silent) showToast('error', 'Erro ao carregar pedidos.');
     } finally {
       setLoading(false);
@@ -631,8 +640,11 @@ const OrdersPage: React.FC = () => {
   const handleCreateOrder = async () => {
     if (orderSubmittingRef.current) return;
 
-    if (!currentCash) {
-      showToast('error', 'Abra o caixa antes de criar um pedido.');
+    if (cashState !== 'open') {
+      showToast(
+        'error',
+        cashState === 'unknown' ? CASH_UNKNOWN_MESSAGE : 'Abra o caixa antes de criar um pedido.'
+      );
       return;
     }
 
@@ -1213,7 +1225,7 @@ const OrdersPage: React.FC = () => {
     return orders.filter((order) => (order.customerName || '').toLowerCase().includes(term));
   }, [orders, searchCustomer]);
 
-  const isCashOpen = !!currentCash;
+  const isCashOpen = cashState === 'open';
 
   if (loading) {
     return (
@@ -1303,14 +1315,25 @@ const OrdersPage: React.FC = () => {
           <button
             onClick={() => {
               if (!isCashOpen) {
-                showToast('error', 'Abra o caixa antes de criar um novo pedido.');
+                showToast(
+                  'error',
+                  cashState === 'unknown'
+                    ? CASH_UNKNOWN_MESSAGE
+                    : 'Abra o caixa antes de criar um novo pedido.'
+                );
                 return;
               }
               openNewOrderModal();
             }}
             disabled={!isCashOpen}
             className="btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            title={!isCashOpen ? 'Abra o caixa para criar pedidos' : 'Novo Pedido'}
+            title={
+              cashState === 'unknown'
+                ? CASH_UNKNOWN_MESSAGE
+                : !isCashOpen
+                  ? 'Abra o caixa para criar pedidos'
+                  : 'Novo Pedido'
+            }
           >
             <Plus size={18} /> Novo Pedido
           </button>
@@ -1320,7 +1343,9 @@ const OrdersPage: React.FC = () => {
       {!isCashOpen && (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
           <p className="text-sm font-medium text-amber-800">
-            O caixa está fechado. Abra o caixa para liberar novos pedidos.
+            {cashState === 'unknown'
+              ? `${CASH_UNKNOWN_MESSAGE} Novos pedidos ficam bloqueados até a confirmação.`
+              : 'O caixa está fechado. Abra o caixa para liberar novos pedidos.'}
           </p>
         </div>
       )}
@@ -1330,9 +1355,11 @@ const OrdersPage: React.FC = () => {
           <div className="col-span-full card text-center py-12 text-gray-400">
             <ShoppingCart size={48} className="mx-auto mb-3 opacity-50" />
             <p>
-              {searchCustomer.trim()
-                ? 'Nenhum pedido encontrado para esse cliente.'
-                : 'Nenhum pedido encontrado.'}
+              {ordersLoadFailed
+                ? 'Não foi possível carregar os pedidos.'
+                : searchCustomer.trim()
+                  ? 'Nenhum pedido encontrado para esse cliente.'
+                  : 'Nenhum pedido encontrado.'}
             </p>
           </div>
         )}

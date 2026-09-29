@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import type { Table } from '../../types';
 import { clsx } from 'clsx';
@@ -10,7 +11,15 @@ const statusConfig = {
   CLOSED: { label: 'Fechada', color: 'bg-red-100 border-red-300 text-red-800', dot: 'bg-red-500' },
 };
 
+// Situação que a tela não conhece: a mesa aparece, neutra e sem ações, em vez
+// de derrubar a tela inteira.
+const unknownStatus = { label: 'Situação desconhecida', color: 'bg-surface-sunken border-default text-muted', dot: 'bg-fill-neutral' };
+
+const getStatusConfig = (status: string) =>
+  statusConfig[status as keyof typeof statusConfig] ?? unknownStatus;
+
 const TablesPage: React.FC = () => {
+  const navigate = useNavigate();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
@@ -57,11 +66,8 @@ const TablesPage: React.FC = () => {
   };
 
   const handleOpenTable = async () => {
-    if (!selectedTable) return;
-    if (cashClosed) {
-      alert('Nao e possivel abrir mesas com o caixa fechado. Abra o caixa primeiro.');
-      return;
-    }
+    // Com o caixa fechado o botão já fica desabilitado e o aviso aparece no topo.
+    if (!selectedTable || cashClosed) return;
     try {
       await api.patch(`/tables/${selectedTable.id}/status`, { status: 'OCCUPIED' });
       await fetchTables();
@@ -134,7 +140,7 @@ const TablesPage: React.FC = () => {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {tables.map((table) => {
-          const config = statusConfig[table.status as keyof typeof statusConfig];
+          const config = getStatusConfig(table.status);
           return (
             <button
               key={table.id}
@@ -157,7 +163,7 @@ const TablesPage: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold text-gray-900 mb-1">Mesa {selectedTable.number}</h2>
             <p className="text-gray-500 mb-6">
-              Status: <span className="font-medium">{statusConfig[selectedTable.status as keyof typeof statusConfig]?.label}</span>
+              Status: <span className="font-medium">{getStatusConfig(selectedTable.status).label}</span>
             </p>
 
             <div className="space-y-3">
@@ -170,7 +176,7 @@ const TablesPage: React.FC = () => {
               {selectedTable.status === 'OCCUPIED' && (
                 <>
                   <button
-                    onClick={() => { setShowModal(false); window.location.href = `/pdv/orders?tableId=${selectedTable.id}`; }}
+                    onClick={() => { setShowModal(false); navigate(`/pdv/orders?tableId=${encodeURIComponent(selectedTable.id)}`); }}
                     className="btn-primary w-full py-3 flex items-center justify-center gap-2"
                   >
                     <Plus size={18} />

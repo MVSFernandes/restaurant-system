@@ -35,4 +35,5 @@ export {
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
   History as HistoryIcon,
+  WifiOff as OfflineIcon,
 } from 'lucide-react';

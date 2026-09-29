@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { useAuth } from '../hooks/useAuth';
-import { useMenuViewers } from '../hooks/useMenuViewers';
+import { useMenuViewers, type MenuViewers } from '../hooks/useMenuViewers';
 import { useOrderEvents } from '../hooks/useOrderEvents';
 import api from '../services/api';
 import type { CashRegisterSession, Order, Table as RestaurantTable } from '../types';
@@ -53,13 +53,19 @@ function useResource<T>(load: () => Promise<T>) {
     try {
       const data = await load();
       setResource({ status: 'ready', data });
+      return true;
     } catch (error) {
       console.error(error);
       setResource({ status: 'error' });
+      return false;
     }
   }, [load]);
 
-  return [resource, refresh] as const;
+  // Dado que não pode mais ser confirmado vira "Não disponível", em vez de
+  // continuar na tela como se fosse atual.
+  const forget = React.useCallback(() => setResource({ status: 'error' }), []);
+
+  return [resource, refresh, forget] as const;
 }
 
 const UNAVAILABLE = 'Não disponível';
@@ -307,16 +313,21 @@ type AttentionItem = {
   unavailable?: boolean;
 };
 
-const AttentionList: React.FC<{ items: AttentionItem[]; loading: boolean }> = ({ items, loading }) => (
+/** Situação das fontes da lista: só dá para afirmar "nada pendente" com todas respondendo. */
+type AttentionSources = 'loading' | 'unreachable' | 'partial' | 'checked';
+
+const AttentionList: React.FC<{ items: AttentionItem[]; sources: AttentionSources }> = ({ items, sources }) => (
   <Card>
     <SectionTitle>Precisa de atenção</SectionTitle>
-    {loading ? (
+    {sources === 'loading' ? (
       <div role="status" className="mt-4 space-y-4">
         <span className="sr-only">Carregando pendências</span>
         {[0, 1, 2].map((row) => (
           <div key={row} className="space-y-2"><Skeleton className="h-4 w-40" /><Skeleton className="h-3 w-28" /></div>
         ))}
       </div>
+    ) : sources === 'unreachable' || (items.length === 0 && sources !== 'checked') ? (
+      <p className="mt-3 text-body text-muted">Não foi possível conferir as pendências.</p>
     ) : items.length === 0 ? (
       <p className="mt-3 text-body text-muted">Nada pendente agora.</p>
     ) : (
@@ -391,21 +402,30 @@ const TopProducts: React.FC<{ resource: Resource<TopProduct[]> }> = ({ resource 
   </Card>
 );
 
-const LiveViewers: React.FC<{ count: number }> = ({ count: viewers }) => (
-  <span
-    role="status"
-    aria-live="polite"
-    className="inline-flex h-10 items-center gap-2.5 rounded-full border border-default bg-surface px-4 text-body text-muted"
-  >
-    <span aria-hidden="true" className="relative flex h-2 w-2">
-      <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-60 motion-safe:animate-ping" />
-      <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+// O ponto verde afirma "ao vivo": só aparece com o canal conectado e a
+// presença sincronizada. Sem Realtime configurado, o selo não existe.
+const LiveViewers: React.FC<{ viewers: MenuViewers }> = ({ viewers }) =>
+  viewers.available ? (
+    <span
+      role="status"
+      aria-live="polite"
+      className="inline-flex h-10 items-center gap-2.5 rounded-full border border-default bg-surface px-4 text-body text-muted"
+    >
+      {viewers.count === null ? (
+        <span>No cardápio digital: {UNAVAILABLE.toLocaleLowerCase('pt-BR')}</span>
+      ) : (
+        <>
+          <span aria-hidden="true" className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-success opacity-60 motion-safe:animate-ping" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+          </span>
+          <span>
+            <span className="font-semibold tabular-nums text-default">{count(viewers.count)}</span> no cardápio digital
+          </span>
+        </>
+      )}
     </span>
-    <span>
-      <span className="font-semibold tabular-nums text-default">{count(viewers)}</span> no cardápio digital
-    </span>
-  </span>
-);
+  ) : null;
 
 // ---------------------------------------------------------------------------
 // Tela
@@ -429,24 +449,62 @@ const DashboardPage: React.FC = () => {
   const [current, refreshCurrent] = useResource(fetchCurrent);
   const [orders, refreshOrders] = useResource(fetchOrders);
   const [tables, refreshTables] = useResource(fetchTables);
-  const [lowStock, refreshLowStock] = useResource(fetchLowStock);
-  const [topProducts, refreshTopProducts] = useResource(fetchTopProducts);
-  const [payables, refreshPayables] = useResource(fetchPayables);
+  const [lowStock, refreshLowStock, forgetLowStock] = useResource(fetchLowStock);
+  const [topProducts, refreshTopProducts, forgetTopProducts] = useResource(fetchTopProducts);
+  const [payables, refreshPayables, forgetPayables] = useResource(fetchPayables);
 
-  const refreshLive = React.useCallback(() => {
-    void refreshCurrent();
-    void refreshOrders();
-    void refreshTables();
-  }, [refreshCurrent, refreshOrders, refreshTables]);
-
-  React.useEffect(() => {
-    refreshLive();
+  // Insumos, contas e mais vendidos não entram no ciclo de 30s (backlog, itens
+  // 10 e 14): são buscados ao montar, ao voltar o foco para a aba e na virada
+  // do dia.
+  const refreshOnDemand = React.useCallback(() => {
     void refreshLowStock();
     if (canSeeFinance) {
       void refreshTopProducts();
       void refreshPayables();
     }
-  }, [refreshLive, refreshLowStock, refreshTopProducts, refreshPayables, canSeeFinance]);
+  }, [refreshLowStock, refreshTopProducts, refreshPayables, canSeeFinance]);
+
+  const liveDown = React.useRef(false);
+  const day = React.useRef(new Date().toDateString());
+
+  const refreshLive = React.useCallback(async () => {
+    const answered = await Promise.all([refreshCurrent(), refreshOrders(), refreshTables()]);
+
+    // As três falharam: o backend está inalcançável, então o que foi buscado
+    // antes também não pode ser confirmado.
+    if (!answered.some(Boolean)) {
+      liveDown.current = true;
+      forgetLowStock();
+      forgetTopProducts();
+      forgetPayables();
+      return;
+    }
+
+    const today = new Date().toDateString();
+    if (liveDown.current || today !== day.current) {
+      liveDown.current = false;
+      day.current = today;
+      refreshOnDemand();
+    }
+  }, [refreshCurrent, refreshOrders, refreshTables, forgetLowStock, forgetTopProducts, forgetPayables, refreshOnDemand]);
+
+  React.useEffect(() => {
+    void refreshLive();
+    refreshOnDemand();
+  }, [refreshLive, refreshOnDemand]);
+
+  React.useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      // A recarga abaixo já cobre a volta do backend e a virada do dia.
+      liveDown.current = false;
+      day.current = new Date().toDateString();
+      void refreshLive();
+      refreshOnDemand();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refreshLive, refreshOnDemand]);
 
   // Turno, pedidos e mesas acompanham os eventos de pedido (com reforço a cada 30s).
   useOrderEvents(refreshLive);
@@ -496,8 +554,14 @@ const DashboardPage: React.FC = () => {
 
   // --- Precisa de atenção --------------------------------------------------
   const attention: AttentionItem[] = [];
-  const attentionLoading =
-    current.status === 'loading' || lowStock.status === 'loading' || (canSeeFinance && payables.status === 'loading');
+  const attentionStates = [current.status, lowStock.status, ...(canSeeFinance ? [payables.status] : [])];
+  const attentionSources: AttentionSources = attentionStates.includes('loading')
+    ? 'loading'
+    : attentionStates.every((state) => state === 'error')
+      ? 'unreachable'
+      : attentionStates.every((state) => state === 'ready')
+        ? 'checked'
+        : 'partial';
 
   if (current.status === 'error') {
     attention.push({ key: 'fiscal', label: 'Notas fiscais pendentes ou rejeitadas', value: '', unavailable: true });
@@ -568,7 +632,7 @@ const DashboardPage: React.FC = () => {
         description={description}
         actions={
           <>
-            <LiveViewers count={viewers} />
+            <LiveViewers viewers={viewers} />
             {canOperate && (
               <Link to="/pdv/orders" className={buttonClasses()}>
                 <OrderIcon aria-hidden="true" />
@@ -596,7 +660,7 @@ const DashboardPage: React.FC = () => {
           (ordem de urgência); no desktop vai para a coluna da direita. */}
       <div className="mt-section grid items-start gap-section lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="lg:col-start-2 lg:row-start-1">
-          <AttentionList items={attention} loading={attentionLoading} />
+          <AttentionList items={attention} sources={attentionSources} />
         </div>
         <div className="space-y-section lg:col-start-1 lg:row-start-1">
           {!shiftClosed &&

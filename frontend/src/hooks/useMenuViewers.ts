@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { REALTIME_CHANNELS } from '../constants/realtime';
 import { openRealtimeChannel } from '../lib/realtime';
+import { supabase } from '../lib/supabase';
 
 interface ViewerPresence {
   viewer_id: string;
@@ -14,8 +15,15 @@ function createViewerId() {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export function useMenuViewers(trackViewer = false): number {
-  const [count, setCount] = useState(0);
+export interface MenuViewers {
+  /** false when Realtime is not configured: there is nothing to show. */
+  available: boolean;
+  /** null until the channel is connected and presence has synced. */
+  count: number | null;
+}
+
+export function useMenuViewers(trackViewer = false): MenuViewers {
+  const [count, setCount] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -44,7 +52,8 @@ export function useMenuViewers(trackViewer = false): number {
             // SUBSCRIBED also fires after reconnecting; track this tab again.
             if (presence) void channel.track(presence).catch(() => {});
           } else {
-            setCount(0);
+            // Disconnected: the count is unknown, not zero.
+            setCount(null);
           }
         });
     });
@@ -55,5 +64,5 @@ export function useMenuViewers(trackViewer = false): number {
     };
   }, [trackViewer]);
 
-  return count;
+  return { available: supabase !== null, count };
 }

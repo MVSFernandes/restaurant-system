@@ -58,10 +58,12 @@ afterEach(async () => {
 describe('menu presence', () => {
   it('counts unique tracked viewers after initial sync, join and leave, without counting the dashboard', async () => {
     const { result } = renderHook(() => useMenuViewers());
-    expect(result.current).toBe(0);
+    expect(result.current).toEqual({ available: true, count: null });
     await flush();
     act(() => channel.setStatus('SUBSCRIBED'));
     expect(channel.track).not.toHaveBeenCalled();
+    // Connected but not synced yet: still unknown.
+    expect(result.current.count).toBeNull();
 
     act(() => {
       channel.setState({
@@ -72,21 +74,22 @@ describe('menu presence', () => {
       });
       channel.emit('presence', 'sync');
     });
-    expect(result.current).toBe(3);
+    expect(result.current.count).toBe(3);
     act(() => {
       channel.setState({ a: [{ viewer_id: 'a' }] });
       channel.emit('presence', 'leave');
     });
-    expect(result.current).toBe(1);
+    expect(result.current.count).toBe(1);
     act(() => {
       channel.setState({ a: [{ viewer_id: 'a' }], b: [{ viewer_id: 'b' }] });
       channel.emit('presence', 'join');
     });
-    expect(result.current).toBe(2);
+    expect(result.current.count).toBe(2);
+    // Disconnected: unknown, never zero.
     act(() => channel.setStatus('CHANNEL_ERROR'));
-    expect(result.current).toBe(0);
+    expect(result.current.count).toBeNull();
     act(() => { channel.setStatus('SUBSCRIBED'); channel.emit('presence', 'sync'); });
-    expect(result.current).toBe(2);
+    expect(result.current.count).toBe(2);
   });
 
   it('tracks once under StrictMode, retracks on reconnect and sends no personal data', async () => {
@@ -142,7 +145,7 @@ describe('menu presence', () => {
     mocks.client.channel.mockImplementationOnce(() => { throw new Error('offline'); });
     const first = renderHook(() => useMenuViewers());
     await flush();
-    expect(first.result.current).toBe(0);
+    expect(first.result.current.count).toBeNull();
     first.unmount();
     await flush();
     channel.track.mockRejectedValueOnce(new Error('offline'));

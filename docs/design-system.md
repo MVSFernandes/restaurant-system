@@ -369,6 +369,26 @@ bloco "Agora" (quatro células iguais, na ordem real do fluxo do pedido).
 > foi decidido depois de uma implementação com `Tabs` que precisou ser
 > refeita. O padrão é o do grupo Financeiro.
 
+### Tela de erro de rota
+
+`components/layout/RouteError.tsx`, ligada como `errorElement` em
+`App.tsx`. Aparece quando uma tela quebra ou quando o código dela não pôde
+ser baixado (sem internet). Dentro da casca, ocupa o lugar da tela e a
+sidebar continua utilizável; no login e no cardápio público, ocupa a página
+inteira (`standalone`).
+
+- Mesmo desenho do "Nenhum turno aberto" do Dashboard: ícone neutro em
+  `surface-sunken`, título em `text-heading`, texto em `text-muted` e uma
+  ação.
+- Conexão (`OfflineIcon`): "Esta tela não carregou". Outro erro
+  (`WarningIcon`): "Esta tela parou com um erro". Tom neutro, não
+  `danger`: queda de conexão não é erro do operador.
+- "Tentar de novo" recarrega a página, porque o navegador guarda a falha do
+  carregamento. Se ainda estiver sem internet, não recarrega: diz "Ainda
+  sem conexão com a internet."
+- O código do Dashboard é baixado assim que a pessoa entra
+  (`ProtectedRoute`), para ele abrir mesmo sem conexão.
+
 ---
 
 ## 5. Regras de conteúdo
@@ -415,6 +435,22 @@ como faturamento do dia é informação inventada, em qualquer tamanho de
 fonte. Isso é estado de erro da interface; a causa, se for do backend, vai
 para o `backlog.md`.
 
+**Dado velho também é dado inventado.** Uma resposta antiga continua na tela
+só enquanto a tela ainda consegue confirmá-la. No Dashboard, os blocos
+buscados só ao montar (insumos, contas, mais vendidos) viram "Não
+disponível" quando as três chamadas do ciclo de 30s falham, e são buscados
+de novo quando o ciclo volta, quando a aba volta ao foco e na virada do dia.
+
+**Ausência só se afirma com todas as fontes respondendo.** "Nada pendente
+agora." exige turno, insumos e contas respondidos; sem nenhum deles, a lista
+diz "Não foi possível conferir as pendências.". O mesmo vale para "Nenhuma
+venda registrada hoje.": só com a resposta atual.
+
+**"Ao vivo" só com conexão.** O ponto verde pulsando afirma dado em tempo
+real. O selo de visitantes do cardápio só mostra número com o canal
+conectado e a presença sincronizada; fora disso mostra "não disponível", sem
+o ponto, e some quando o tempo real não está configurado.
+
 ---
 
 ## 6. Acessibilidade
@@ -435,7 +471,7 @@ para o `backlog.md`.
 | Tela | Estado |
 |---|---|
 | Login | Refeita na etapa de White Label, com fundo minimalista |
-| Dashboard | Redesenhada: números do turno (`/cash-register/current`), fluxo de pedidos, pagamentos por destino, pendências; cada bloco some sem permissão e mostra "Não disponível" se a chamada falhar |
+| Dashboard | Redesenhada: números do turno (`/cash-register/current`), fluxo de pedidos, pagamentos por destino, pendências; cada bloco some sem permissão e mostra "Não disponível" se a chamada falhar ou se o dado não puder mais ser confirmado (seção 5, "Ausência de dado") |
 | Pedidos (PDV) | Tempo real e identificação de origem aplicados |
 | Histórico de pedidos | Nova, precisa de refinamento visual |
 | Fechamentos de caixa | Nova, precisa de refinamento visual |
