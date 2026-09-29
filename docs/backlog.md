@@ -238,6 +238,36 @@ Vistos durante a correção; nenhum foi corrigido nela.
 
 ---
 
+## Encontrados no teste com banco real (2026-09-29)
+
+Os dois são da mesma classe do item 1: a tela afirma um estado que não
+conseguiu medir. Vistos em Pedidos sem conexão; nenhum foi corrigido.
+
+### 21. Pedidos: "Nenhum pedido encontrado" depois de falhar ao carregar
+
+- **Onde:** `frontend/src/pages/pdv/OrdersPage.tsx:447-449` (`catch` da
+  carga) e `:1329-1335` (estado vazio).
+- **O que acontece:** a carga falha, o toast diz "Erro ao carregar
+  pedidos." e a lista fica vazia. O corpo então mostra "Nenhum pedido
+  encontrado.", que é afirmar ausência de pedidos sabendo que não foi
+  possível buscá-los. O estado vazio não distingue "sem pedidos" de "não
+  carregou".
+
+### 22. Pedidos: faixa diz que o caixa está fechado sem saber
+
+- **Onde:** `frontend/src/pages/pdv/OrdersPage.tsx:432` (a falha de
+  `/cash-register/current` vira `null`), `:1216` (`isCashOpen =
+  !!currentCash`) e `:1320-1326` (a faixa).
+- **O que acontece:** com `/cash-register/current` falhando, `currentCash`
+  fica `null` e a faixa mostra "O caixa está fechado. Abra o caixa para
+  liberar novos pedidos." A situação do caixa é desconhecida, não fechada.
+  O Dashboard, na mesma condição, diz "Situação do turno não disponível."
+  (`frontend/src/pages/DashboardPage.tsx:625`).
+- **Por que é grave:** o operador pode tentar abrir um caixa que já está
+  aberto.
+
+---
+
 ## Pendências visuais relacionadas
 
 - `CreditPage` e `DesignSystemPage`: vão branco nas laterais, anterior à casca
