@@ -6,6 +6,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-key';
 
 const { supabase } = require('../src/lib/supabase');
 const { orderHistoryRepository } = require('../src/repositories/orderHistory.repository');
+const { cashRegisterRepository } = require('../src/repositories/cashRegister.repository');
 
 const originalFrom = supabase.from.bind(supabase);
 afterEach(() => { supabase.from = originalFrom; });
@@ -30,6 +31,7 @@ function fakeQuery(rows = [canceledRow], count = rows.length) {
     eq: (...args) => { calls.push(['eq', ...args]); return builder; },
     gte: (...args) => { calls.push(['gte', ...args]); return builder; },
     lte: (...args) => { calls.push(['lte', ...args]); return builder; },
+    lt: (...args) => { calls.push(['lt', ...args]); return builder; },
     ilike: (...args) => { calls.push(['ilike', ...args]); return builder; },
     is: (...args) => { calls.push(['is', ...args]); return builder; },
     order: (...args) => { calls.push(['order', ...args]); return builder; },
@@ -58,6 +60,9 @@ test('history keeps canceled orders and applies combined filters before paginati
   assert.ok(calls.some(([method, column, value]) => method === 'eq' && column === 'cash_register_session_id' && value === 'session-1'));
   assert.ok(calls.some(([method, column, value]) => method === 'is' && column === 'invoices' && value === null));
   assert.deepEqual(calls.find(([method]) => method === 'range').slice(1), [20, 39]);
+  assert.ok(calls.some(([method, column, value]) => method === 'gte' && column === 'created_at' && value === '2026-09-01T03:00:00.000Z'));
+  assert.ok(calls.some(([method, column, value]) => method === 'lt' && column === 'created_at' && value === '2026-10-01T03:00:00.000Z'));
+  assert.equal(calls.some(([method]) => method === 'lte'), false);
 });
 
 test('fiscal filters use server-side invoice joins', async () => {
@@ -68,4 +73,26 @@ test('fiscal filters use server-side invoice joins', async () => {
   const rejectedCalls = fakeQuery([], 0);
   await orderHistoryRepository.search({ page: 1, pageSize: 10, fiscalStatus: 'REJECTED' });
   assert.ok(rejectedCalls.some(([method, column, values]) => method === 'in' && column === 'invoices.status' && values.includes('error')));
+});
+
+test('cash closure history converts restaurant dates to the same exclusive UTC bounds', async () => {
+  const cashSessionRow = {
+    id: 'session-1', status: 'CLOSED', opening_amount: 100, closing_amount: 250,
+    withdrawal_total: 0, notes: null, opened_by_id: 'cashier', closed_by_id: 'cashier',
+    opened_at: '2026-09-29T12:00:00.000Z', closed_at: '2026-09-29T20:00:00.000Z',
+  };
+  const calls = fakeQuery([cashSessionRow], 1);
+
+  const result = await cashRegisterRepository.findSessionsPage({
+    page: 1,
+    pageSize: 10,
+    startDate: '2026-09-29',
+    endDate: '2026-09-29',
+  });
+
+  assert.equal(result.total, 1);
+  assert.equal(result.sessions[0].id, 'session-1');
+  assert.ok(calls.some(([method, column, value]) => method === 'gte' && column === 'opened_at' && value === '2026-09-29T03:00:00.000Z'));
+  assert.ok(calls.some(([method, column, value]) => method === 'lt' && column === 'opened_at' && value === '2026-09-30T03:00:00.000Z'));
+  assert.equal(calls.some(([method]) => method === 'lte'), false);
 });
