@@ -86,6 +86,19 @@ export const orderRepository = {
     return (data ?? []).map(toOrderDomain);
   },
 
+  async findByStatuses(statuses: OrderStatus[]): Promise<Order[]> {
+    if (statuses.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .in('status', statuses)
+      .order('created_at', { ascending: true });
+
+    if (error) throw mapSupabaseError(error, { entity: 'Order' });
+    return (data ?? []).map(toOrderDomain);
+  },
+
   async findRecentSummaries(
     limit = 5,
     filters: { waiterId?: string } = {}
