@@ -2,6 +2,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { payableAccountRepository } from '../repositories/payableAccount.repository';
 import { PayableAccount } from '../types/domain';
 import { NotFoundError } from '../types/errors';
+import { dayRangeUtc, subtractCalendarPeriodUtc } from '../utils/datetime';
 
 // Tipos do relatório financeiro (espelha o retorno da RPC finance_report)
 export interface FinanceReportResult {
@@ -15,31 +16,37 @@ export interface FinanceReportResult {
   paymentMethods: Record<string, number>;
 }
 
-type ReportPeriod = 'today' | 'week' | 'month' | 'year';
+export type ReportPeriod = 'today' | 'week' | 'month' | 'year';
 
-function periodToDates(period: ReportPeriod): { startDate: string; endDate: string } {
-  const now = new Date();
-  const start = new Date();
+export function periodToDates(
+  period: ReportPeriod,
+  now = new Date()
+): { startDate: string; endDate: string } {
+  let start: Date;
+  let end = now;
 
   switch (period) {
-    case 'today':
-      start.setHours(0, 0, 0, 0);
+    case 'today': {
+      const range = dayRangeUtc(now);
+      start = range.start;
+      end = range.endExclusive;
       break;
+    }
     case 'week':
-      start.setDate(now.getDate() - 7);
+      start = subtractCalendarPeriodUtc(now, { days: 7 });
       break;
     case 'year':
-      start.setFullYear(now.getFullYear() - 1);
+      start = subtractCalendarPeriodUtc(now, { years: 1 });
       break;
     case 'month':
     default:
-      start.setMonth(now.getMonth() - 1);
+      start = subtractCalendarPeriodUtc(now, { months: 1 });
       break;
   }
 
   return {
     startDate: start.toISOString(),
-    endDate: now.toISOString(),
+    endDate: end.toISOString(),
   };
 }
 

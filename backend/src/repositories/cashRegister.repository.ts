@@ -16,6 +16,7 @@ import {
   toCashWithdrawalInsert,
 } from '../mappers/cashRegister.mapper';
 import { NotFoundError } from '../types/errors';
+import { dateInputRangeUtc } from '../utils/datetime';
 
 const SESSION_TABLE = 'cash_register_sessions';
 const WITHDRAWAL_TABLE = 'cash_withdrawals';
@@ -97,8 +98,14 @@ export const cashRegisterRepository = {
       .from(SESSION_TABLE)
       .select('*', { count: 'exact' });
 
-    if (filters.startDate) query = query.gte('opened_at', `${filters.startDate}T00:00:00.000-03:00`);
-    if (filters.endDate) query = query.lte('opened_at', `${filters.endDate}T23:59:59.999-03:00`);
+    if (filters.startDate) {
+      const { start } = dateInputRangeUtc(filters.startDate);
+      query = query.gte('opened_at', start.toISOString());
+    }
+    if (filters.endDate) {
+      const { endExclusive } = dateInputRangeUtc(filters.endDate);
+      query = query.lt('opened_at', endExclusive.toISOString());
+    }
 
     const { data, error, count } = await query
       .order('opened_at', { ascending: false })

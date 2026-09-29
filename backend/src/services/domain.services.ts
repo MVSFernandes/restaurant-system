@@ -24,6 +24,7 @@ import {
   MarmitaMenuItem,
 } from '../types/domain';
 import { NotFoundError, ValidationError } from '../types/errors';
+import { weekdayInTimeZone } from '../utils/datetime';
 
 // ============================================================================
 // CATEGORY
@@ -327,17 +328,8 @@ export const tableService = {
 // ============================================================================
 
 export const marmitaMenuService = {
-  async getTodayMenu(): Promise<MarmitaMenuItem[]> {
-    const day = new Intl.DateTimeFormat('en-US', {
-      weekday: 'short',
-      timeZone: 'America/Sao_Paulo',
-    }).format(new Date());
-
-    const map: Record<string, number> = {
-      Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
-    };
-
-    let targetDay = map[day] ?? 1;
+  async getTodayMenu(now = new Date()): Promise<MarmitaMenuItem[]> {
+    let targetDay = weekdayInTimeZone(now);
     if (targetDay === 0) targetDay = 6;
 
     let items = await marmitaMenuItemRepository.findByDayOfWeek(targetDay);
