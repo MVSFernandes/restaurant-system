@@ -11,6 +11,7 @@ import { stockItemRepository } from '../repositories/stockItem.repository';
 import { supplierRepository } from '../repositories/supplier.repository';
 import { supplierStockItemRepository } from '../repositories/supplierStockItem.repository';
 import { tableRepository } from '../repositories/table.repository';
+import { tableTabRepository } from '../repositories/tableTab.repository';
 import { marmitaMenuItemRepository } from '../repositories/marmitaMenuItem.repository';
 import { restaurantConfigRepository } from '../repositories/restaurantConfig.repository';
 import {
@@ -315,6 +316,15 @@ export const tableService = {
   },
 
   async updateStatus(id: string, status: Table['status']): Promise<Table> {
+    if (!['AVAILABLE', 'OCCUPIED'].includes(status)) {
+      throw new ValidationError('status', 'Use AVAILABLE ou OCCUPIED');
+    }
+    if (status === 'AVAILABLE' && await tableTabRepository.hasOpenByTable(id)) {
+      throw new ValidationError(
+        'status',
+        'Não é possível liberar a mesa enquanto existir comanda aberta'
+      );
+    }
     return tableRepository.update(id, { status });
   },
 

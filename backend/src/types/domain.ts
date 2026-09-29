@@ -55,7 +55,9 @@ export type InvoiceModel = '55' | '65';
 
 export type CashSessionStatus = 'OPEN' | 'CLOSED';
 
-export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED';
+export type TableStatus = 'AVAILABLE' | 'OCCUPIED';
+
+export type TableTabStatus = 'OPEN' | 'CLOSED';
 
 export type DeliveryType = 'URBAN' | 'RURAL';
 
@@ -254,6 +256,27 @@ export interface Table {
   status: TableStatus;
 }
 
+export interface TableTab {
+  id: string;
+  tableId: string;
+  cashRegisterSessionId: string;
+  name: string;
+  status: TableTabStatus;
+  openedById: string;
+  closedById: string | null;
+  openedAt: Date;
+  closedAt: Date | null;
+  updatedAt: Date;
+}
+
+export interface TableTabSummary extends TableTab {
+  total: number;
+  paidTotal: number;
+  balance: number;
+  orderCount: number;
+  orders: Array<{ id: string; status: OrderStatus; total: number }>;
+}
+
 // ============================================================================
 // MARMITA MENU ITEMS (cardápio rotativo de marmita)
 // ============================================================================
@@ -310,6 +333,7 @@ export interface Order {
   customerName: string | null;
   customerId: string | null;
   tableId: string | null;
+  tableTabId: string | null;
   userId: string;
   waiterId: string | null;
   cashRegisterSessionId: string | null;

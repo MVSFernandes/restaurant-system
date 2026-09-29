@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import { ORDER_EVENTS, REALTIME_CHANNELS, STOCK_EVENTS } from '../constants/realtime';
+import { ORDER_EVENTS, REALTIME_CHANNELS, STOCK_EVENTS, TABLE_TAB_EVENTS } from '../constants/realtime';
 
 const channels = new Map<string, RealtimeChannel>();
 
@@ -42,4 +42,12 @@ export function publishOrderChanged(
 ): Promise<void> {
   // Send identifiers only. The authenticated API remains the source of order data.
   return publish(REALTIME_CHANNELS.orderEvents, event, payload);
+}
+export type TableTabBroadcastEvent = typeof TABLE_TAB_EVENTS[keyof typeof TABLE_TAB_EVENTS];
+
+export function publishTableTabChanged(
+  event: TableTabBroadcastEvent,
+  payload: { tabId: string; tableId: string }
+): Promise<void> {
+  return publish(REALTIME_CHANNELS.tableTabEvents, event, payload);
 }

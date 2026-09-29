@@ -1,5 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { cashRegisterRepository } from '../repositories/cashRegister.repository';
+import { tableTabRepository } from '../repositories/tableTab.repository';
 import { paymentRepository } from '../repositories/payment.repository';
 import { auditLogRepository } from '../repositories/auditLog.repository';
 import { orderRepository } from '../repositories/order.repository';
@@ -9,6 +10,7 @@ import { CashRegisterSession, CashWithdrawal, PaymentMethod } from '../types/dom
 import {
   CashRegisterClosedError,
   PendingCashRegisterOrdersError,
+  OpenCashRegisterTabsError,
   ValidationError,
 } from '../types/errors';
 import { formatBRL } from '../utils/currency';
@@ -241,6 +243,15 @@ export const cashRegisterService = {
     if (!session) throw new CashRegisterClosedError();
     if (closingAmount < 0) {
       throw new ValidationError('closingAmount', 'O valor de fechamento não pode ser negativo.');
+    }
+
+    const openTabs = await tableTabRepository.findOpenBySession(session.id);
+    if (openTabs.length > 0) {
+      throw new OpenCashRegisterTabsError(openTabs.map((tab) => ({
+        id: tab.id,
+        tableId: tab.tableId,
+        name: tab.name,
+      })));
     }
 
     const pendingOrders = await cashRegisterRepository.findPendingOrdersForClose(session.id);

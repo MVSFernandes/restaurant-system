@@ -1,9 +1,15 @@
 import { Database } from '../types/database';
 import { Order, OrderSource, OrderStatus, OrderType, DeliveryType } from '../types/domain';
 
-type OrderRow = Database['public']['Tables']['orders']['Row'] & { source?: string };
-type OrderInsert = Database['public']['Tables']['orders']['Insert'] & { source: string };
-type OrderUpdate = Database['public']['Tables']['orders']['Update'];
+type OrderRow = Database['public']['Tables']['orders']['Row'] & {
+  source?: string;
+  table_tab_id?: string | null;
+};
+type OrderInsert = Database['public']['Tables']['orders']['Insert'] & {
+  source: string;
+  table_tab_id?: string | null;
+};
+type OrderUpdate = Database['public']['Tables']['orders']['Update'] & { table_tab_id?: string | null };
 
 export function toOrderDomain(row: OrderRow): Order {
   return {
@@ -16,6 +22,7 @@ export function toOrderDomain(row: OrderRow): Order {
     customerName: row.customer_name,
     customerId: row.customer_id,
     tableId: row.table_id,
+    tableTabId: row.table_tab_id ?? null,
     userId: row.user_id,
     waiterId: row.waiter_id,
     cashRegisterSessionId: row.cash_register_session_id,
@@ -42,6 +49,7 @@ export function toOrderInsert(domain: Order): OrderInsert {
     customer_name: domain.customerName,
     customer_id: domain.customerId,
     table_id: domain.tableId,
+    table_tab_id: domain.tableTabId,
     user_id: domain.userId,
     waiter_id: domain.waiterId,
     cash_register_session_id: domain.cashRegisterSessionId,
@@ -63,6 +71,7 @@ export function toOrderUpdate(patch: Partial<Order>): OrderUpdate {
   if (patch.customerName !== undefined) update.customer_name = patch.customerName;
   if (patch.customerId !== undefined) update.customer_id = patch.customerId;
   if (patch.tableId !== undefined) update.table_id = patch.tableId;
+  if (patch.tableTabId !== undefined) update.table_tab_id = patch.tableTabId;
   if (patch.waiterId !== undefined) update.waiter_id = patch.waiterId;
   if (patch.cashRegisterSessionId !== undefined) update.cash_register_session_id = patch.cashRegisterSessionId;
   if (patch.deliveryType !== undefined) update.delivery_type = patch.deliveryType;

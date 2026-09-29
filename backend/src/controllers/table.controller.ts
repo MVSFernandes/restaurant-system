@@ -61,19 +61,11 @@ export const updateTableStatus = async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
 
-    // Não permite fechar mesa com pedidos ativos
-    if (status === 'CLOSED' || status === 'AVAILABLE') {
-      const activeOrders = await orderRepository.findByStatus('NEW');
-      const inProgress = await orderRepository.findByStatus('IN_PROGRESS');
-      const ready = await orderRepository.findByStatus('READY');
-
-      const allActive = [...activeOrders, ...inProgress, ...ready];
-      const hasActiveOrder = allActive.some((o) => o.tableId === req.params.id);
-
+    if (status === 'AVAILABLE') {
+      const hasActiveOrder = await orderRepository.hasActiveByTable(req.params.id);
       if (hasActiveOrder) {
         return res.status(400).json({
-          message: 'Não é possível fechar a mesa. Existe um pedido ativo vinculado a ela. Finalize ou cancele o pedido primeiro.',
-        });
+          message: 'Não é possível liberar a mesa. Existe um pedido ativo vinculado a ela. Finalize ou cancele o pedido primeiro.',        });
       }
     }
 
