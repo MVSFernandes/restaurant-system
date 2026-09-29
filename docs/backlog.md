@@ -397,3 +397,47 @@ Os caminhos de escrita precisam de uma etapa própria por envolverem atomicidade
 idempotência e estoque. Os três caminhos fiscais também precisam de validação
 específica, pois alteram emissão de documento e uma falha não é reversível como
 uma leitura incorreta.
+
+### 28. PRIORIDADE ALTA: o esquema versionado não reproduz o banco atual
+
+O catálogo real do Supabase contém índices que não são criados pelas migrations
+em `backend/supabase/migrations/`. A comparação considera tanto comandos
+`CREATE INDEX` explícitos quanto índices implícitos de `PRIMARY KEY` e `UNIQUE`.
+Os seguintes índices do catálogo não têm definição versionada:
+
+- **`cash_register_sessions` (7):**
+  `cash_register_sessions_pkey`, `idx_cash_sessions_closed_at`,
+  `idx_cash_sessions_closed_by_id`, `idx_cash_sessions_only_one_open`,
+  `idx_cash_sessions_opened_at`, `idx_cash_sessions_opened_by_id` e
+  `idx_cash_sessions_status`.
+- **`credit_transactions` (3):** `credit_transactions_pkey`,
+  `idx_credit_tx_created_at` e `idx_credit_tx_customer_id`.
+- **`customers` (5):** `customers_email_unique`, `customers_phone_unique`,
+  `customers_pkey`, `idx_customers_name` e `idx_customers_name_trgm`.
+- **`order_items` (3):** `idx_order_items_order_id`,
+  `idx_order_items_product_id` e `order_items_pkey`.
+- **`orders` (11):** `idx_orders_cash_session_id`, `idx_orders_created_at`,
+  `idx_orders_customer_id`, `idx_orders_customer_name_trgm`,
+  `idx_orders_session_status`, `idx_orders_status`, `idx_orders_table_id`,
+  `idx_orders_type`, `idx_orders_user_id`, `idx_orders_waiter_id` e
+  `orders_pkey`.
+- **`payments` (5):** `idx_payments_created_at`, `idx_payments_method`,
+  `idx_payments_status`, `payments_order_unique` e `payments_pkey`.
+- **`products` (3):** `idx_products_category_id`, `idx_products_name` e
+  `products_pkey`.
+- **`tables` (2):** `tables_number_unique` e `tables_pkey`.
+
+Os seis índices de `invoices`, os dois índices versionados de
+`credit_transactions` e `orders_idempotency_key_idx` encontrados no catálogo
+já estão cobertos explícita ou implicitamente pelas migrations atuais e, por
+isso, não entram na lista acima.
+
+O item 14 registra o mesmo problema para a RPC `finance_report`: a função existe
+no Supabase, mas sua definição não está no repositório. Em conjunto, esses casos
+mostram que executar apenas as migrations versionadas em uma instalação nova não
+reproduz o banco atual. Um segundo restaurante pode nascer sem índices usados
+pelos fluxos mais acessados e sem a função do relatório financeiro, causando
+diferenças de desempenho ou falha funcional sem aviso durante a instalação.
+
+A correção exige uma etapa própria para decidir como reconstruir e versionar o
+esquema-base antes de adicionar uma baseline ou migrations de reconciliação.
