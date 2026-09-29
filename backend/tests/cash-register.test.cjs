@@ -13,6 +13,7 @@ const { userRepository } = require('../src/repositories/user.repository');
 const { auditLogRepository } = require('../src/repositories/auditLog.repository');
 const { invoiceRepository } = require('../src/repositories/invoice.repository');
 const { tableRepository } = require('../src/repositories/table.repository');
+const { tableTabRepository } = require('../src/repositories/tableTab.repository');
 
 const openedAt = new Date('2026-09-21T12:00:00.000Z');
 const baseSession = {
@@ -30,6 +31,8 @@ const baseSession = {
 
 beforeEach(() => {
   cashRegisterRepository.findOpenSession = async () => ({ ...baseSession });
+  tableTabRepository.findOpenBySession = async () => [];
+  tableTabRepository.hasOpenByTable = async () => false;
   cashRegisterRepository.findRecentSessions = async () => [{ ...baseSession }];
   cashRegisterRepository.findWithdrawalsBySession = async () => [{
     id: 'withdrawal-1',
