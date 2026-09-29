@@ -45,3 +45,39 @@ describe('orders list empty state', () => {
     expect(screen.queryByText('Nenhum pedido encontrado.')).toBeNull();
   });
 });
+
+describe('cash register banner', () => {
+  const newOrderButton = () =>
+    screen.getByRole('button', { name: 'Novo Pedido' }) as HTMLButtonElement;
+
+  it('allows new orders when the register is open', async () => {
+    mockApi({ cash: { id: 'session' } });
+    render(<OrdersPage />);
+    await screen.findByText('Nenhum pedido encontrado.');
+    expect(newOrderButton().disabled).toBe(false);
+    expect(screen.queryByText(/caixa/i)).toBeNull();
+  });
+
+  it('says the register is closed when the backend reports no session', async () => {
+    mockApi({ cash: null });
+    render(<OrdersPage />);
+    expect(await screen.findByText(/O caixa está fechado/)).toBeTruthy();
+    expect(newOrderButton().disabled).toBe(true);
+  });
+
+  it('keeps blocking new orders without claiming closed when the check fails', async () => {
+    mockApi({ cash: new Error('Network Error') });
+    render(<OrdersPage />);
+    expect(await screen.findByText(/Não foi possível confirmar a situação do caixa/)).toBeTruthy();
+    expect(screen.queryByText(/O caixa está fechado/)).toBeNull();
+    expect(newOrderButton().disabled).toBe(true);
+  });
+
+  it('does not claim closed when the whole load fails', async () => {
+    mockApi({ orders: new Error('Network Error'), cash: new Error('Network Error') });
+    render(<OrdersPage />);
+    expect(await screen.findByText(/Não foi possível confirmar a situação do caixa/)).toBeTruthy();
+    expect(screen.queryByText(/O caixa está fechado/)).toBeNull();
+    expect(newOrderButton().disabled).toBe(true);
+  });
+});
