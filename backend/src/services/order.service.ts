@@ -239,7 +239,10 @@ function toStockRpcItems(items: ResolvedItemPricing[]): StockRpcItem[] {
 
 async function releaseTableIfEmpty(tableId: string | null): Promise<void> {
   if (!tableId) return;
-  await tableRepository.update(tableId, { status: 'AVAILABLE' });
+  const hasActiveOrders = await orderRepository.hasActiveByTable(tableId);
+  if (!hasActiveOrders) {
+    await tableRepository.update(tableId, { status: 'AVAILABLE' });
+  }
 }
 
 // ---------------------------------------------------------------------------

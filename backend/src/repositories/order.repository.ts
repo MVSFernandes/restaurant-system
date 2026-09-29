@@ -7,6 +7,7 @@ import { toOrderDomain, toOrderInsert, toOrderUpdate } from '../mappers/order.ma
 import { toOrderItemDomain, toOrderItemInsert } from '../mappers/orderItem.mapper';
 import { toProductDomain } from '../mappers/product.mapper';
 import { NotFoundError } from '../types/errors';
+import { ACTIVE_ORDER_STATUSES } from '../constants/orders';
 
 const TABLE = 'orders';
 const ITEMS_TABLE = 'order_items';
@@ -103,6 +104,19 @@ export const orderRepository = {
 
     if (error) throw mapSupabaseError(error, { entity: 'Order' });
     return (data ?? []).map(toOrderDomain);
+  },
+
+  async hasActiveByTable(tableId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('id')
+      .eq('table_id', tableId)
+      .in('status', [...ACTIVE_ORDER_STATUSES])
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw mapSupabaseError(error, { entity: 'Order' });
+    return Boolean(data);
   },
 
   async findByStatuses(statuses: OrderStatus[]): Promise<Order[]> {
