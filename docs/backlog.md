@@ -117,6 +117,10 @@ bugs de tela: afetam números que o restaurante usa para decidir.
 
 ### 9. PRIORIDADE ALTA: fuso do "hoje" pode estar errado
 
+> **Resolvido** na branch `fix/restaurant-timezone`: os limites são calculados
+> no fuso IANA configurado e enviados ao banco como instantes UTC, sem depender
+> do fuso do processo.
+
 - **Onde:** `backend/src/services/finance.service.ts:20-37`
   (`periodToDates`).
 - **O que acontece:** o início do período é calculado com `new Date()` e
@@ -306,3 +310,41 @@ corrigidos; o 23 é a limitação que ficou dessa correção.
 - Mesas (`TablesPage`) segue com cor literal e não foi migrada: no tema
   escuro o título "Mesas" some. Os textos do aviso de caixa fechado e da
   confirmação de fechamento estão sem acento ("Nao e possivel", "sera").
+
+---
+
+## Encontrados no levantamento de fuso horário (2026-09-29)
+
+Ficaram fora da branch `fix/restaurant-timezone` por dependerem de decisão de
+produto ou por não terem chamador.
+
+### 24. Períodos financeiros maiores são móveis
+
+- **Onde:** `backend/src/services/finance.service.ts` (`periodToDates`).
+- **O que acontece:** "semana", "mês" e "ano" significam os últimos 7 dias,
+  1 mês e 1 ano contados do instante atual. Não são semana, mês ou ano de
+  calendário.
+- **Pergunta em aberto:** os rótulos e números devem continuar móveis ou devem
+  passar a representar o período de calendário atual? A mudança altera números
+  já exibidos e precisa de decisão de produto.
+
+### 25. O frontend decide "hoje" pelo relógio do terminal
+
+- **Onde:** `frontend/src/pages/DashboardPage.tsx` (título, vencimentos, duração
+  do turno e virada do dia), `frontend/src/pages/finance/PayablesPage.tsx`
+  (conta vencida), `frontend/src/pages/pdv/OrdersPage.tsx` e
+  `frontend/src/pages/menu/MarmitaMenuPage.tsx` (dia do cardápio de marmita).
+- **O que acontece:** os cálculos usam o relógio ou o fuso do navegador. Se o
+  terminal do balcão estiver configurado com outro fuso, a interface pode mudar
+  de dia antes ou depois do restaurante, mesmo com o backend correto.
+- **Resta decidir:** quais datas devem vir prontas do backend e qual contrato
+  deve expor o dia civil do restaurante sem duplicar a regra no frontend.
+
+### 26. `findOverdue` não tem chamador e sua regra de "vencido hoje" é indefinida
+
+- **Onde:** `backend/src/repositories/payableAccount.repository.ts`
+  (`findOverdue`).
+- **O que acontece:** o método não é chamado e compara `due_date` com o instante
+  atual. Antes de reutilizá-lo, é preciso decidir se uma conta com vencimento no
+  dia atual já está vencida desde 00:00, só após o fim do dia do restaurante ou
+  conforme outra regra. Hoje ele é código morto.
