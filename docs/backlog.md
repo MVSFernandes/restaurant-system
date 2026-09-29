@@ -240,10 +240,16 @@ Vistos durante a correção; nenhum foi corrigido nela.
 
 ## Encontrados no teste com banco real (2026-09-29)
 
-Os dois são da mesma classe do item 1: a tela afirma um estado que não
-conseguiu medir. Vistos em Pedidos sem conexão; nenhum foi corrigido.
+Todos são da mesma classe do item 1: a tela afirma um estado que não
+conseguiu medir. Os itens 21 e 22 foram vistos em Pedidos sem conexão e
+corrigidos; o 23 é a limitação que ficou dessa correção.
 
 ### 21. Pedidos: "Nenhum pedido encontrado" depois de falhar ao carregar
+
+> **Resolvido** na branch `fix/frontend-integrity` (`b7ae8c8`). Com a carga
+> falhando, o corpo diz "Não foi possível carregar os pedidos."; a lista
+> carregada vazia continua "Nenhum pedido encontrado.". Conferido no
+> navegador, nos dois temas e no celular.
 
 - **Onde:** `frontend/src/pages/pdv/OrdersPage.tsx:447-449` (`catch` da
   carga) e `:1329-1335` (estado vazio).
@@ -255,6 +261,13 @@ conseguiu medir. Vistos em Pedidos sem conexão; nenhum foi corrigido.
 
 ### 22. Pedidos: faixa diz que o caixa está fechado sem saber
 
+> **Resolvido** na branch `fix/frontend-integrity` (`b61a4a6`). A tela
+> distingue aberto, fechado (o backend respondeu sem sessão) e desconhecido
+> (a chamada falhou). No desconhecido, pedido novo continua bloqueado e a
+> faixa diz que não foi possível confirmar a situação do caixa. Conferido no
+> navegador, nos dois temas e no celular, inclusive com o caixa fechado de
+> verdade. Ver item 23.
+
 - **Onde:** `frontend/src/pages/pdv/OrdersPage.tsx:432` (a falha de
   `/cash-register/current` vira `null`), `:1216` (`isCashOpen =
   !!currentCash`) e `:1320-1326` (a faixa).
@@ -265,6 +278,21 @@ conseguiu medir. Vistos em Pedidos sem conexão; nenhum foi corrigido.
   (`frontend/src/pages/DashboardPage.tsx:625`).
 - **Por que é grave:** o operador pode tentar abrir um caixa que já está
   aberto.
+
+### 23. Pedidos: queda de rede com a tela aberta mantém o último estado do caixa
+
+- **Onde:** `frontend/src/pages/pdv/OrdersPage.tsx`,
+  `refreshOperationalData` (a atualização em segundo plano).
+- **O que acontece:** com a tela já aberta e o caixa confirmado como
+  aberto, se a rede cai, a atualização busca pedidos, mesas e caixa num
+  único `Promise.all`. A falha de qualquer chamada descarta tudo, e o `catch`
+  só registra no console. O estado do caixa fica como o último confirmado, e
+  o botão "Novo Pedido" segue liberado, embora a situação do caixa não possa
+  mais ser confirmada. Só a carga completa (ao abrir a tela ou depois de uma
+  ação) passa a "desconhecido" quando a chamada do caixa falha.
+- **Resta decidir:** se uma falha em segundo plano deve levar o caixa a
+  "desconhecido" e bloquear pedido novo, sabendo que uma instabilidade curta
+  bloquearia o operador até a próxima atualização que der certo.
 
 ---
 
