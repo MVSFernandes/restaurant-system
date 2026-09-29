@@ -169,6 +169,7 @@ const OrdersPage: React.FC = () => {
   const [selectedTableId, setSelectedTableId] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [loading, setLoading] = useState(true);
+  const [ordersLoadFailed, setOrdersLoadFailed] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [searchCustomer, setSearchCustomer] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(savedOrderSoundPreference);
@@ -339,6 +340,7 @@ const OrdersPage: React.FC = () => {
     knownOrderIdsRef.current = new Set(nextOrders.map((order) => order.id));
     ordersLoadedRef.current = true;
     setOrders(nextOrders);
+    setOrdersLoadFailed(false);
   }, [notifyIncomingOnlineOrder]);
 
   const refreshOperationalData = useCallback(async () => {
@@ -446,6 +448,7 @@ const OrdersPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
+      setOrdersLoadFailed(true);
       if (!options.silent) showToast('error', 'Erro ao carregar pedidos.');
     } finally {
       setLoading(false);
@@ -1330,9 +1333,11 @@ const OrdersPage: React.FC = () => {
           <div className="col-span-full card text-center py-12 text-gray-400">
             <ShoppingCart size={48} className="mx-auto mb-3 opacity-50" />
             <p>
-              {searchCustomer.trim()
-                ? 'Nenhum pedido encontrado para esse cliente.'
-                : 'Nenhum pedido encontrado.'}
+              {ordersLoadFailed
+                ? 'Não foi possível carregar os pedidos.'
+                : searchCustomer.trim()
+                  ? 'Nenhum pedido encontrado para esse cliente.'
+                  : 'Nenhum pedido encontrado.'}
             </p>
           </div>
         )}
