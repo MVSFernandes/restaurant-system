@@ -1,10 +1,11 @@
 import { toPaymentInsert } from '../mappers/payment.mapper';
 import type { Database, Json } from '../types/database';
 import { supabase } from '../lib/supabase';
-import { Order, OrderItem, OrderStatus, OrderType, Payment } from '../types/domain';
+import { Order, OrderItem, OrderStatus, OrderType, Payment, Product } from '../types/domain';
 import { mapSupabaseError } from '../middlewares/errorHandler.middleware';
 import { toOrderDomain, toOrderInsert, toOrderUpdate } from '../mappers/order.mapper';
 import { toOrderItemDomain, toOrderItemInsert } from '../mappers/orderItem.mapper';
+import { toProductDomain } from '../mappers/product.mapper';
 import { NotFoundError } from '../types/errors';
 
 const TABLE = 'orders';
@@ -41,6 +42,24 @@ type RecentOrderRow = {
   waiter_id: string | null;
   tables: { number: number } | { number: number }[] | null;
 };
+
+type ProductRow = Database['public']['Tables']['products']['Row'];
+type DetailedOrderItemRow = Database['public']['Tables']['order_items']['Row'] & {
+  products: ProductRow | ProductRow[] | null;
+};
+type DetailedOrderRow = Database['public']['Tables']['orders']['Row'] & {
+  source?: string;
+  order_items: DetailedOrderItemRow[];
+};
+
+export interface DetailedSessionOrder {
+  order: Order;
+  items: Array<OrderItem & { product: Product | null }>;
+}
+
+const relationOne = <T>(relation: T | T[] | null): T | null =>
+  Array.isArray(relation) ? relation[0] ?? null : relation;
+
 
 const tableNumberFromRelation = (relation: RecentOrderRow['tables']) => {
   if (Array.isArray(relation)) return relation[0]?.number ?? null;
@@ -139,6 +158,27 @@ export const orderRepository = {
 
     if (error) throw mapSupabaseError(error, { entity: 'Order' });
     return (data ?? []).map(toOrderDomain);
+  },
+
+  async findDetailedBySession(sessionId: string): Promise<DetailedSessionOrder[]> {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*,order_items(*,products(*))')
+      .eq('cash_register_session_id', sessionId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw mapSupabaseError(error, { entity: 'Order' });
+
+    return ((data ?? []) as unknown as DetailedOrderRow[]).map((row) => ({
+      order: toOrderDomain(row),
+      items: (row.order_items ?? []).map((item) => {
+        const product = relationOne(item.products);
+        return {
+          ...toOrderItemDomain(item),
+          product: product ? toProductDomain(product) : null,
+        };
+      }),
+    }));
   },
 
   async findByCustomer(customerId: string): Promise<Order[]> {

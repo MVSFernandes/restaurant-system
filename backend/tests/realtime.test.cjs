@@ -212,9 +212,11 @@ test('does not execute an ambiguous server failure twice for the same idempotenc
 
 test('keeps the order list available when optional payment enrichment fails', async () => {
   cashRegisterRepository.findOpenSession = async () => ({ id: 'session-1' });
-  orderRepository.findBySession = async () => [{ id: 'order-visible', status: 'NEW' }];
-  orderRepository.findItems = async () => [];
-  paymentRepository.findBySession = async () => { throw new Error('payments unavailable'); };
+  orderRepository.findDetailedBySession = async () => [{
+    order: { id: 'order-visible', status: 'NEW' },
+    items: [],
+  }];
+  paymentRepository.findByOrderIds = async () => { throw new Error('payments unavailable'); };
   const req = { query: {}, user: { id: 'operator', role: 'ADMIN' } };
   const res = response();
   const originalConsoleError = console.error;

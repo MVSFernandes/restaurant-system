@@ -29,6 +29,17 @@ export const paymentRepository = {
     return (data ?? []).map(toPaymentDomain);
   },
 
+  async findByOrderIds(orderIds: string[]): Promise<Payment[]> {
+    if (orderIds.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .in('order_id', orderIds);
+
+    if (error) throw mapSupabaseError(error, { entity: 'Payment' });
+    return (data ?? []).map(toPaymentDomain);
+  },
   /**
    * Busca todos os pagamentos de pedidos de uma sessão de caixa.
    * Faz em 2 passos para evitar problemas com joins via PostgREST:
