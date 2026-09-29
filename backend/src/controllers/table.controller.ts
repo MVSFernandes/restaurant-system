@@ -13,19 +13,25 @@ const handleError = (res: Response, error: unknown, fallback: string) => {
 
 export const getTables = async (_req: Request, res: Response) => {
   try {
-    const tables = await tableService.listAll();
-
-    // Enriquece cada mesa com seus pedidos ativos (compatibilidade com frontend)
-    const enriched = await Promise.all(
-      tables.map(async (table) => {
-        const activeStatuses = ['NEW', 'IN_PROGRESS', 'READY', 'DELIVERED'] as const;
-        const allOrders = await Promise.all(
-          activeStatuses.map((s) => orderRepository.findByStatus(s))
-        );
-        const tableOrders = allOrders.flat().filter((o) => o.tableId === table.id);
-        return { ...table, orders: tableOrders };
-      })
+    const activeStatuses = ['NEW', 'IN_PROGRESS', 'READY', 'DELIVERED'] as const;
+    const [tables, activeOrders] = await Promise.all([
+      tableService.listAll(),
+      orderRepository.findByStatuses([...activeStatuses]),
+    ]);
+    const ordersByStatus = new Map(
+      activeStatuses.map((status) => [
+        status,
+        activeOrders.filter((order) => order.status === status),
+      ])
     );
+
+    // Mantém a ordem legada: status primeiro, created_at dentro de cada status.
+    const enriched = tables.map((table) => ({
+      ...table,
+      orders: activeStatuses.flatMap((status) =>
+        (ordersByStatus.get(status) ?? []).filter((order) => order.tableId === table.id)
+      ),
+    }));
 
     res.json(enriched);
   } catch (error) {

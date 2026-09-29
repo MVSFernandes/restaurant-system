@@ -143,23 +143,31 @@ export const getOrders = async (req: Request, res: Response) => {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) return res.json([]);
 
-    let orders = await orderRepository.findBySession(session.id);
+    let detailedOrders = await orderRepository.findDetailedBySession(session.id);
 
     if (status) {
       const statuses = (status as string).split(',');
-      orders = orders.filter((o) => statuses.includes(o.status));
+      detailedOrders = detailedOrders.filter(({ order }) => statuses.includes(order.status));
     } else {
-      orders = orders.filter((o) => !['FINISHED', 'CANCELED'].includes(o.status));
+      detailedOrders = detailedOrders.filter(
+        ({ order }) => !['FINISHED', 'CANCELED'].includes(order.status)
+      );
     }
 
-    if (tableId) orders = orders.filter((o) => o.tableId === tableId);
-    if (waiterId) orders = orders.filter((o) => o.waiterId === waiterId);
-    if (myOrders === 'true' && user?.id) orders = orders.filter((o) => o.waiterId === user.id);
-    if (user?.role === 'WAITER' && user?.id) orders = orders.filter((o) => o.waiterId === user.id);
+    if (tableId) detailedOrders = detailedOrders.filter(({ order }) => order.tableId === tableId);
+    if (waiterId) detailedOrders = detailedOrders.filter(({ order }) => order.waiterId === waiterId);
+    if (myOrders === 'true' && user?.id) {
+      detailedOrders = detailedOrders.filter(({ order }) => order.waiterId === user.id);
+    }
+    if (user?.role === 'WAITER' && user?.id) {
+      detailedOrders = detailedOrders.filter(({ order }) => order.waiterId === user.id);
+    }
 
     const latestPaymentByOrderId = new Map<string, Payment>();
     try {
-      const payments = await paymentRepository.findBySession(session.id);
+      const payments = await paymentRepository.findByOrderIds(
+        detailedOrders.map(({ order }) => order.id)
+      );
       for (const payment of payments) {
         const current = latestPaymentByOrderId.get(payment.orderId);
         if (!current || payment.createdAt >= current.createdAt) {
@@ -170,25 +178,17 @@ export const getOrders = async (req: Request, res: Response) => {
       console.error('ORDER PAYMENT ENRICHMENT ERROR:', error);
     }
 
-    const enriched = await Promise.all(
-      orders.map(async (o) => {
-        const items = await orderRepository.findItems(o.id);
-        const itemsWithProduct = await Promise.all(
-          items.map(async (item) => {
-            const product = await productRepository.findById(item.productId);
-            return { ...item, product };
-          })
-        );
-        return { ...o, items: itemsWithProduct, payment: latestPaymentByOrderId.get(o.id) ?? null };
-      })
+    res.json(
+      detailedOrders.map(({ order, items }) => ({
+        ...order,
+        items,
+        payment: latestPaymentByOrderId.get(order.id) ?? null,
+      }))
     );
-
-    res.json(enriched);
   } catch (error) {
     handleError(res, error, 'Erro ao buscar pedidos');
   }
 };
-
 export const getRecentOrders = async (req: Request, res: Response) => {
   try {
     const rawLimit = Number(req.query.limit ?? 5);
