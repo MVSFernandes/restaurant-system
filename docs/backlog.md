@@ -136,6 +136,11 @@ bugs de tela: afetam números que o restaurante usa para decidir.
 
 ### 10. PRIORIDADE ALTA: consultas que multiplicam com o uso real
 
+> **Resolvido** na branch `perf/query-fanout`. Com o volume real medido, `/tables`
+> caiu de 121 para 2 consultas, `/orders` de 7 para 3 e `/customers/credit`
+> de 8 para 1. As respostas antes e depois foram idênticas, inclusive os 9
+> lançamentos de fiado dos 4 clientes.
+
 Pioram conforme o restaurante tem mais mesas, pedidos e clientes, e várias
 são chamadas em intervalos (a cada 30s ou por evento de tempo real).
 
@@ -348,3 +353,47 @@ produto ou por não terem chamador.
   atual. Antes de reutilizá-lo, é preciso decidir se uma conta com vencimento no
   dia atual já está vencida desde 00:00, só após o fim do dia do restaurante ou
   conforme outra regra. Hoje ele é código morto.
+---
+
+## Encontrados no levantamento de consultas (2026-09-29)
+
+### 27. Outros endpoints com consultas que multiplicam
+
+Ficaram deliberadamente fora da branch `perf/query-fanout`. A varredura estática
+localizou consulta dentro de laço ou fan-out por registro em 17 rotas. A contagem
+de consultas dessas rotas ainda não foi medida contra o banco real; nesta etapa,
+só foram medidos os três endpoints do item 10.
+
+**Próxima etapa — caminho mais quente do app do garçom (2):**
+
+- `GET /categories`
+- `GET /products`
+
+Essas duas rotas devem ser as primeiras da próxima etapa: a disponibilidade de
+produto fará o app do garçom consultá-las continuamente.
+
+**Alta prioridade — leituras operacionais e relatórios (8):**
+
+- `GET /customers`
+- `GET /suppliers/comparison`
+- `GET /cash-register/current`
+- `GET /cash-register/history`
+- `GET /cash-register/closures-history`
+- `GET /cash-register/orders-history`
+- `GET /orders/:id`
+- `GET /orders/:id/receipt`
+
+**Alto risco de regressão — escritas e emissão fiscal (7):**
+
+- `POST /orders`
+- `POST /orders/public`
+- `PATCH /orders/:id`
+- `DELETE /orders/:id`
+- `POST /invoices`
+- `POST /invoices/nfe`
+- `POST /invoices/nfce`
+
+Os caminhos de escrita precisam de uma etapa própria por envolverem atomicidade,
+idempotência e estoque. Os três caminhos fiscais também precisam de validação
+específica, pois alteram emissão de documento e uma falha não é reversível como
+uma leitura incorreta.
