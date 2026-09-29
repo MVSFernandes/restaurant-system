@@ -135,6 +135,9 @@ JWT_REFRESH_EXPIRES_IN=
 
 FOCUS_NFE_TOKEN=
 FOCUS_NFE_ENVIRONMENT=homologation
+
+# Fuso IANA do restaurante; o padrão é America/Sao_Paulo.
+RESTAURANT_TIMEZONE=America/Sao_Paulo
 ```
 
 **`frontend/.env.development`**

@@ -5,6 +5,7 @@ import { paymentRepository } from '../repositories/payment.repository';
 import { tableRepository } from '../repositories/table.repository';
 import { userRepository } from '../repositories/user.repository';
 import { DomainError } from '../types/errors';
+import { dateInputRangeUtc } from '../utils/datetime';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
   if (error instanceof DomainError) {
@@ -115,13 +116,19 @@ export const getClosedOrdersHistory = async (req: Request, res: Response) => {
 
     const sessions = await cashRegisterService.getHistory(30);
     const closed = sessions.filter((session) => session.status === 'CLOSED');
+    const start = typeof startDate === 'string' && startDate
+      ? dateInputRangeUtc(startDate).start
+      : null;
+    const endExclusive = typeof endDate === 'string' && endDate
+      ? dateInputRangeUtc(endDate).endExclusive
+      : null;
 
     const history = await Promise.all(
       closed.map(async (session) => {
-        if (startDate || endDate) {
+        if (start || endExclusive) {
           const sessionDate = session.openedAt;
-          if (startDate && sessionDate < new Date(`${startDate}T00:00:00.000`)) return null;
-          if (endDate && sessionDate > new Date(`${endDate}T23:59:59.999`)) return null;
+          if (start && sessionDate < start) return null;
+          if (endExclusive && sessionDate >= endExclusive) return null;
         }
 
         const orders = await orderRepository.findBySession(session.id);

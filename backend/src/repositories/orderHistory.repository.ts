@@ -8,6 +8,7 @@ import type {
   PaymentMethod,
   PaymentStatus,
 } from '../types/domain';
+import { dateInputRangeUtc } from '../utils/datetime';
 
 export type FiscalHistoryStatus = 'AUTHORIZED' | 'WITHOUT' | 'REJECTED';
 
@@ -132,8 +133,14 @@ export const orderHistoryRepository = {
       .select(selectFor(filters), { count: 'exact' })
       .in('status', ['FINISHED', 'CANCELED']);
 
-    if (filters.startDate) query = query.gte('created_at', `${filters.startDate}T00:00:00.000-03:00`);
-    if (filters.endDate) query = query.lte('created_at', `${filters.endDate}T23:59:59.999-03:00`);
+    if (filters.startDate) {
+      const { start } = dateInputRangeUtc(filters.startDate);
+      query = query.gte('created_at', start.toISOString());
+    }
+    if (filters.endDate) {
+      const { endExclusive } = dateInputRangeUtc(filters.endDate);
+      query = query.lt('created_at', endExclusive.toISOString());
+    }
     if (filters.customerName) query = query.ilike('customer_name', `%${filters.customerName}%`);
     if (filters.code) query = query.ilike('id', `%${filters.code.replace(/^#/, '')}%`);
     if (filters.type) query = query.eq('type', filters.type);
