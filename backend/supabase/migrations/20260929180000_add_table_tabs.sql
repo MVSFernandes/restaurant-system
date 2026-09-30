@@ -369,7 +369,8 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.table_tab_id is not null
+  if current_setting('app.closing_table_tab', true) is distinct from '1'
+     and new.table_tab_id is not null
      and new.status in ('FINISHED', 'CANCELED')
      and old.status is distinct from new.status
      and not exists (
@@ -468,8 +469,8 @@ begin
     return to_jsonb(v_tab);
   end if;
 
-  select coalesce(sum(order_row.total), 0)
-  into v_unpaid_total
+  select coalesce(sum(order_row.total), 0), count(*)
+  into v_unpaid_total, v_unpaid_count
   from public.orders as order_row
   where order_row.table_tab_id = v_tab.id
     and order_row.status <> 'CANCELED'

@@ -77,7 +77,9 @@ async function main() {
       );
 
       insert into public.users(id,name,email,password,role)
-      values ('user','Operador','o@example.test','x','CASHIER');
+      values
+        ('user','Operador','o@example.test','x','CASHIER'),
+        ('closer','Caixa','c@example.test','x','CASHIER');
       insert into public.cash_register_sessions(id,status)
       values ('legacy-session','OPEN'),('tab-session','OPEN'),('empty-session','OPEN'),('compat-session','OPEN');
       insert into public.tables(id,number,status) values
@@ -165,6 +167,50 @@ async function main() {
       /TABLE_TAB_REQUIRES_OCCUPIED_TABLE|TABLE_TAB_ALREADY_CLOSED/
     );
     console.log('PASS: closing the last tab releases the table and closed tabs reject new orders');
+
+    await db.exec(`
+      update tables set status='OCCUPIED' where id='multi-tab';
+      insert into table_tabs(id,table_id,cash_register_session_id,name,opened_by_id)
+      values ('payment-guard','multi-tab','tab-session','Pagamento','user');
+      insert into orders(id,type,status,total,table_id,table_tab_id,user_id,cash_register_session_id)
+      values ('payment-guard-order','DINE_IN','NEW',25,'multi-tab','payment-guard','user','tab-session');
+    `);
+    await assert.rejects(
+      db.query("select public.close_table_tab('payment-guard',null,null,'closer')"),
+      /TABLE_TAB_PAYMENT_METHOD_REQUIRED/
+    );
+    const refusedWithoutMethod = await db.query(`
+      select
+        (select status from table_tabs where id='payment-guard') tab_status,
+        (select status from orders where id='payment-guard-order') order_status,
+        (select count(*)::int from payments where order_id='payment-guard-order') payments
+    `);
+    assert.deepEqual(refusedWithoutMethod.rows[0], {
+      tab_status: 'OPEN',
+      order_status: 'NEW',
+      payments: 0,
+    });
+    console.log('PASS: an unpaid tab cannot close without a payment method');
+
+    await db.exec(`
+      insert into payments(id,order_id,method,amount,status)
+      values ('payment-guard-paid','payment-guard-order','PIX',25,'PAID');
+    `);
+    await db.query("select public.close_table_tab('payment-guard',null,null,'closer')");
+    const closedAlreadyPaid = await db.query(`
+      select
+        (select status from table_tabs where id='payment-guard') tab_status,
+        (select closed_by_id from table_tabs where id='payment-guard') closed_by_id,
+        (select status from orders where id='payment-guard-order') order_status,
+        (select status from tables where id='multi-tab') table_status
+    `);
+    assert.deepEqual(closedAlreadyPaid.rows[0], {
+      tab_status: 'CLOSED',
+      closed_by_id: 'closer',
+      order_status: 'FINISHED',
+      table_status: 'AVAILABLE',
+    });
+    console.log('PASS: a fully paid tab closes without another payment method');
 
     await db.exec("update tables set status='OCCUPIED' where id='empty-tab-table'");
     await db.exec("insert into table_tabs(id,table_id,cash_register_session_id,name,opened_by_id) values ('empty-tab','empty-tab-table','empty-session','Vazia','user')");
