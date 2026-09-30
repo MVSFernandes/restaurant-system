@@ -269,16 +269,33 @@ test('stock errors are surfaced as HTTP 400 with a Portuguese message', async ()
   await assert.rejects(orderService.createOrder(input, { id: 'admin', role: 'ADMIN' }), error =>
     error.status === 400 && error.message === 'Estoque insuficiente de "Coca Lata".');
 });
-test('availability requires every linked ingredient to cover one unit', async () => {
-  productStockItemRepository.findByProduct = async () => [{ stockItemId: 'a', quantity: 2 }, { stockItemId: 'b', quantity: 1 }];
+test('availability reports the limiting whole units using stock consumption proportions', async () => {
+  productStockItemRepository.findByProduct = async () => [
+    { stockItemId: 'a', quantity: 2 },
+    { stockItemId: 'b', quantity: 1 },
+  ];
+  stockItemRepository.findById = async id => ({ quantity: id === 'a' ? 5 : 9 });
+  assert.deepEqual(
+    await productStockAvailability('drink'),
+    {
+      stockItems: [
+        { stockItemId: 'a', quantity: 2 },
+        { stockItemId: 'b', quantity: 1 },
+      ],
+      available: true,
+      availableUnits: 2,
+    }
+  );
+
   stockItemRepository.findById = async id => ({ quantity: id === 'a' ? 1 : 5 });
-  assert.equal((await productStockAvailability('drink')).available, false);
-  stockItemRepository.findById = async () => ({ quantity: 2 });
-  assert.equal((await productStockAvailability('drink')).available, true);
-  stockItemRepository.findById = async () => ({ quantity: 0 });
-  assert.equal((await productStockAvailability('drink')).available, false);
+  const unavailable = await productStockAvailability('drink');
+  assert.equal(unavailable.available, false);
+  assert.equal(unavailable.availableUnits, 0);
+
   productStockItemRepository.findByProduct = async () => [];
-  assert.equal((await productStockAvailability('uncontrolled')).available, true);
+  const uncontrolled = await productStockAvailability('uncontrolled');
+  assert.equal(uncontrolled.available, true);
+  assert.equal(uncontrolled.availableUnits, null);
 });
 
 test('replays by stored key before validating cash or stock after a restart', async () => {

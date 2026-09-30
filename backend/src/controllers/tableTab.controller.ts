@@ -3,6 +3,9 @@ import { tableTabService } from '../services/tableTab.service';
 import { DomainError } from '../types/errors';
 import { publishTableTabChanged } from '../lib/realtime';
 import { TABLE_TAB_EVENTS } from '../constants/realtime';
+import { PdfService } from '../services/pdf.service';
+import { tableRepository } from '../repositories/table.repository';
+import { restaurantConfigRepository } from '../repositories/restaurantConfig.repository';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
   if (error instanceof DomainError) {
@@ -68,5 +71,24 @@ export const closeTableTab = async (req: Request, res: Response) => {
     res.json(tab);
   } catch (error) {
     handleError(res, error, 'Erro ao fechar comanda');
+  }
+};
+export const getTableTabReceipt = async (req: Request, res: Response) => {
+  try {
+    const tab = await tableTabService.findById(req.params.tabId);
+    const [table, config] = await Promise.all([
+      tableRepository.findById(tab.tableId),
+      restaurantConfigRepository.get(),
+    ]);
+    if (!table) return res.status(404).json({ message: 'Mesa não encontrada' });
+    const pdfBuffer = await PdfService.generateTableTabReceipt(tab, table, config);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=comanda-${tab.id.slice(-6)}.pdf`
+    );
+    return res.send(pdfBuffer);
+  } catch (error) {
+    return handleError(res, error, 'Erro ao gerar impressão da comanda');
   }
 };

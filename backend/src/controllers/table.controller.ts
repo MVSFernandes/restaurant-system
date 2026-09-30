@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { tableService } from '../services/domain.services';
 import { orderRepository } from '../repositories/order.repository';
 import { DomainError } from '../types/errors';
+import { tableTabService, TableOverviewView } from '../services/tableTab.service';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
   if (error instanceof DomainError) {
@@ -11,6 +12,18 @@ const handleError = (res: Response, error: unknown, fallback: string) => {
   return res.status(500).json({ message: fallback });
 };
 
+export const getWaiterTableOverview = async (req: Request, res: Response) => {
+  try {
+    const view = ['mine', 'free'].includes(String(req.query.view))
+      ? String(req.query.view) as TableOverviewView
+      : 'all';
+    const userId = (req as any).user.id;
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await tableTabService.listTableOverview(userId, view));
+  } catch (error) {
+    handleError(res, error, 'Erro ao buscar visão das mesas');
+  }
+};
 export const getTables = async (_req: Request, res: Response) => {
   try {
     const activeStatuses = ['NEW', 'IN_PROGRESS', 'READY', 'DELIVERED'] as const;

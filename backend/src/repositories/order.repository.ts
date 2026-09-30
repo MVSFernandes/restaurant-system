@@ -174,12 +174,17 @@ export const orderRepository = {
     return (data ?? []).map(toOrderDomain);
   },
 
-  async findDetailedBySession(sessionId: string): Promise<DetailedSessionOrder[]> {
-    const { data, error } = await supabase
+  async findDetailedBySession(
+    sessionId: string,
+    filters: { tableId?: string; tableTabId?: string } = {}
+  ): Promise<DetailedSessionOrder[]> {
+    let query = supabase
       .from(TABLE)
       .select('*,order_items(*,products(*))')
-      .eq('cash_register_session_id', sessionId)
-      .order('created_at', { ascending: true });
+      .eq('cash_register_session_id', sessionId);
+    if (filters.tableId) query = query.eq('table_id', filters.tableId);
+    if (filters.tableTabId) query = query.eq('table_tab_id', filters.tableTabId);
+    const { data, error } = await query.order('created_at', { ascending: true });
 
     if (error) throw mapSupabaseError(error, { entity: 'Order' });
 
