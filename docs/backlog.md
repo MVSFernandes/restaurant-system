@@ -474,3 +474,24 @@ esquema-base antes de adicionar uma baseline ou migrations de reconciliação.
    R$ 106,00 no extrato pode aparecer como três registros no sistema; a soma
    confere, mas a conciliação é mais trabalhosa. Representar uma transação por
    comanda exige remodelar pagamentos em outra etapa.
+
+### 30. CONTRATO: projeções de `GET /api/config` por papel
+
+`GET /api/config` mantém uma única URL, mas aplica projeção por papel para não
+misturar configuração operacional com identidade fiscal. `ADMIN` recebe a
+configuração completa. Os demais usuários autenticados recebem somente `name`,
+`logoUrl`, `urbanDeliveryFee`, `ruralDeliveryFee` e `nfceEnabled`, necessários
+no PDV e no fluxo atual do garçom. Campos fiscais como CNPJ, razão social, IE,
+regime tributário, endereço fiscal, CFOP e NCM nunca aparecem nessa projeção.
+
+A variação é intencional para preservar os consumidores existentes sem criar
+uma segunda URL nem expor dados fiscais ao caixa e ao garçom. O repository usa
+listas explícitas de colunas para as projeções administrativa, operacional e
+pública; não usar `select('*')`. `GET /api/config/branding` continua público e
+limitado a `name`, `logoUrl`, `bannerUrl`, `openingHours`, `openingDays`,
+`deliveryFee` e `enabledPayments`.
+
+As páginas `/settings/restaurant`, `/settings/fiscal` e `/design-system` ainda
+precisam de guard de frontend para `ADMIN`. O backend já impede escrita por
+outros papéis e a projeção operacional impede a leitura de identidade fiscal;
+a correção da navegação pertence à etapa das telas do garçom.

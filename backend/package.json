@@ -23,7 +23,8 @@
     "test:history": "node --test -r ts-node/register/transpile-only tests/history.test.cjs",
     "test:timezone": "node --test -r ts-node/register/transpile-only tests/timezone.test.cjs",
     "test:queries": "node --test -r ts-node/register/transpile-only tests/query-fanout-tables.test.cjs tests/query-fanout-orders.test.cjs tests/query-fanout-credit.test.cjs",
-    "test:table-tabs": "node --test -r ts-node/register/transpile-only tests/table-tabs.test.cjs && node tests/table-tabs-sql.cjs"
+    "test:table-tabs": "node --test -r ts-node/register/transpile-only tests/table-tabs.test.cjs && node tests/table-tabs-sql.cjs",
+    "test:config": "node --test -r ts-node/register/transpile-only tests/config-access.test.cjs tests/branding.test.cjs"
   },
   "keywords": [],
   "author": "",

@@ -400,6 +400,12 @@ export const configService = {
     return restaurantConfigRepository.get();
   },
 
+  async getForRole(role: string) {
+    return role === 'ADMIN'
+      ? restaurantConfigRepository.get()
+      : restaurantConfigRepository.getOperational();
+  },
+
   async update(input: {
     name?: string;
     logoUrl?: string | null;
