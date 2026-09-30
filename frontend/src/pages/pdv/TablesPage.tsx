@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import type { Table } from '../../types';
 import { clsx } from 'clsx';
+import { useToast } from '../../components/ui';
 import { Users, Plus, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 const statusConfig = {
   AVAILABLE: { label: 'Disponível', color: 'bg-green-100 border-green-300 text-green-800', dot: 'bg-green-500' },
   OCCUPIED: { label: 'Ocupada', color: 'bg-yellow-100 border-yellow-300 text-yellow-800', dot: 'bg-yellow-500' },
-  CLOSED: { label: 'Fechada', color: 'bg-red-100 border-red-300 text-red-800', dot: 'bg-red-500' },
 };
 
 // Situação que a tela não conhece: a mesa aparece, neutra e sem ações, em vez
@@ -18,8 +18,20 @@ const unknownStatus = { label: 'Situação desconhecida', color: 'bg-surface-sun
 const getStatusConfig = (status: string) =>
   statusConfig[status as keyof typeof statusConfig] ?? unknownStatus;
 
+type ApiError = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  (error as ApiError).response?.data?.message || fallback;
+
 const TablesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
@@ -83,22 +95,19 @@ const TablesPage: React.FC = () => {
     try {
       setClosingTable(true);
 
-      await api.patch(`/tables/${selectedTable.id}/status`, { status: 'CLOSED' });
+      await api.patch(`/tables/${selectedTable.id}/status`, { status: 'AVAILABLE' });
       await fetchTables();
-
-      setTimeout(async () => {
-        try {
-          await api.patch(`/tables/${selectedTable.id}/status`, { status: 'AVAILABLE' });
-          await fetchTables();
-        } catch (error) {
-          console.error('Erro ao liberar mesa:', error);
-        }
-      }, 2000);
 
       setShowCloseConfirm(false);
       setShowModal(false);
     } catch (error) {
-      console.error('Erro ao fechar mesa:', error);
+      // A recusa do backend (ex.: pedido ativo na mesa) precisa chegar ao operador.
+      setShowCloseConfirm(false);
+      toast({
+        title: 'Não foi possível fechar a mesa',
+        description: getErrorMessage(error, 'Tente novamente em alguns instantes.'),
+        variant: 'error',
+      });
     } finally {
       setClosingTable(false);
     }
@@ -216,7 +225,7 @@ const TablesPage: React.FC = () => {
               <div className="rounded-2xl bg-gray-50 border border-gray-200 p-4 mb-5">
                 <p className="text-sm text-gray-500 mb-1">Mesa selecionada</p>
                 <p className="text-2xl font-bold text-gray-900">Mesa {selectedTable.number}</p>
-                <p className="text-sm text-gray-600 mt-1">Ao confirmar, a mesa sera fechada e liberada automaticamente.</p>
+                <p className="text-sm text-gray-600 mt-1">Ao confirmar, a mesa será liberada para novos clientes.</p>
               </div>
 
               <div className="flex gap-3">

@@ -333,7 +333,7 @@ const showToast = (type: 'success' | 'error', message: string) => {
               )}
             >
               <p className="font-bold">Mesa {table.number}</p>
-              <p className="text-xs text-gray-500">{table.status === 'AVAILABLE' ? 'Disponível' : table.status === 'OCCUPIED' ? 'Ocupada' : 'Fechada'}</p>
+              <p className="text-xs text-gray-500">{table.status === 'AVAILABLE' ? 'Disponível' : 'Ocupada'}</p>
             </button>
           ))}
         </div>
@@ -350,14 +350,12 @@ const showToast = (type: 'success' | 'error', message: string) => {
               <div>
                 <h2 className="text-xl font-bold">Mesa {selectedTable.number}</h2>
                 <p className="text-sm text-gray-500">
-                  {selectedTable.status === 'AVAILABLE' ? 'Mesa disponível' : selectedTable.status === 'OCCUPIED' ? 'Mesa ocupada' : 'Mesa fechada'}
+                  {selectedTable.status === 'AVAILABLE' ? 'Mesa disponível' : 'Mesa ocupada'}
                 </p>
               </div>
-              {selectedTable.status !== 'CLOSED' && (
-                <button onClick={openOrderModal} className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto">
-                  <Plus size={18} /> {selectedTable.status === 'AVAILABLE' ? 'Novo Pedido' : 'Adicionar Itens'}
-                </button>
-              )}
+              <button onClick={openOrderModal} className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto">
+                <Plus size={18} /> {selectedTable.status === 'AVAILABLE' ? 'Novo Pedido' : 'Adicionar Itens'}
+              </button>
             </div>
 
             {selectedTable.status === 'AVAILABLE' ? (

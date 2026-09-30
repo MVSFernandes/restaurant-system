@@ -46,7 +46,7 @@ export interface ProductStockLink {
 }
 
 // --- Tipos de Mesa e Pedido ---
-export type TableStatus = 'AVAILABLE' | 'OCCUPIED' | 'CLOSED';
+export type TableStatus = 'AVAILABLE' | 'OCCUPIED';
 export type OrderType = 'DINE_IN' | 'TAKE_AWAY' | 'DELIVERY';
 export type OrderSource = 'PDV' | 'PUBLIC_MENU' | 'WAITER';
 export type OrderStatus = 'NEW' | 'IN_PROGRESS' | 'READY' | 'DELIVERED' | 'CANCELED' | 'FINISHED';
