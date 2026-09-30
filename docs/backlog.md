@@ -441,3 +441,36 @@ diferenças de desempenho ou falha funcional sem aviso durante a instalação.
 
 A correção exige uma etapa própria para decidir como reconstruir e versionar o
 esquema-base antes de adicionar uma baseline ou migrations de reconciliação.
+
+---
+
+## Encontrados na modelagem de comandas (2026-09-29)
+
+### 29. Consequências e débitos técnicos da introdução de comandas
+
+1. **Situação de mesa divergente entre camadas — parcialmente resolvido nesta
+   etapa.** O backend declarava `RESERVED`, a tela de Mesas usava `CLOSED` e o
+   banco não restringia o valor. A migration de comandas passa a aceitar somente
+   `AVAILABLE` e `OCCUPIED`, e o backend usa o mesmo conjunto. A tela de Mesas
+   ainda precisa de uma tarefa própria para remover o estado transitório
+   `CLOSED` e fazer uma única transição para `AVAILABLE`.
+2. **Mesa liberada ao pagar apenas um de vários pedidos — resolvido nesta
+   etapa.** `releaseTableIfEmpty` liberava sem procurar outro pedido ativo. O
+   serviço agora considera `NEW`, `IN_PROGRESS`, `READY` e `DELIVERED`, com teste
+   para dois pedidos na mesma mesa.
+3. **`DELIVERED` ignorado no fechamento manual — resolvido nesta etapa.** Entregue
+   e não pago continua sendo conta ativa tanto no serviço quanto nos gatilhos do
+   banco.
+4. **Caixa fechava com comanda aberta vazia — resolvido nesta etapa.** O serviço
+   e `block_cash_close_with_pending_orders` bloqueiam qualquer comanda `OPEN` da
+   sessão, mesmo sem pedidos.
+5. **Documento fiscal continua pertencendo ao pedido — decisão temporária.** Uma
+   comanda com três pedidos gera até três NFC-e/NF-e. Cada documento continua
+   batendo com a venda do pedido e não há irregularidade, mas o cliente recebe
+   três documentos em vez de um. Consolidar emissão por comanda exige uma etapa
+   fiscal própria.
+6. **Pagamento continua pertencendo ao pedido — decisão temporária.** Fechar uma
+   comanda com três pedidos cria três pagamentos, um por pedido. Um único PIX de
+   R$ 106,00 no extrato pode aparecer como três registros no sistema; a soma
+   confere, mas a conciliação é mais trabalhosa. Representar uma transação por
+   comanda exige remodelar pagamentos em outra etapa.

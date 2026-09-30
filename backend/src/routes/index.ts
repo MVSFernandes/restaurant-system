@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes';
 import tableRoutes from './table.routes';
+import tableTabRoutes from './tableTab.routes';
 import orderRoutes from './order.routes';
 import categoryRoutes from './category.routes';
 import productRoutes from './product.routes';
@@ -21,6 +22,7 @@ const router = Router();
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/tables', tableRoutes);
+router.use('/table-tabs', tableTabRoutes);
 router.use('/orders', orderRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/products', productRoutes);

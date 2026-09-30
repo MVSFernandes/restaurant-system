@@ -12,6 +12,8 @@ const { orderRepository } = require('../src/repositories/order.repository');
 const { userRepository } = require('../src/repositories/user.repository');
 const { auditLogRepository } = require('../src/repositories/auditLog.repository');
 const { invoiceRepository } = require('../src/repositories/invoice.repository');
+const { tableRepository } = require('../src/repositories/table.repository');
+const { tableTabRepository } = require('../src/repositories/tableTab.repository');
 
 const openedAt = new Date('2026-09-21T12:00:00.000Z');
 const baseSession = {
@@ -29,6 +31,8 @@ const baseSession = {
 
 beforeEach(() => {
   cashRegisterRepository.findOpenSession = async () => ({ ...baseSession });
+  tableTabRepository.findOpenBySession = async () => [];
+  tableTabRepository.hasOpenByTable = async () => false;
   cashRegisterRepository.findRecentSessions = async () => [{ ...baseSession }];
   cashRegisterRepository.findWithdrawalsBySession = async () => [{
     id: 'withdrawal-1',
@@ -271,4 +275,34 @@ test('product-name migration backfills current names and marks missing products 
   assert.match(sql, /where product[.]id = item[.]product_id/i);
   assert.match(sql, /'Produto removido'/);
   assert.match(sql, /alter column product_name set not null/i);
+});
+test('paying one of two active orders keeps their table occupied', async () => {
+  const orders = [
+    { id: 'order-paid', status: 'READY', total: 20, tableId: 'table-1', customerId: null },
+    { id: 'order-open', status: 'DELIVERED', total: 30, tableId: 'table-1', customerId: null },
+  ];
+  let tableStatus = 'OCCUPIED';
+
+  orderRepository.findById = async (id) => orders.find((order) => order.id === id) ?? null;
+  orderRepository.update = async (id, patch) => {
+    const order = orders.find((current) => current.id === id);
+    Object.assign(order, patch);
+    return order;
+  };
+  orderRepository.hasActiveByTable = async (tableId) =>
+    orders.some((order) =>
+      order.tableId === tableId && ['NEW', 'IN_PROGRESS', 'READY', 'DELIVERED'].includes(order.status)
+    );
+  paymentRepository.findByOrder = async () => [];
+  paymentRepository.create = async (payment) => payment;
+  tableRepository.update = async (_id, patch) => {
+    tableStatus = patch.status;
+    return { id: 'table-1', status: tableStatus };
+  };
+
+  await orderService.processPayment('order-paid', 'PIX');
+
+  assert.equal(orders[0].status, 'FINISHED');
+  assert.equal(orders[1].status, 'DELIVERED');
+  assert.equal(tableStatus, 'OCCUPIED');
 });

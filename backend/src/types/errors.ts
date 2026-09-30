@@ -158,6 +158,19 @@ export class CashRegisterClosedError extends DomainError {
   }
 }
 
+export class OpenCashRegisterTabsError extends DomainError {
+  constructor(openTabs: unknown[]) {
+    super(
+      `Não é possível fechar o caixa. Existem ${openTabs.length} comanda(s) aberta(s).`,
+      {
+        code: 'CASH_REGISTER_OPEN_TABS',
+        status: 409,
+        details: { openTabs },
+      }
+    );
+  }
+}
+
 export class PendingCashRegisterOrdersError extends DomainError {
   constructor(pendingOrders: unknown[]) {
     super(

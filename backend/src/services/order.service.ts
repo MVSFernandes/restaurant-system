@@ -7,6 +7,7 @@ import { paymentRepository } from '../repositories/payment.repository';
 import { cashRegisterRepository } from '../repositories/cashRegister.repository';
 import { restaurantConfigRepository } from '../repositories/restaurantConfig.repository';
 import { tableRepository } from '../repositories/table.repository';
+import { tableTabRepository } from '../repositories/tableTab.repository';
 import { customerRepository } from '../repositories/customer.repository';
 import { creditTransactionRepository } from '../repositories/creditTransaction.repository';
 import { userRepository } from '../repositories/user.repository';
@@ -46,6 +47,7 @@ export interface CreateOrderItemInput {
 export interface CreateOrderInput {
   type: OrderType;
   tableId?: string | null;
+  tableTabId?: string | null;
   customerId?: string | null;
   customerName?: string | null;
   waiterId?: string | null;
@@ -237,9 +239,38 @@ function toStockRpcItems(items: ResolvedItemPricing[]): StockRpcItem[] {
   }));
 }
 
+async function validateOrderTableContext(input: CreateOrderInput): Promise<void> {
+  if (input.type === 'DINE_IN') {
+    if (!input.tableId) {
+      throw new ValidationError('tableId', 'Selecione a mesa do pedido.');
+    }
+    if (!input.tableTabId) return;
+
+    const [table, tab] = await Promise.all([
+      tableRepository.findById(input.tableId),
+      tableTabRepository.findById(input.tableTabId),
+    ]);
+    if (!table) throw new NotFoundError('Table', input.tableId);
+    if (!tab || tab.tableId !== input.tableId) {
+      throw new ValidationError('tableTabId', 'A comanda não pertence à mesa selecionada.');
+    }
+    if (table.status !== 'OCCUPIED' || tab.status !== 'OPEN') {
+      throw new ValidationError('tableTabId', 'A comanda precisa estar aberta em uma mesa ocupada.');
+    }
+    return;
+  }
+
+  if (input.tableId || input.tableTabId) {
+    throw new ValidationError('tableTabId', 'Pedidos sem consumo no local não usam mesa ou comanda.');
+  }
+}
 async function releaseTableIfEmpty(tableId: string | null): Promise<void> {
   if (!tableId) return;
-  await tableRepository.update(tableId, { status: 'AVAILABLE' });
+  if (await tableTabRepository.hasOpenByTable(tableId)) return;
+  const hasActiveOrders = await orderRepository.hasActiveByTable(tableId);
+  if (!hasActiveOrders) {
+    await tableRepository.update(tableId, { status: 'AVAILABLE' });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +298,8 @@ export const orderService = {
     }
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
+
+    await validateOrderTableContext(input);
 
     if (input.type === 'TAKE_AWAY' && !String(input.customerName ?? '').trim()) {
       throw new ValidationError('customerName', 'Informe o nome do cliente para retirada.');
@@ -307,6 +340,7 @@ export const orderService = {
       customerName: input.customerName ?? null,
       customerId: input.customerId ?? null,
       tableId: input.tableId ?? null,
+      tableTabId: input.tableTabId ?? null,
       userId: actingUser.id,
       waiterId,
       cashRegisterSessionId: session.id,
@@ -338,6 +372,8 @@ export const orderService = {
     }
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
+
+    await validateOrderTableContext(input);
 
     const type = input.type ?? 'TAKE_AWAY';
     const config = await restaurantConfigRepository.get();
@@ -406,6 +442,7 @@ export const orderService = {
       customerName: input.customerName ?? null,
       customerId,
       tableId: null,
+      tableTabId: null,
       userId: admin.id,
       waiterId: null,
       cashRegisterSessionId: session.id,

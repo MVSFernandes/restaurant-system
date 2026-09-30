@@ -16,20 +16,21 @@ const orderController = require('../src/controllers/order.controller');
 
 const calls = [];
 const orderCalls = [];
+const tableTabCalls = [];
 let send = async () => ({ success: true });
 const channelCreations = new Map();
 supabase.channel = (topic) => {
   channelCreations.set(topic, (channelCreations.get(topic) ?? 0) + 1);
   return {
     httpSend: (...args) => {
-      (topic === 'order-events' ? orderCalls : calls).push(args);
+      (topic === 'order-events' ? orderCalls : topic === 'table-tab-events' ? tableTabCalls : calls).push(args);
       return send(...args);
     },
   };
 };
 
-const { publishStockUpdated, publishStockLow, publishOrderChanged } = require('../src/lib/realtime');
-const { ORDER_EVENTS } = require('../src/constants/realtime');
+const { publishStockUpdated, publishStockLow, publishOrderChanged, publishTableTabChanged } = require('../src/lib/realtime');
+const { ORDER_EVENTS, TABLE_TAB_EVENTS } = require('../src/constants/realtime');
 const { notifyStockChanged } = require('../src/services/stockRealtime.service');
 const item = { id: 'rice', name: 'Arroz', quantity: 1, minQuantity: 10, unit: 'kg' };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -44,6 +45,7 @@ const response = () => ({
 beforeEach(() => {
   calls.length = 0;
   orderCalls.length = 0;
+  tableTabCalls.length = 0;
   send = async () => ({ success: true });
   stockItemRepository.findLowStock = async () => [item];
 });
@@ -72,6 +74,15 @@ test('publishes order invalidations without exposing order details', async () =>
   ]);
 });
 
+test('publishes table-tab invalidations from the backend with identifiers only', async () => {
+  await publishTableTabChanged(TABLE_TAB_EVENTS.created, { tabId: 'tab-1', tableId: 'table-1' });
+  await publishTableTabChanged(TABLE_TAB_EVENTS.tableUpdated, { tabId: 'tab-1', tableId: 'table-1' });
+  assert.equal(channelCreations.get('table-tab-events'), 1);
+  assert.deepEqual(tableTabCalls, [
+    ['table_tab_created', { tabId: 'tab-1', tableId: 'table-1' }, { timeout: 3000 }],
+    ['table_updated', { tabId: 'tab-1', tableId: 'table-1' }, { timeout: 3000 }],
+  ]);
+});
 test('publishes an empty low-stock snapshot after replenishment', async () => {
   stockItemRepository.findLowStock = async () => [];
   await notifyStockChanged();
@@ -121,6 +132,7 @@ test('all order mutation paths preserve notifications while Broadcast is offline
   orderService.processPayment = async () => ({ id: 'payment' });
   orderService.deleteOrder = async () => {};
   orderRepository.findItems = async () => [];
+  orderRepository.findById = async () => ({ id: 'order', source: 'PUBLIC_MENU', status: 'NEW', tableId: null, tableTabId: null });
   const req = { body: {}, params: { id: 'order' }, user: { id: 'operator', role: 'ADMIN' }, get: () => undefined };
   for (const [handler, expected] of [
     [orderController.createOrder, 201],

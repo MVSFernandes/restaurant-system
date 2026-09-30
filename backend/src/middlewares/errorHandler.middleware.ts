@@ -8,6 +8,7 @@ import {
   InsufficientCreditError,
   InsufficientStockError,
   PendingCashRegisterOrdersError,
+  OpenCashRegisterTabsError,
 } from '../types/errors';
 
 /**
@@ -89,6 +90,23 @@ export function mapSupabaseError(
   // Aqui tentamos detectar o subtipo pela mensagem.
   if (code === 'P0001') {
     const lower = message.toLowerCase();
+    if (message.includes('CASH_REGISTER_OPEN_TABS')) {
+      try {
+        return new OpenCashRegisterTabsError(JSON.parse(details ?? '[]'));
+      } catch {
+        return new OpenCashRegisterTabsError([]);
+      }
+    }
+    if (message.includes('TABLE_HAS_OPEN_TABS')) {
+      return new DomainError('Não é possível liberar a mesa enquanto existir comanda aberta.', {
+        code: 'TABLE_HAS_OPEN_TABS', status: 409,
+      });
+    }
+    if (message.includes('TABLE_TAB_ALREADY_CLOSED')) {
+      return new DomainError('A comanda já está fechada.', {
+        code: 'TABLE_TAB_ALREADY_CLOSED', status: 409,
+      });
+    }
     if (message.includes('CASH_REGISTER_PENDING_ORDERS')) {
       try {
         return new PendingCashRegisterOrdersError(JSON.parse(details ?? '[]'));
