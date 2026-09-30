@@ -198,6 +198,22 @@ async function main() {
       table_status: 'OCCUPIED',
     });
     console.log('PASS: legacy dine-in gets an implicit tab; takeaway and delivery remain tabless');
+
+    const implicitTab = await db.query("select table_tab_id from orders where id='compat-dine'");
+    const implicitTabId = implicitTab.rows[0].table_tab_id;
+    await db.exec("delete from orders where id='compat-dine'");
+    const deletedLastOrder = await db.query(`
+      select
+        (select status from table_tabs where id=$1) tab_status,
+        (select status from tables where id='compat-table') table_status,
+        (select count(*)::int from orders where table_tab_id=$1) remaining_orders
+    `, [implicitTabId]);
+    assert.deepEqual(deletedLastOrder.rows[0], {
+      tab_status: 'CLOSED',
+      table_status: 'AVAILABLE',
+      remaining_orders: 0,
+    });
+    console.log('PASS: deleting the last order closes its implicit tab and releases the table');
   } finally {
     await db.close();
   }

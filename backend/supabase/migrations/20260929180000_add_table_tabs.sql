@@ -405,6 +405,36 @@ after update of status on public.orders
 for each row
 execute function public.close_settled_table_tab_after_order();
 
+create or replace function public.close_empty_implicit_table_tab_after_order_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.table_tab_id is not null
+     and not exists (
+       select 1 from public.orders
+       where table_tab_id = old.table_tab_id
+     ) then
+    update public.table_tabs
+    set
+      status = 'CLOSED',
+      closed_by_id = coalesce(old.waiter_id, old.user_id),
+      closed_at = now(),
+      updated_at = now()
+    where id = old.table_tab_id
+      and status = 'OPEN'
+      and name = 'Não registrado';
+  end if;
+  return old;
+end;
+$$;
+
+create trigger trg_close_empty_implicit_table_tab_after_order_delete
+after delete on public.orders
+for each row
+execute function public.close_empty_implicit_table_tab_after_order_delete();
 create or replace function public.close_table_tab(
   p_table_tab_id text,
   p_payment_method text,
