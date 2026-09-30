@@ -2,12 +2,20 @@ import { createId } from '@paralleldrive/cuid2';
 import { cashRegisterRepository } from '../repositories/cashRegister.repository';
 import { tableRepository } from '../repositories/table.repository';
 import { tableTabRepository } from '../repositories/tableTab.repository';
-import type { PaymentMethod, TableTabStatus, TableTabSummary } from '../types/domain';
+import type {
+  PaymentMethod,
+  TableTabDetail,
+  TableTabStatus,
+  TableTabSummary,
+  WaiterTableOverview,
+} from '../types/domain';
 import { CashRegisterClosedError, NotFoundError, ValidationError } from '../types/errors';
 
 const PAYMENT_METHODS: readonly PaymentMethod[] = [
   'CASH', 'PIX', 'CREDIT_CARD', 'DEBIT_CARD', 'CREDIT',
 ];
+
+export type TableOverviewView = 'all' | 'mine' | 'free';
 
 function normalizedName(name: unknown): string {
   const value = String(name ?? '').trim();
@@ -16,21 +24,56 @@ function normalizedName(name: unknown): string {
 }
 
 export const tableTabService = {
+  async listTableOverview(
+    currentUserId: string,
+    view: TableOverviewView = 'all',
+    now = new Date()
+  ): Promise<WaiterTableOverview[]> {
+    const [tables, openTabs] = await Promise.all([
+      tableRepository.findAll(),
+      tableTabRepository.findAllOpenSummaries(),
+    ]);
+
+    const overview = tables.map((table) => {
+      const tabs = openTabs.filter((tab) => tab.tableId === table.id);
+      const openedAt = tabs.reduce<Date | null>(
+        (earliest, tab) => !earliest || tab.openedAt < earliest ? tab.openedAt : earliest,
+        null
+      );
+      return {
+        ...table,
+        openBalance: tabs.reduce((sum, tab) => sum + tab.balance, 0),
+        openTabCount: tabs.length,
+        openedAt,
+        openForMinutes: openedAt
+          ? Math.max(0, Math.floor((now.getTime() - openedAt.getTime()) / 60_000))
+          : null,
+        hasCurrentWaiterTab: tabs.some((tab) => tab.openedById === currentUserId),
+      };
+    });
+
+    if (view === 'mine') return overview.filter((table) => table.hasCurrentWaiterTab);
+    if (view === 'free') return overview.filter((table) => table.status === 'AVAILABLE');
+    return overview;
+  },
+
   async listForTable(
     tableId: string,
     status?: TableTabStatus
-  ): Promise<{ tabs: TableTabSummary[]; total: number }> {
+  ): Promise<{ tabs: TableTabSummary[]; total: number; balance: number }> {
     const table = await tableRepository.findById(tableId);
     if (!table) throw new NotFoundError('Table', tableId);
     const tabs = await tableTabRepository.findByTable(tableId, status);
-    const total = tabs
-      .filter((tab) => tab.status === 'OPEN')
-      .reduce((sum, tab) => sum + tab.total, 0);
-    return { tabs, total };
+    const openTabs = tabs.filter((tab) => tab.status === 'OPEN');
+    return {
+      tabs,
+      total: openTabs.reduce((sum, tab) => sum + tab.total, 0),
+      balance: openTabs.reduce((sum, tab) => sum + tab.balance, 0),
+    };
   },
 
-  async findById(id: string): Promise<TableTabSummary> {
-    const tab = await tableTabRepository.findSummaryById(id);
+  async findById(id: string): Promise<TableTabDetail> {
+    const tab = await tableTabRepository.findDetailById(id);
     if (!tab) throw new NotFoundError('TableTab', id);
     return tab;
   },
@@ -43,8 +86,8 @@ export const tableTabService = {
       tableTabRepository.findOpenByName(tableId, normalized),
     ]);
     if (!table) throw new NotFoundError('Table', tableId);
-    if (table.status !== 'OCCUPIED') {
-      throw new ValidationError('tableId', 'A comanda só pode ser aberta em uma mesa ocupada');
+    if (!['AVAILABLE', 'OCCUPIED'].includes(table.status)) {
+      throw new ValidationError('tableId', 'A mesa não está disponível para abrir comanda');
     }
     if (!session) throw new CashRegisterClosedError();
     if (duplicate) {
@@ -52,7 +95,7 @@ export const tableTabService = {
     }
 
     const now = new Date();
-    const created = await tableTabRepository.create({
+    const created = await tableTabRepository.openAtomic({
       id: createId(),
       tableId,
       cashRegisterSessionId: session.id,
@@ -64,10 +107,19 @@ export const tableTabService = {
       closedAt: null,
       updatedAt: now,
     });
-    return { ...created, total: 0, paidTotal: 0, balance: 0, orderCount: 0, orders: [] };
+    return {
+      ...created,
+      total: 0,
+      paidTotal: 0,
+      balance: 0,
+      orderCount: 0,
+      itemCount: 0,
+      lastOrderAt: null,
+      orders: [],
+    };
   },
 
-  async rename(id: string, name: unknown): Promise<TableTabSummary> {
+  async rename(id: string, name: unknown): Promise<TableTabDetail> {
     const normalized = normalizedName(name);
     const tab = await tableTabRepository.findById(id);
     if (!tab) throw new NotFoundError('TableTab', id);

@@ -9,9 +9,9 @@ const handleError = (res: Response, error: unknown, fallback: string) => {
   return res.status(500).json({ message: fallback });
 };
 
-export const getConfig = async (_req: Request, res: Response) => {
+export const getConfig = async (req: Request, res: Response) => {
   try {
-    const config = await configService.get();
+    const config = await configService.getForRole((req as any).user.role);
     res.json(config);
   } catch (error) {
     handleError(res, error, 'Erro ao buscar configurações');

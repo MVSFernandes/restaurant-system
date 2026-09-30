@@ -4,6 +4,44 @@ type ConfigRow = Record<string, any>;
 type ConfigInsert = Record<string, any>;
 type ConfigUpdate = Record<string, any>;
 
+export type OperationalRestaurantConfig = Pick<
+  RestaurantConfig,
+  'name' | 'logoUrl' | 'urbanDeliveryFee' | 'ruralDeliveryFee' | 'nfceEnabled'
+>;
+
+export type PublicRestaurantConfig = Pick<
+  RestaurantConfig,
+  | 'name'
+  | 'logoUrl'
+  | 'bannerUrl'
+  | 'openingHours'
+  | 'openingDays'
+  | 'deliveryFee'
+  | 'enabledPayments'
+>;
+
+export function toOperationalRestaurantConfig(row: ConfigRow): OperationalRestaurantConfig {
+  return {
+    name: row.name,
+    logoUrl: row.logo_url,
+    urbanDeliveryFee: row.urban_delivery_fee,
+    ruralDeliveryFee: row.rural_delivery_fee,
+    nfceEnabled: row.nfce_enabled ?? false,
+  };
+}
+
+export function toPublicRestaurantConfig(row: ConfigRow): PublicRestaurantConfig {
+  return {
+    name: row.name,
+    logoUrl: row.logo_url,
+    bannerUrl: row.banner_url,
+    openingHours: row.opening_hours,
+    openingDays: row.opening_days,
+    deliveryFee: row.delivery_fee,
+    enabledPayments: row.enabled_payments,
+  };
+}
+
 export function toRestaurantConfigDomain(row: ConfigRow): RestaurantConfig {
   return {
     id: row.id,

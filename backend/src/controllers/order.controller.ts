@@ -15,6 +15,7 @@ import { productRepository } from '../repositories/product.repository';
 import { paymentRepository } from '../repositories/payment.repository';
 import { orderHistoryRepository, OrderHistoryFilters } from '../repositories/orderHistory.repository';
 import type { Order, Payment } from '../types/domain';
+import type { DetailedSessionOrder } from '../repositories/order.repository';
 
 type IdempotencyResult = {
   status: number;
@@ -136,34 +137,53 @@ const handleError = (res: Response, error: unknown, fallback: string) => {
   sendIdempotencyResult(res, toErrorResult(error, fallback));
 };
 
+export function filterDetailedOrdersForList(
+  detailedOrders: DetailedSessionOrder[],
+  filters: {
+    tableId?: unknown;
+    tableTabId?: unknown;
+    status?: unknown;
+    myOrders?: unknown;
+    waiterId?: unknown;
+  },
+  user?: { id?: string; role?: string }
+): DetailedSessionOrder[] {
+  const { tableId, tableTabId, status, myOrders, waiterId } = filters;
+  let result = detailedOrders;
+
+  if (status) {
+    const statuses = String(status).split(',');
+    result = result.filter(({ order }) => statuses.includes(order.status));
+  } else {
+    result = result.filter(({ order }) => !['FINISHED', 'CANCELED'].includes(order.status));
+  }
+
+  if (tableId) result = result.filter(({ order }) => order.tableId === tableId);
+  if (tableTabId) result = result.filter(({ order }) => order.tableTabId === tableTabId);
+  if (waiterId) result = result.filter(({ order }) => order.waiterId === waiterId);
+  if (myOrders === 'true' && user?.id) {
+    result = result.filter(({ order }) => order.waiterId === user.id);
+  } else if (user?.role === 'WAITER' && user.id && !tableId && !tableTabId) {
+    result = result.filter(({ order }) => order.waiterId === user.id);
+  }
+
+  return result;
+}
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const { tableId, status, myOrders, waiterId } = req.query;
     const user = (req as any).user;
 
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) return res.json([]);
 
-    let detailedOrders = await orderRepository.findDetailedBySession(session.id);
-
-    if (status) {
-      const statuses = (status as string).split(',');
-      detailedOrders = detailedOrders.filter(({ order }) => statuses.includes(order.status));
-    } else {
-      detailedOrders = detailedOrders.filter(
-        ({ order }) => !['FINISHED', 'CANCELED'].includes(order.status)
-      );
-    }
-
-    if (tableId) detailedOrders = detailedOrders.filter(({ order }) => order.tableId === tableId);
-    if (waiterId) detailedOrders = detailedOrders.filter(({ order }) => order.waiterId === waiterId);
-    if (myOrders === 'true' && user?.id) {
-      detailedOrders = detailedOrders.filter(({ order }) => order.waiterId === user.id);
-    }
-    if (user?.role === 'WAITER' && user?.id) {
-      detailedOrders = detailedOrders.filter(({ order }) => order.waiterId === user.id);
-    }
-
+    const detailedOrders = filterDetailedOrdersForList(
+      await orderRepository.findDetailedBySession(session.id, {
+        tableId: typeof req.query.tableId === 'string' ? req.query.tableId : undefined,
+        tableTabId: typeof req.query.tableTabId === 'string' ? req.query.tableTabId : undefined,
+      }),
+      req.query,
+      user
+    );
     const latestPaymentByOrderId = new Map<string, Payment>();
     try {
       const payments = await paymentRepository.findByOrderIds(

@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
-import { Order, OrderItem, Product, Table, User, RestaurantConfig } from '../types/domain';
+import { Order, OrderItem, Product, Table, User, RestaurantConfig, TableTabDetail } from '../types/domain';
 import { formatBRL } from '../utils/currency';
 
 // Tipos locais para o PDF — usa domain.ts em vez de @prisma/client
@@ -134,6 +134,96 @@ export class PdfService {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
     doc.text('Obrigado pela preferência!', 40, y, { align: 'center' });
+
+    return Buffer.from(doc.output('arraybuffer'));
+  }
+  static async generateTableTabReceipt(
+    tab: TableTabDetail,
+    table: Table,
+    config: ConfigForPdf
+  ): Promise<Buffer> {
+    const itemCount = tab.orders.reduce((sum, order) => sum + order.items.length, 0);
+    const estimatedHeight = Math.max(240, 80 + tab.orders.length * 14 + itemCount * 9);
+    const doc = new jsPDF({ unit: 'mm', format: [80, estimatedHeight] }) as any;
+    const margin = 5;
+    let y = 10;
+    const statusLabel: Record<string, string> = {
+      NEW: 'Novo',
+      IN_PROGRESS: 'Na cozinha',
+      READY: 'Pronto',
+      DELIVERED: 'Entregue',
+      FINISHED: 'Finalizado',
+      CANCELED: 'Cancelado',
+    };
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(config.name, 40, y, { align: 'center' });
+    y += 5;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    if (config.address) {
+      doc.text(config.address, 40, y, { align: 'center', maxWidth: 70 });
+      y += 5;
+    }
+    if (config.phone) {
+      doc.text(`Tel: ${config.phone}`, 40, y, { align: 'center' });
+      y += 5;
+    }
+
+    doc.line(margin, y, 75, y);
+    y += 5;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`COMANDA: ${tab.name}`, margin, y, { maxWidth: 68 });
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Mesa: ${table.number}`, margin, y);
+    y += 4;
+    doc.text(`Aberta em: ${new Date(tab.openedAt).toLocaleString('pt-BR')}`, margin, y);
+    y += 5;
+
+    for (const order of tab.orders) {
+      doc.line(margin, y, 75, y);
+      y += 4;
+      doc.setFont('helvetica', 'bold');
+      doc.text(
+        `ENVIO #${order.id.slice(-6).toUpperCase()} - ${statusLabel[order.status] ?? order.status}`,
+        margin,
+        y,
+        { maxWidth: 68 }
+      );
+      y += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.text(new Date(order.createdAt).toLocaleString('pt-BR'), margin, y);
+      y += 4;
+
+      for (const item of order.items) {
+        const quantity = item.weight
+          ? `${(item.weight / 1000).toFixed(3)}kg`
+          : `${item.quantity}x`;
+        doc.text(`${quantity} ${item.productName || 'Produto removido'}`, margin, y, { maxWidth: 48 });
+        doc.text(formatBRL(item.price), 75, y, { align: 'right' });
+        y += 4;
+        if (item.notes) {
+          const noteLines = doc.splitTextToSize(`Obs.: ${item.notes}`, 65);
+          doc.setFontSize(7);
+          doc.text(noteLines, margin + 2, y);
+          y += noteLines.length * 3.5;
+          doc.setFontSize(8);
+        }
+      }
+    }
+
+    doc.line(margin, y, 75, y);
+    y += 5;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL:', margin, y);
+    doc.text(formatBRL(tab.total), 75, y, { align: 'right' });
+    y += 5;
+    doc.setFontSize(8);
+    doc.text('SALDO EM ABERTO:', margin, y);
+    doc.text(formatBRL(tab.balance), 75, y, { align: 'right' });
 
     return Buffer.from(doc.output('arraybuffer'));
   }

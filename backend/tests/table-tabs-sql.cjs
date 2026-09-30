@@ -102,6 +102,10 @@ async function main() {
       'utf8'
     );
     await db.exec(migration);
+    await db.exec(fs.readFileSync(
+      path.join(__dirname, '../supabase/migrations/20260930190000_open_table_tab_atomically.sql'),
+      'utf8'
+    ));
 
     const migrated = await db.query(`
       select
@@ -120,6 +124,30 @@ async function main() {
     });
     console.log('PASS: general migration preserves active accounts and releases empty occupied tables');
 
+    await db.exec(`
+      insert into cash_register_sessions(id,status) values ('atomic-session','OPEN');
+      insert into tables(id,number,status) values ('atomic-free',7,'AVAILABLE');
+    `);
+    const opened = await db.query(
+      "select public.open_table_tab('atomic-tab','atomic-free','atomic-session',' Primeira ','user') result"
+    );
+    assert.equal(opened.rows[0].result.name, 'Primeira');
+    assert.deepEqual((await db.query(`
+      select
+        (select status from tables where id='atomic-free') table_status,
+        (select count(*)::int from table_tabs where table_id='atomic-free' and status='OPEN') open_tabs
+    `)).rows[0], { table_status: 'OCCUPIED', open_tabs: 1 });
+    await assert.rejects(
+      db.query("select public.open_table_tab('atomic-duplicate','atomic-free','atomic-session','primeira','user')"),
+      /TABLE_TAB_NAME_ALREADY_OPEN/
+    );
+    assert.equal(
+      (await db.query("select count(*)::int count from table_tabs where table_id='atomic-free'")).rows[0].count,
+      1
+    );
+    await db.query("select public.close_table_tab('atomic-tab',null,null,'user')");
+    assert.equal((await db.query("select status from tables where id='atomic-free'")).rows[0].status, 'AVAILABLE');
+    console.log('PASS: first tab opening atomically occupies a free table and duplicate failure leaves one tab');
     await db.exec(`
       update tables set status='OCCUPIED' where id='multi-tab';
       insert into table_tabs(id,table_id,cash_register_session_id,name,opened_by_id)

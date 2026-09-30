@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { configService } from './domain.services';
+import { restaurantConfigRepository } from '../repositories/restaurantConfig.repository';
 import { DomainError } from '../types/errors';
 
 export type BrandingImageKind = 'logo' | 'banner';
@@ -130,8 +131,7 @@ async function removeStoredFile(url: string | null): Promise<void> {
 
 export const brandingService = {
   async getPublicConfig() {
-    const config = await configService.get();
-    return toPublicRestaurantConfig(config);
+    return restaurantConfigRepository.getPublic();
   },
 
   async upload(kind: BrandingImageKind, file?: BrandingImageFile) {

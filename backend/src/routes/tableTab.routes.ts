@@ -3,11 +3,13 @@ import { authenticate, authorize } from '../middlewares/auth.middleware';
 import {
   closeTableTab,
   getTableTab,
+  getTableTabReceipt,
   renameTableTab,
 } from '../controllers/tableTab.controller';
 
 const router = Router();
 router.use(authenticate);
+router.get('/:tabId/receipt', getTableTabReceipt);
 router.get('/:tabId', getTableTab);
 router.patch('/:tabId', authorize('ADMIN', 'CASHIER', 'WAITER'), renameTableTab);
 router.post('/:tabId/close', authorize('ADMIN', 'CASHIER'), closeTableTab);

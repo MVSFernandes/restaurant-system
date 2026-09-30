@@ -269,12 +269,35 @@ export interface TableTab {
   updatedAt: Date;
 }
 
+export interface TableTabOrderSummary {
+  id: string;
+  status: OrderStatus;
+  total: number;
+  createdAt: Date;
+  updatedAt: Date;
+  itemCount: number;
+}
+
 export interface TableTabSummary extends TableTab {
   total: number;
   paidTotal: number;
   balance: number;
   orderCount: number;
-  orders: Array<{ id: string; status: OrderStatus; total: number }>;
+  itemCount: number;
+  lastOrderAt: Date | null;
+  orders: TableTabOrderSummary[];
+}
+
+export interface TableTabDetail extends Omit<TableTabSummary, 'orders'> {
+  orders: Array<TableTabOrderSummary & { items: OrderItem[] }>;
+}
+
+export interface WaiterTableOverview extends Table {
+  openBalance: number;
+  openTabCount: number;
+  openedAt: Date | null;
+  openForMinutes: number | null;
+  hasCurrentWaiterTab: boolean;
 }
 
 // ============================================================================

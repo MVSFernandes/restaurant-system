@@ -29,12 +29,15 @@ const openTab = (patch = {}) => ({
 
 beforeEach(() => {
   tableRepository.findById = async () => ({ id: 'table-1', number: 1, status: 'OCCUPIED' });
+  tableRepository.findAll = async () => [{ id: 'table-1', number: 1, status: 'OCCUPIED' }];
   cashRegisterRepository.findOpenSession = async () => ({
     id: 'session-1', status: 'OPEN', openingAmount: 0, closingAmount: null,
     withdrawalTotal: 0, notes: null, openedById: 'user-1', closedById: null,
     openedAt: now, closedAt: null,
   });
   tableTabRepository.findOpenByName = async () => null;
+  tableTabRepository.findAllOpenSummaries = async () => [];
+  tableTabRepository.openAtomic = async tab => tab;
   tableTabRepository.findById = async () => openTab();
   tableTabRepository.hasOpenByTable = async () => false;
   tableTabRepository.findOpenBySession = async () => [];
@@ -53,14 +56,20 @@ test('service refuses releasing a table while it has an open tab', async () => {
   assert.equal(updateCalled, false);
 });
 
-test('service requires an occupied table and a unique non-empty open-tab name', async () => {
+test('service opens the first tab on an available table through the atomic repository call', async () => {
   tableRepository.findById = async () => ({ id: 'table-1', number: 1, status: 'AVAILABLE' });
-  await assert.rejects(
-    tableTabService.create('table-1', 'Ana', 'user-1'),
-    (error) => error.code === 'VALIDATION_ERROR' && /mesa ocupada/.test(error.message)
-  );
+  let captured;
+  tableTabRepository.openAtomic = async tab => {
+    captured = tab;
+    return tab;
+  };
 
-  tableRepository.findById = async () => ({ id: 'table-1', number: 1, status: 'OCCUPIED' });
+  const created = await tableTabService.create('table-1', ' Ana ', 'user-1');
+  assert.equal(captured.name, 'Ana');
+  assert.equal(captured.tableId, 'table-1');
+  assert.equal(created.balance, 0);
+  assert.equal(created.itemCount, 0);
+
   await assert.rejects(
     tableTabService.create('table-1', '   ', 'user-1'),
     (error) => error.code === 'VALIDATION_ERROR' && error.details.field === 'name'
@@ -72,7 +81,6 @@ test('service requires an occupied table and a unique non-empty open-tab name', 
     (error) => error.code === 'VALIDATION_ERROR' && /Já existe/.test(error.message)
   );
 });
-
 test('service refuses a new order for a closed tab', async () => {
   tableTabRepository.findById = async () => openTab({ status: 'CLOSED', closedById: 'user-1', closedAt: now });
   await assert.rejects(
@@ -91,9 +99,48 @@ test('table totals are derived from the open tabs returned by the repository', a
   ];
   const result = await tableTabService.listForTable('table-1');
   assert.equal(result.total, 50);
+  assert.equal(result.balance, 50);
   assert.deepEqual(result.tabs.slice(0, 2).map((tab) => tab.total), [20, 30]);
 });
 
+test('waiter table overview batches balance, tab count, age and ownership', async () => {
+  tableRepository.findAll = async () => [
+    { id: 'table-1', number: 1, status: 'OCCUPIED' },
+    { id: 'table-2', number: 2, status: 'AVAILABLE' },
+  ];
+  tableTabRepository.findAllOpenSummaries = async () => [
+    {
+      ...openTab({ id: 'tab-a', openedAt: new Date('2026-09-29T11:15:00.000Z') }),
+      total: 40, paidTotal: 10, balance: 30, orderCount: 2, itemCount: 3,
+      lastOrderAt: new Date('2026-09-29T11:30:00.000Z'), orders: [],
+    },
+    {
+      ...openTab({ id: 'tab-b', openedById: 'other', openedAt: new Date('2026-09-29T11:30:00.000Z') }),
+      total: 20, paidTotal: 0, balance: 20, orderCount: 1, itemCount: 1,
+      lastOrderAt: new Date('2026-09-29T11:35:00.000Z'), orders: [],
+    },
+  ];
+
+  const overview = await tableTabService.listTableOverview('user-1', 'all', now);
+  assert.deepEqual(
+    overview.map(table => [
+      table.number,
+      table.openBalance,
+      table.openTabCount,
+      table.openForMinutes,
+      table.hasCurrentWaiterTab,
+    ]),
+    [[1, 50, 2, 45, true], [2, 0, 0, null, false]]
+  );
+  assert.deepEqual(
+    (await tableTabService.listTableOverview('user-1', 'mine', now)).map(table => table.id),
+    ['table-1']
+  );
+  assert.deepEqual(
+    (await tableTabService.listTableOverview('user-1', 'free', now)).map(table => table.id),
+    ['table-2']
+  );
+});
 test('service blocks cash close even when the open tab has no orders', async () => {
   tableTabRepository.findOpenBySession = async () => [openTab({ name: 'Vazia' })];
   let pendingOrdersRead = false;
