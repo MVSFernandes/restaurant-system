@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import type { Table } from '../../types';
 import { clsx } from 'clsx';
+import { useToast } from '../../components/ui';
 import { Users, Plus, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 const statusConfig = {
@@ -17,8 +18,20 @@ const unknownStatus = { label: 'Situação desconhecida', color: 'bg-surface-sun
 const getStatusConfig = (status: string) =>
   statusConfig[status as keyof typeof statusConfig] ?? unknownStatus;
 
+type ApiError = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  (error as ApiError).response?.data?.message || fallback;
+
 const TablesPage: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
@@ -88,7 +101,13 @@ const TablesPage: React.FC = () => {
       setShowCloseConfirm(false);
       setShowModal(false);
     } catch (error) {
-      console.error('Erro ao fechar mesa:', error);
+      // A recusa do backend (ex.: pedido ativo na mesa) precisa chegar ao operador.
+      setShowCloseConfirm(false);
+      toast({
+        title: 'Não foi possível fechar a mesa',
+        description: getErrorMessage(error, 'Tente novamente em alguns instantes.'),
+        variant: 'error',
+      });
     } finally {
       setClosingTable(false);
     }
