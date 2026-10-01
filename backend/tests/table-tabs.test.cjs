@@ -56,6 +56,19 @@ test('service refuses releasing a table while it has an open tab', async () => {
   assert.equal(updateCalled, false);
 });
 
+test('service refuses occupying a table without opening a tab', async () => {
+  let updateCalled = false;
+  tableRepository.update = async () => { updateCalled = true; };
+
+  await assert.rejects(
+    tableService.updateStatus('table-1', 'OCCUPIED'),
+    (error) => error.code === 'VALIDATION_ERROR'
+      && error.details.field === 'status'
+      && /abra uma comanda/.test(error.message)
+  );
+  assert.equal(updateCalled, false);
+});
+
 test('service opens the first tab on an available table through the atomic repository call', async () => {
   tableRepository.findById = async () => ({ id: 'table-1', number: 1, status: 'AVAILABLE' });
   let captured;
