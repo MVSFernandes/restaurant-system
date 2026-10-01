@@ -53,6 +53,40 @@ export type OrderStatus = 'NEW' | 'IN_PROGRESS' | 'READY' | 'DELIVERED' | 'CANCE
 export type PaymentMethod = 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'PIX' | 'CREDIT' | 'ON_DELIVERY' | 'ON_PICKUP';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CANCELED';
 
+export type TableOverviewView = 'all' | 'mine' | 'free';
+
+// Resposta de GET /tables/overview (docs/api-waiter.md).
+export interface WaiterTableOverview {
+  id: string;
+  number: number;
+  status: TableStatus;
+  openBalance: number;
+  openTabCount: number;
+  openedAt: string | null;
+  openForMinutes: number | null;
+  hasCurrentWaiterTab: boolean;
+}
+
+// Resumo de comanda de GET /tables/:tableId/tabs (docs/api-waiter.md).
+// `balance` é o que falta receber; `total` é a soma bruta e não vai para a tela.
+export interface WaiterTableTab {
+  id: string;
+  tableId: string;
+  name: string;
+  status: 'OPEN' | 'CLOSED';
+  openedAt: string;
+  total: number;
+  balance: number;
+  itemCount: number;
+  lastOrderAt: string | null;
+}
+
+export interface WaiterTableTabsResponse {
+  tabs: WaiterTableTab[];
+  total: number;
+  balance: number;
+}
+
 export interface Table {
   id: string;
   number: number;

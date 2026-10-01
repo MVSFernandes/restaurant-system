@@ -495,3 +495,51 @@ As páginas `/settings/restaurant`, `/settings/fiscal` e `/design-system` ainda
 precisam de guard de frontend para `ADMIN`. O backend já impede escrita por
 outros papéis e a projeção operacional impede a leitura de identidade fiscal;
 a correção da navegação pertence à etapa das telas do garçom.
+
+---
+
+## Encontrados nas telas do garçom (2026-10-01)
+
+### 31. Tokens de borda não chegam a 3:1 em nenhum tema
+
+- **Onde:** `frontend/src/index.css` (`--color-border-default` e
+  `--color-border-strong`, nos dois temas). `border-default` aparece em 39
+  pontos de `frontend/src` (contagem de 2026-10-01), incluindo `Card`,
+  `Table`, `Input` e a casca.
+- **O que acontece:** o design system exige 3:1 para elemento de interface
+  (seção 6), e borda é elemento de interface. Nenhuma das duas bordas chega
+  perto. Contraste calculado a partir dos valores dos tokens; no escuro, a
+  borda translúcida foi composta sobre o `surface`, que é o que fica por
+  baixo dela:
+
+  | Token | Tema | contra `surface` | contra `canvas` |
+  |---|---|---|---|
+  | `border-default` | claro | 1,23 | 1,13 |
+  | `border-default` | escuro | 1,24 | 1,40 |
+  | `border-strong` | claro | 2,56 | 2,34 |
+  | `border-strong` | escuro | 1,51 | 1,70 |
+
+  Vale para **todo cartão do sistema**, não só para o app do garçom: cartão
+  branco sobre fundo quase branco, com a borda praticamente invisível. Foi
+  visto no cartão de mesa livre do garçom, que depende só da borda para
+  existir na grade.
+- **Por que importa:** `border-strong` se define como "divisória que precisa
+  ser vista" e também não passa. Campo de formulário (`Input`, `Select`) usa
+  `border-default` em repouso: ali a borda é o único contorno do controle,
+  que é o caso mais claro do critério de 3:1.
+- **Correção provável:** no token, e não tela a tela. Pode ser ajustar
+  `border-strong` para passar de 3:1 e decidir onde cada borda é decorativa
+  (agrupamento, que pode continuar leve) e onde é contorno de controle (que
+  precisa de 3:1). Precisa de medição no navegador nos quatro fundos, como as
+  cores `-strong` (seção 2).
+- **Nesta etapa:** a correção fica só no cartão de mesa livre, na própria
+  tela. O token não foi alterado.
+- **Segunda correção pontual na mesma borda (2026-10-01):** o cartão livre
+  passou primeiro a usar o token de texto `text-subtle` como borda (4,76 no
+  claro, 3,75 no escuro). No claro ficou pesado, e a borda passou a ter
+  **dois valores por tema**: `text-subtle` com 79% de opacidade no claro
+  (3,19 contra o cartão) e `text-subtle` cheio no escuro. Duas correções
+  pontuais na mesma borda são sinal de que o conserto certo é no token.
+  Contra a página (`canvas`), o valor do claro fica em **2,91**: nenhum valor
+  entre 3,0 e 3,2 contra o cartão passa de 3:1 contra a página, que é mais
+  escura. O token novo precisa resolver os dois fundos.

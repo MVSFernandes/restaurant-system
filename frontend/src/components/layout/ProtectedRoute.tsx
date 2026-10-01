@@ -6,9 +6,11 @@ import type { Role } from '../../types';
 
 interface ProtectedRouteProps {
   allowedRoles?: Role[];
+  /** Sem a casca administrativa: a rota filha traz a própria (ex.: app do garçom). */
+  bare?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, bare = false }) => {
   const { isAuthenticated, user } = useAuthStore();
 
   // O Dashboard é o destino de quem volta pelo menu. Com o código já baixado,
@@ -25,6 +27,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
+
+  if (bare) return <Outlet />;
 
   return (
     <MainLayout>

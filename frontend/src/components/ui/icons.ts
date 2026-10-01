@@ -6,6 +6,7 @@ export {
   ReceiptText as CreditSaleIcon,
   ShoppingCart as OrderIcon,
   UtensilsCrossed as TableIcon,
+  LayoutGrid as FloorPlanIcon,
   Package as ProductIcon,
   Boxes as StockIcon,
   Truck as SupplierIcon,
@@ -34,6 +35,8 @@ export {
   PanelLeftOpen as SidebarExpandIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
+  ArrowLeft as BackIcon,
+  Plus as AddIcon,
   History as HistoryIcon,
   WifiOff as OfflineIcon,
 } from 'lucide-react';
