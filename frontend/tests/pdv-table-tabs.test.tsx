@@ -1,8 +1,9 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
 vi.mock('../src/services/api', () => ({ default: mocks }));
 vi.mock('../src/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'admin', role: 'ADMIN' } }),
@@ -10,6 +11,8 @@ vi.mock('../src/hooks/useAuth', () => ({
 vi.mock('../src/hooks/useOrderEvents', () => ({ useOrderEvents: () => undefined }));
 
 import OrdersPage from '../src/pages/pdv/OrdersPage';
+import TablesPage from '../src/pages/pdv/TablesPage';
+import { ToastProvider } from '../src/components/ui';
 
 const product = {
   id: 'water',
@@ -96,6 +99,7 @@ beforeEach(() => {
     }
     return { data: {} };
   });
+  mocks.patch.mockReset();
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -180,5 +184,51 @@ describe('PDV table tabs', () => {
     expect(await screen.findByText('Já existe uma comanda aberta com esse nome nesta mesa')).toBeTruthy();
     expect(mocks.post).toHaveBeenCalledTimes(1);
     expect(mocks.post.mock.calls[0][0]).toBe('/tables/free-table/tabs');
+  });
+});
+
+describe('PDV tables page', () => {
+  const renderTablesPage = () => render(
+    <MemoryRouter>
+      <ToastProvider>
+        <TablesPage />
+      </ToastProvider>
+    </MemoryRouter>
+  );
+
+  it('opens a free table by creating its first named tab', async () => {
+    renderTablesPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Mesa 1/ }));
+    fireEvent.change(screen.getByLabelText('Nome da comanda'), {
+      target: { value: '  Ana  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Mesa' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledWith(
+      '/tables/free-table/tabs',
+      { name: 'Ana' }
+    ));
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(await screen.findByText('Mesa aberta')).toBeTruthy();
+  });
+
+  it('shows the backend message when opening the tab is refused', async () => {
+    mocks.post.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: { message: 'Já existe uma comanda aberta com esse nome nesta mesa' },
+      },
+    });
+    renderTablesPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Mesa 1/ }));
+    fireEvent.change(screen.getByLabelText('Nome da comanda'), {
+      target: { value: 'Ana' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Mesa' }));
+
+    expect(await screen.findByText('Já existe uma comanda aberta com esse nome nesta mesa')).toBeTruthy();
+    expect(mocks.patch).not.toHaveBeenCalled();
   });
 });

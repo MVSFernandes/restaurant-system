@@ -38,6 +38,8 @@ const TablesPage: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [closingTable, setClosingTable] = useState(false);
+  const [openingTable, setOpeningTable] = useState(false);
+  const [newTableTabName, setNewTableTabName] = useState('');
   const [cashClosed, setCashClosed] = useState(false);
   const [cashCheckLoading, setCashCheckLoading] = useState(true);
 
@@ -74,18 +76,42 @@ const TablesPage: React.FC = () => {
   const handleTableClick = (table: Table) => {
     setSelectedTable(table);
     setShowCloseConfirm(false);
+    setNewTableTabName('');
     setShowModal(true);
   };
 
   const handleOpenTable = async () => {
     // Com o caixa fechado o botão já fica desabilitado e o aviso aparece no topo.
-    if (!selectedTable || cashClosed) return;
+    if (!selectedTable || cashClosed || openingTable) return;
+    const name = newTableTabName.trim();
+    if (!name) {
+      toast({
+        title: 'Informe o nome da comanda',
+        description: 'O nome identifica a conta aberta nesta mesa.',
+        variant: 'warning',
+      });
+      return;
+    }
+
     try {
-      await api.patch(`/tables/${selectedTable.id}/status`, { status: 'OCCUPIED' });
+      setOpeningTable(true);
+      await api.post(`/tables/${selectedTable.id}/tabs`, { name });
       await fetchTables();
       setShowModal(false);
+      setNewTableTabName('');
+      toast({
+        title: 'Mesa aberta',
+        description: `Comanda ${name} criada com sucesso.`,
+        variant: 'success',
+      });
     } catch (error) {
-      console.error('Erro ao abrir mesa:', error);
+      toast({
+        title: 'Não foi possível abrir a mesa',
+        description: getErrorMessage(error, 'Tente novamente em alguns instantes.'),
+        variant: 'error',
+      });
+    } finally {
+      setOpeningTable(false);
     }
   };
 
@@ -177,10 +203,35 @@ const TablesPage: React.FC = () => {
 
             <div className="space-y-3">
               {selectedTable.status === 'AVAILABLE' && (
-                <button onClick={handleOpenTable} disabled={cashClosed} className={`btn-primary w-full py-3 flex items-center justify-center gap-2 ${cashClosed ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                  <Plus size={18} />
-                  Abrir Mesa
-                </button>
+                <>
+                  <div>
+                    <label
+                      htmlFor="new-table-tab-name"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Nome da comanda
+                    </label>
+                    <input
+                      id="new-table-tab-name"
+                      type="text"
+                      value={newTableTabName}
+                      onChange={(event) => setNewTableTabName(event.target.value)}
+                      className="input w-full"
+                      placeholder="Ex.: Ana"
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    onClick={handleOpenTable}
+                    disabled={cashClosed || openingTable}
+                    className={`btn-primary w-full py-3 flex items-center justify-center gap-2 ${
+                      cashClosed || openingTable ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <Plus size={18} />
+                    {openingTable ? 'Abrindo...' : 'Abrir Mesa'}
+                  </button>
+                </>
               )}
               {selectedTable.status === 'OCCUPIED' && (
                 <>
@@ -197,7 +248,7 @@ const TablesPage: React.FC = () => {
                   </button>
                 </>
               )}
-              <button onClick={() => { setShowCloseConfirm(false); setShowModal(false); }} className="btn-secondary w-full py-3 flex items-center justify-center gap-2">
+              <button onClick={() => { setShowCloseConfirm(false); setNewTableTabName(''); setShowModal(false); }} className="btn-secondary w-full py-3 flex items-center justify-center gap-2">
                 <XCircle size={18} />
                 Cancelar
               </button>
