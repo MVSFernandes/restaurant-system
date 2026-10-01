@@ -10,6 +10,8 @@ import type {
   MarmitaMenuItem,
   RestaurantConfig,
   Customer,
+  WaiterTableTab,
+  WaiterTableTabsResponse,
 } from '../../types';
 import { clsx } from 'clsx';
 import {
@@ -69,6 +71,7 @@ interface ToastState {
 type CashState = 'open' | 'closed' | 'unknown';
 
 const CASH_UNKNOWN_MESSAGE = 'Não foi possível confirmar a situação do caixa.';
+const NEW_TABLE_TAB_VALUE = '__new_table_tab__';
 
 const getPayloadWeight = (item: Pick<CartItem, 'saleType' | 'weight'>) => {
   const weight = Number(item.weight);
@@ -170,6 +173,11 @@ const OrdersPage: React.FC = () => {
   const [selectedWaiterId, setSelectedWaiterId] = useState('');
   const [orderType, setOrderType] = useState('DINE_IN');
   const [selectedTableId, setSelectedTableId] = useState('');
+  const [tableTabs, setTableTabs] = useState<WaiterTableTab[]>([]);
+  const [selectedTableTabId, setSelectedTableTabId] = useState('');
+  const [newTableTabName, setNewTableTabName] = useState('');
+  const [tableTabsLoading, setTableTabsLoading] = useState(false);
+  const [tableTabsError, setTableTabsError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [ordersLoadFailed, setOrdersLoadFailed] = useState(false);
@@ -212,6 +220,11 @@ const OrdersPage: React.FC = () => {
 
   const canEditManualPrice = user?.role === 'ADMIN' || user?.role === 'CASHIER';
   const getPaymentSubmittingKey = (orderId: string, method: string) => `${orderId}:${method}`;
+  const selectedTable = useMemo(
+    () => tables.find((table) => table.id === selectedTableId) ?? null,
+    [tables, selectedTableId]
+  );
+  const selectedTableStatus = selectedTable?.status;
 
   const getCategoryForProduct = (product: Product) =>
     categories.find((cat) => cat.id === product.categoryId);
@@ -355,7 +368,7 @@ const OrdersPage: React.FC = () => {
         api.get('/cash-register/current'),
       ]);
       applyOrderSnapshot(ordersRes.data);
-      setTables(tablesRes.data.filter((table: Table) => table.status === 'OCCUPIED'));
+      setTables(tablesRes.data);
       setCashState(cashRes.data ? 'open' : 'closed');
     } catch (error) {
       // Realtime and polling are recovery paths; a temporary outage must not break the page.
@@ -442,7 +455,7 @@ const OrdersPage: React.FC = () => {
 
       applyOrderSnapshot(ordersRes.data);
       setCategories(categoriesRes.data);
-      setTables(tablesRes.data.filter((t: Table) => t.status === 'OCCUPIED'));
+      setTables(tablesRes.data);
       setWaiters(usersRes.data.filter((u: User) => u.role === 'WAITER' || u.role === 'ADMIN'));
       setCustomers(customersRes.data || []);
       setMarmitaMenuItems(marmitaMenuRes.data || []);
@@ -464,6 +477,42 @@ const OrdersPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    let canceled = false;
+
+    setTableTabs([]);
+    setSelectedTableTabId('');
+    setNewTableTabName('');
+    setTableTabsError(null);
+
+    if (!showNewOrder || orderType !== 'DINE_IN' || !selectedTableId || !selectedTableStatus) {
+      setTableTabsLoading(false);
+      return () => { canceled = true; };
+    }
+
+    if (selectedTableStatus === 'AVAILABLE') {
+      setSelectedTableTabId(NEW_TABLE_TAB_VALUE);
+      setTableTabsLoading(false);
+      return () => { canceled = true; };
+    }
+
+    setTableTabsLoading(true);
+    void api.get<WaiterTableTabsResponse>(
+      `/tables/${encodeURIComponent(selectedTableId)}/tabs?status=OPEN`
+    ).then(({ data }) => {
+      if (canceled) return;
+      setTableTabs(data.tabs);
+      if (data.tabs.length === 0) setSelectedTableTabId(NEW_TABLE_TAB_VALUE);
+    }).catch((error) => {
+      if (canceled) return;
+      setTableTabsError(orderErrorMessage(error));
+    }).finally(() => {
+      if (!canceled) setTableTabsLoading(false);
+    });
+
+    return () => { canceled = true; };
+  }, [showNewOrder, orderType, selectedTableId, selectedTableStatus]);
 
   const todaysMarmitaOptions = useMemo(() => marmitaMenuItems, [marmitaMenuItems]);
 
@@ -609,6 +658,11 @@ const OrdersPage: React.FC = () => {
     setConfirmDiscardNewOrder(false);
     setSelectedWaiterId('');
     setSelectedTableId('');
+    setTableTabs([]);
+    setSelectedTableTabId('');
+    setNewTableTabName('');
+    setTableTabsLoading(false);
+    setTableTabsError(null);
     setOrderType('DINE_IN');
     setCustomerName('');
     setDeliveryStreet('');
@@ -655,6 +709,25 @@ const OrdersPage: React.FC = () => {
       return;
     }
 
+    if (orderType === 'DINE_IN' && tableTabsLoading) {
+      showToast('error', 'Aguarde o carregamento das comandas.');
+      return;
+    }
+
+    if (orderType === 'DINE_IN' && !selectedTableTabId) {
+      showToast('error', 'Selecione uma comanda.');
+      return;
+    }
+
+    if (
+      orderType === 'DINE_IN' &&
+      selectedTableTabId === NEW_TABLE_TAB_VALUE &&
+      !newTableTabName.trim()
+    ) {
+      showToast('error', 'Informe o nome da nova comanda.');
+      return;
+    }
+
     if (!selectedWaiterId) {
       showToast('error', 'Selecione o responsável pelo pedido.');
       return;
@@ -690,13 +763,25 @@ const OrdersPage: React.FC = () => {
       orderSubmittingRef.current = true;
       setOrderSubmitting(true);
       setOrderError(null);
+
+      let tableTabIdForOrder = orderType === 'DINE_IN' ? selectedTableTabId : undefined;
+      if (orderType === 'DINE_IN' && selectedTableTabId === NEW_TABLE_TAB_VALUE) {
+        const { data: createdTab } = await api.post<WaiterTableTab>(
+          `/tables/${encodeURIComponent(selectedTableId)}/tabs`,
+          { name: newTableTabName.trim() }
+        );
+        tableTabIdForOrder = createdTab.id;
+        setTableTabs((current) => [...current, createdTab]);
+        setSelectedTableTabId(createdTab.id);
+      }
+
       const idempotencyKey = newOrderIdempotencyKey || createIdempotencyKey();
       setNewOrderIdempotencyKey(idempotencyKey);
       const { data: createdOrder } = await api.post<Order>('/orders', {
         idempotencyKey,
         type: orderType,
         customerName:
-          orderType === 'DELIVERY' || orderType === 'TAKE_AWAY' || orderType === 'DINE_IN'
+          orderType === 'DELIVERY' || orderType === 'TAKE_AWAY'
             ? customerName
             : undefined,
         deliveryStreet: orderType === 'DELIVERY' ? deliveryStreet : undefined,
@@ -706,6 +791,7 @@ const OrdersPage: React.FC = () => {
         deliveryPhone: orderType === 'DELIVERY' ? deliveryPhone : undefined,
         deliveryNotes: orderType === 'DELIVERY' ? deliveryNotes : undefined,
         tableId: orderType === 'DINE_IN' ? selectedTableId : undefined,
+        tableTabId: tableTabIdForOrder,
         waiterId: selectedWaiterId || undefined,
         deliveryFee: currentDeliveryFee,
         deliveryType: orderType === 'DELIVERY' ? deliveryType : undefined,
@@ -1893,25 +1979,67 @@ const OrdersPage: React.FC = () => {
                           className="input mb-2"
                         >
                           <option value="">Selecione a mesa</option>
-                          {tables.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              Mesa {t.number}
+                          {tables.map((table) => (
+                            <option key={table.id} value={table.id}>
+                              Mesa {table.number} — {table.status === 'AVAILABLE' ? 'Livre' : 'Ocupada'}
                             </option>
                           ))}
                         </select>
 
-                        <div className="mb-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Nome da pessoa na mesa
-                          </label>
-                          <input
-                            type="text"
-                            value={customerName}
-                            onChange={(e) => setCustomerName(e.target.value)}
-                            className="input w-full"
-                            placeholder="Ex.: João da mesa 4"
-                          />
-                        </div>
+                        {selectedTable && (
+                          <div className="mb-2 space-y-2">
+                            {selectedTable.status === 'OCCUPIED' && (
+                              <>
+                                <label className="block text-sm font-medium text-gray-700">
+                                  Comanda
+                                </label>
+                                <select
+                                  value={selectedTableTabId}
+                                  onChange={(e) => setSelectedTableTabId(e.target.value)}
+                                  className="input w-full"
+                                  disabled={tableTabsLoading}
+                                >
+                                  <option value="">
+                                    {tableTabsLoading ? 'Carregando comandas...' : 'Selecione a comanda'}
+                                  </option>
+                                  {tableTabs.map((tab) => (
+                                    <option key={tab.id} value={tab.id}>
+                                      {tab.name} — saldo {formatCurrencyBRL(tab.balance)}
+                                    </option>
+                                  ))}
+                                  <option value={NEW_TABLE_TAB_VALUE}>Abrir nova comanda</option>
+                                </select>
+                              </>
+                            )}
+
+                            {selectedTable.status === 'AVAILABLE' && (
+                              <p className="text-xs text-gray-500">
+                                A mesa será ocupada ao abrir a primeira comanda.
+                              </p>
+                            )}
+
+                            {selectedTableTabId === NEW_TABLE_TAB_VALUE && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Nome da nova comanda
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newTableTabName}
+                                  onChange={(e) => setNewTableTabName(e.target.value)}
+                                  className="input w-full"
+                                  placeholder="Ex.: Ana"
+                                />
+                              </div>
+                            )}
+
+                            {tableTabsError && (
+                              <p role="alert" className="rounded-lg bg-red-50 p-2 text-sm text-red-700">
+                                {tableTabsError}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </>
                     )}
 

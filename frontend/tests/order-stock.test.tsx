@@ -19,6 +19,15 @@ const categories = [{ id: 'drinks', name: 'Bebidas', products: [product('Coca La
 beforeEach(() => {
   mocks.get.mockImplementation(async (url: string) => ({ data:
     url.startsWith('/categories') ? categories :
+    url === '/tables/table/tabs?status=OPEN' ? {
+      tabs: [{
+        id: 'tab', tableId: 'table', name: 'Mesa 1', status: 'OPEN',
+        openedAt: new Date().toISOString(), total: 0, balance: 0,
+        itemCount: 0, lastOrderAt: null,
+      }],
+      total: 0,
+      balance: 0,
+    } :
     url === '/tables' ? [{ id: 'table', number: 1, status: 'OCCUPIED' }] :
     url === '/users' ? [{ id: 'admin', name: 'Operador', role: 'ADMIN' }] :
     url === '/cash-register/current' ? { id: 'session' } :
@@ -175,6 +184,9 @@ describe('stock race at confirmation', () => {
     await openPdv();
     fireEvent.click(screen.getByRole('button', { name: /Água/ }));
     fireEvent.change(screen.getByDisplayValue('Selecione a mesa'), { target: { value: 'table' } });
+    fireEvent.change(await screen.findByDisplayValue('Selecione a comanda'), {
+      target: { value: 'tab' },
+    });
     fireEvent.change(screen.getByDisplayValue('Responsável pelo Pedido'), { target: { value: 'admin' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pedido' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Estoque insuficiente de "Água".');
