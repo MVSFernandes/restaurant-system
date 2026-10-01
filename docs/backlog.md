@@ -534,3 +534,12 @@ a correção da navegação pertence à etapa das telas do garçom.
   cores `-strong` (seção 2).
 - **Nesta etapa:** a correção fica só no cartão de mesa livre, na própria
   tela. O token não foi alterado.
+- **Segunda correção pontual na mesma borda (2026-10-01):** o cartão livre
+  passou primeiro a usar o token de texto `text-subtle` como borda (4,76 no
+  claro, 3,75 no escuro). No claro ficou pesado, e a borda passou a ter
+  **dois valores por tema**: `text-subtle` com 79% de opacidade no claro
+  (3,19 contra o cartão) e `text-subtle` cheio no escuro. Duas correções
+  pontuais na mesma borda são sinal de que o conserto certo é no token.
+  Contra a página (`canvas`), o valor do claro fica em **2,91**: nenhum valor
+  entre 3,0 e 3,2 contra o cartão passa de 3:1 contra a página, que é mais
+  escura. O token novo precisa resolver os dois fundos.
