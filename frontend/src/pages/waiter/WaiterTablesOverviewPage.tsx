@@ -20,6 +20,15 @@ import {
   TabsTrigger,
 } from '../../components/ui';
 import type { TableOverviewView, WaiterTableOverview } from '../../types';
+import {
+  FREE_TABLE_BORDER,
+  displayNumber,
+  fitAmountFontSize,
+  formatOpenFor,
+  splitCurrency,
+  spokenOpenFor,
+  tabCountLabel,
+} from './tableFormat';
 
 const VIEWS: { value: TableOverviewView; label: string }[] = [
   { value: 'all', label: 'Todas' },
@@ -41,53 +50,18 @@ type Overview =
   // desde então ao openForMinutes do servidor, sem depender do fuso do aparelho.
   | { state: 'ready'; view: TableOverviewView; tables: WaiterTableOverview[]; receivedAt: number };
 
-// "35 min", "1h05". Precisa caber na linha do número, numa célula estreita.
-function formatOpenFor(minutes: number) {
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h${String(minutes % 60).padStart(2, '0')}`;
-}
-
-function spokenOpenFor(minutes: number) {
-  if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  const h = `${hours} ${hours === 1 ? 'hora' : 'horas'}`;
-  return rest ? `${h} e ${rest} ${rest === 1 ? 'minuto' : 'minutos'}` : h;
-}
-
-const tabCountLabel = (count: number) => `${count} ${count === 1 ? 'comanda' : 'comandas'}`;
-
 // O saldo é 16px sempre que cabe. Onde não cabe (cartão estreito, valor
-// grande), desce até 12px em vez de separar o "R$" do valor: ocupa a largura
-// útil do cartão (100cqi) menos o "R$" com o espaço (16px, mais 1px de folga).
-// Medido no Chrome com Inter em peso 700: cada dígito tabular ocupa 0,644 do
-// tamanho da fonte; ponto e vírgula, 0,278.
-const amountEms = (amount: string) =>
-  [...amount].reduce((sum, char) => sum + (/\d/.test(char) ? 0.644 : 0.278), 0);
-const amountFontSize = (amount: string) =>
-  `max(12px, min(16px, calc((100cqi - 17px) / ${amountEms(amount).toFixed(3)})))`;
+// grande), desce até 12px em vez de separar o "R$" do valor. O "R$" com o
+// espaço ocupa 16px; 17px dá 1px de folga.
+const amountFontSize = (amount: string) => fitAmountFontSize(amount, { max: 16, min: 12, reserve: 17 });
 
 // Peso visual por situação: a mesa ocupada é cheia e colorida; a livre fica
 // quieta. Num salão quase vazio, as ocupadas precisam saltar.
 const cardTone = {
   OCCUPIED: { card: 'border-primary bg-primary-subtle', label: 'text-primary-strong', text: 'Ocupada' },
-  // REMENDO SOBRE REMENDO, de propósito e provisório (docs/backlog.md, item 31).
-  //
-  // 1. A borda usa o token de TEXTO text-subtle, não um token de borda. O
-  //    cartão livre só existe na grade pela borda, e borda é elemento de
-  //    interface: precisa de 3:1. Nem border-default (1,23) nem border-strong
-  //    (2,56) chegam lá contra o surface.
-  // 2. São DOIS VALORES DIFERENTES POR TEMA. No escuro, text-subtle cheio dá
-  //    3,75 contra o cartão. No claro, cheio dava 4,76 e pesava demais; ali o
-  //    mesmo token vai com 79% de opacidade: 3,19 contra o cartão, 2,91
-  //    contra a página e 3,00 contra o cartão em hover.
-  //
-  // Duas correções pontuais na mesma borda dizem que o conserto certo é no
-  // token. Quando ele vier, este cartão volta a usar um token de borda e as
-  // duas exceções saem.
+  // A borda da mesa livre é um remendo provisório; ver FREE_TABLE_BORDER.
   AVAILABLE: {
-    card: 'border-[rgb(var(--color-text-subtle)/0.79)] dark:border-[rgb(var(--color-text-subtle))] bg-surface hover:bg-surface-hover',
+    card: clsx(FREE_TABLE_BORDER, 'bg-surface hover:bg-surface-hover'),
     label: 'text-success-strong',
     text: 'Livre',
   },
@@ -98,10 +72,6 @@ const cardBase =
 const numberText = 'text-[26px] font-bold leading-[30px] tabular-nums';
 const statusText = 'mt-1 text-[10px] font-bold uppercase leading-[13px] tracking-[0.4px]';
 const metaText = 'text-[11px] leading-[14px] text-muted';
-
-// Só a exibição: "07" em vez de "7", para todos os números terem a mesma
-// largura e a grade alinhar como a planta do salão. O leitor de tela diz "Mesa 7".
-const displayNumber = (number: number) => String(number).padStart(2, '0');
 
 const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }> = ({ table, elapsedMinutes }) => {
   const href = `/waiter/tables/${encodeURIComponent(table.id)}`;
@@ -165,12 +135,6 @@ const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }
     </Link>
   );
 };
-
-// "R$ 1.234,56" -> ["R$", "1.234,56"]: o símbolo vai menor, o valor ganha o destaque.
-function splitCurrency(formatted: string): [string, string] {
-  const match = formatted.match(/^(\D+?)\s*(\d.*)$/);
-  return match ? [match[1].trim(), match[2]] : ['', formatted];
-}
 
 const GridSkeleton: React.FC = () => (
   <div className="grid grid-cols-3 gap-3" aria-hidden="true">
