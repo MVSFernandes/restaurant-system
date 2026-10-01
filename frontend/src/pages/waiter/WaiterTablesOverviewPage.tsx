@@ -81,16 +81,21 @@ const numberText = 'text-[26px] font-bold leading-[30px] tabular-nums';
 const statusText = 'mt-1 text-[10px] font-bold uppercase leading-[13px] tracking-[0.4px]';
 const metaText = 'text-[11px] leading-[14px] text-muted';
 
+// Só a exibição: "07" em vez de "7", para todos os números terem a mesma
+// largura e a grade alinhar como a planta do salão. O leitor de tela diz "Mesa 7".
+const displayNumber = (number: number) => String(number).padStart(2, '0');
+
 const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }> = ({ table, elapsedMinutes }) => {
   const href = `/waiter/tables/${encodeURIComponent(table.id)}`;
 
   if (table.status === 'AVAILABLE') {
     const tone = cardTone.AVAILABLE;
-    // Sem convite escrito: o cartão inteiro é o alvo de toque, e "Livre" já diz o que ele é.
+    // O convite discreto no rodapé equilibra o cartão, que sem ele fica oco.
     return (
-      <Link to={href} aria-label={`Mesa ${table.number}, livre`} className={clsx(cardBase, tone.card)}>
-        <span className={numberText}>{table.number}</span>
+      <Link to={href} aria-label={`Mesa ${table.number}, livre. Abrir mesa.`} className={clsx(cardBase, tone.card)}>
+        <span className={numberText}>{displayNumber(table.number)}</span>
         <span className={clsx(statusText, tone.label)}>{tone.text}</span>
+        <span className="mt-auto text-caption text-muted">Abrir mesa</span>
       </Link>
     );
   }
@@ -116,7 +121,7 @@ const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }
       className={clsx(cardBase, '[container-type:inline-size]', tone.card)}
     >
       <span className="flex items-baseline gap-1">
-        <span className={numberText}>{table.number}</span>
+        <span className={numberText}>{displayNumber(table.number)}</span>
         {minutes !== null && (
           <span className="ml-auto whitespace-nowrap text-[11px] leading-[14px] tabular-nums text-muted">
             {formatOpenFor(minutes)}
