@@ -316,10 +316,13 @@ export const tableService = {
   },
 
   async updateStatus(id: string, status: Table['status']): Promise<Table> {
-    if (!['AVAILABLE', 'OCCUPIED'].includes(status)) {
-      throw new ValidationError('status', 'Use AVAILABLE ou OCCUPIED');
+    if (status === 'OCCUPIED') {
+      throw new ValidationError('status', 'Para ocupar a mesa, abra uma comanda.');
     }
-    if (status === 'AVAILABLE' && await tableTabRepository.hasOpenByTable(id)) {
+    if (status !== 'AVAILABLE') {
+      throw new ValidationError('status', 'Use AVAILABLE');
+    }
+    if (await tableTabRepository.hasOpenByTable(id)) {
       throw new ValidationError(
         'status',
         'Não é possível liberar a mesa enquanto existir comanda aberta'

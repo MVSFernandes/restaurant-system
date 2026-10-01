@@ -21,6 +21,7 @@ import {
   PaymentMethod,
   SaleType,
   UserRole,
+  TableTab,
 } from '../types/domain';
 import {
   NotFoundError,
@@ -239,12 +240,19 @@ function toStockRpcItems(items: ResolvedItemPricing[]): StockRpcItem[] {
   }));
 }
 
-async function validateOrderTableContext(input: CreateOrderInput): Promise<void> {
+function normalizedNullableName(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+}
+
+async function validateOrderTableContext(input: CreateOrderInput): Promise<TableTab | null> {
   if (input.type === 'DINE_IN') {
     if (!input.tableId) {
       throw new ValidationError('tableId', 'Selecione a mesa do pedido.');
     }
-    if (!input.tableTabId) return;
+    if (!input.tableTabId) {
+      throw new ValidationError('tableTabId', 'Selecione a comanda do pedido.');
+    }
 
     const [table, tab] = await Promise.all([
       tableRepository.findById(input.tableId),
@@ -254,15 +262,22 @@ async function validateOrderTableContext(input: CreateOrderInput): Promise<void>
     if (!tab || tab.tableId !== input.tableId) {
       throw new ValidationError('tableTabId', 'A comanda não pertence à mesa selecionada.');
     }
-    if (table.status !== 'OCCUPIED' || tab.status !== 'OPEN') {
-      throw new ValidationError('tableTabId', 'A comanda precisa estar aberta em uma mesa ocupada.');
+    if (tab.status !== 'OPEN') {
+      throw new ValidationError(
+        'tableTabId',
+        'A comanda já foi fechada. A conta já foi paga.'
+      );
     }
-    return;
+    if (table.status !== 'OCCUPIED') {
+      throw new ValidationError('tableId', 'A mesa da comanda precisa estar ocupada.');
+    }
+    return tab;
   }
 
   if (input.tableId || input.tableTabId) {
     throw new ValidationError('tableTabId', 'Pedidos sem consumo no local não usam mesa ou comanda.');
   }
+  return null;
 }
 async function releaseTableIfEmpty(tableId: string | null): Promise<void> {
   if (!tableId) return;
@@ -299,12 +314,13 @@ export const orderService = {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
 
-    await validateOrderTableContext(input);
+    const tableTab = await validateOrderTableContext(input);
+    const customerName = normalizedNullableName(tableTab?.name ?? input.customerName);
 
-    if (input.type === 'TAKE_AWAY' && !String(input.customerName ?? '').trim()) {
+    if (input.type === 'TAKE_AWAY' && !customerName) {
       throw new ValidationError('customerName', 'Informe o nome do cliente para retirada.');
     }
-    if (input.type === 'DELIVERY' && !String(input.customerName ?? '').trim()) {
+    if (input.type === 'DELIVERY' && !customerName) {
       throw new ValidationError('customerName', 'Informe o nome do cliente para entrega.');
     }
 
@@ -337,10 +353,10 @@ export const orderService = {
       status: 'NEW',
       total,
       deliveryFee,
-      customerName: input.customerName ?? null,
+      customerName,
       customerId: input.customerId ?? null,
       tableId: input.tableId ?? null,
-      tableTabId: input.tableTabId ?? null,
+      tableTabId: tableTab?.id ?? null,
       userId: actingUser.id,
       waiterId,
       cashRegisterSessionId: session.id,
@@ -373,23 +389,24 @@ export const orderService = {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
 
-    await validateOrderTableContext(input);
+    const tableTab = await validateOrderTableContext(input);
 
     const type = input.type ?? 'TAKE_AWAY';
+    const customerName = normalizedNullableName(tableTab?.name ?? input.customerName);
     const config = await restaurantConfigRepository.get();
     const paymentMethod = validatePublicPaymentMethod(input.paymentMethod, config.enabledPayments);
 
-    if (type !== 'DINE_IN' && !String(input.customerName ?? '').trim()) {
+    if (type !== 'DINE_IN' && !customerName) {
       throw new ValidationError('customerName', 'Informe o nome do cliente.');
     }
 
     let customerId: string | null = null;
     if (input.customerPhone) {
       let customer = await customerRepository.findByPhone(input.customerPhone);
-      if (!customer && input.customerName) {
+      if (!customer && customerName) {
         customer = await customerRepository.create({
           id: createId(),
-          name: input.customerName,
+          name: customerName,
           phone: input.customerPhone,
           email: null,
           address: null,
@@ -439,10 +456,10 @@ export const orderService = {
       status: 'NEW',
       total,
       deliveryFee,
-      customerName: input.customerName ?? null,
+      customerName,
       customerId,
-      tableId: null,
-      tableTabId: null,
+      tableId: tableTab?.tableId ?? null,
+      tableTabId: tableTab?.id ?? null,
       userId: admin.id,
       waiterId: null,
       cashRegisterSessionId: session.id,
