@@ -58,33 +58,44 @@ function spokenOpenFor(minutes: number) {
 
 const tabCountLabel = (count: number) => `${count} ${count === 1 ? 'comanda' : 'comandas'}`;
 
-// O saldo ocupa a largura útil do cartão (100cqi) menos o "R$" (~20px), sem
-// passar de 16px nem descer de 12px. Cada dígito tabular mede ~0,56 do tamanho
-// da fonte (medido no Chrome com Inter). Assim "1.234,56" fica em 16px a 390px
-// e só diminui onde não caberia, como a 360px.
+// O saldo é 16px sempre que cabe. Onde não cabe (cartão estreito, valor
+// grande), desce até 12px em vez de separar o "R$" do valor: ocupa a largura
+// útil do cartão (100cqi) menos o "R$" com o espaço (16px, mais 1px de folga).
+// Medido no Chrome com Inter em peso 700: cada dígito tabular ocupa 0,644 do
+// tamanho da fonte; ponto e vírgula, 0,278.
+const amountEms = (amount: string) =>
+  [...amount].reduce((sum, char) => sum + (/\d/.test(char) ? 0.644 : 0.278), 0);
 const amountFontSize = (amount: string) =>
-  `max(12px, min(16px, calc((100cqi - 20px) / ${(amount.length * 0.56).toFixed(2)})))`;
+  `max(12px, min(16px, calc((100cqi - 17px) / ${amountEms(amount).toFixed(3)})))`;
 
-const statusText ='text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]';
+// Peso visual por situação: a mesa ocupada é cheia e colorida; a livre fica
+// quieta. Num salão quase vazio, as ocupadas precisam saltar.
+const cardTone = {
+  OCCUPIED: { card: 'border-primary bg-primary-subtle', label: 'text-primary-strong', text: 'Ocupada' },
+  AVAILABLE: { card: 'border-default bg-surface hover:bg-surface-hover', label: 'text-success-strong', text: 'Livre' },
+} as const;
+
+const cardBase =
+  'flex h-32 min-w-0 flex-col rounded-token-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas';
+const numberText = 'text-[26px] font-bold leading-[30px] tabular-nums';
+const statusText = 'mt-1 text-[10px] font-bold uppercase leading-[13px] tracking-[0.4px]';
+const metaText = 'text-[11px] leading-[14px] text-muted';
 
 const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }> = ({ table, elapsedMinutes }) => {
   const href = `/waiter/tables/${encodeURIComponent(table.id)}`;
-  const base =
-    'flex min-h-[7.75rem] min-w-0 flex-col rounded-token-lg p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas';
 
   if (table.status === 'AVAILABLE') {
+    const tone = cardTone.AVAILABLE;
+    // Sem convite escrito: o cartão inteiro é o alvo de toque, e "Livre" já diz o que ele é.
     return (
-      <Link
-        to={href}
-        aria-label={`Mesa ${table.number}, livre. Abrir comanda.`}
-        className={clsx(base, 'border border-dashed border-strong hover:bg-surface-hover')}
-      >
-        <span className="text-title font-semibold leading-none tracking-tight tabular-nums">{table.number}</span>
-        <span className={clsx(statusText, 'mt-1.5 text-muted')}>Livre</span>
-        <span className="mt-auto text-caption font-medium text-default">Abrir comanda</span>
+      <Link to={href} aria-label={`Mesa ${table.number}, livre`} className={clsx(cardBase, tone.card)}>
+        <span className={numberText}>{table.number}</span>
+        <span className={clsx(statusText, tone.label)}>{tone.text}</span>
       </Link>
     );
   }
+
+  const tone = cardTone.OCCUPIED;
 
   // Ocupada sem comanda aberta: pedido lançado fora de comanda (pelo caixa).
   // Não há saldo de comanda para mostrar, e zero seria inventado.
@@ -102,29 +113,31 @@ const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }
     <Link
       to={href}
       aria-label={spoken}
-      className={clsx(base, '[container-type:inline-size] border border-default bg-surface shadow-token-xs hover:bg-surface-hover')}
+      className={clsx(cardBase, '[container-type:inline-size]', tone.card)}
     >
       <span className="flex items-baseline gap-1">
-        <span className="text-title font-semibold leading-none tracking-tight tabular-nums">{table.number}</span>
+        <span className={numberText}>{table.number}</span>
         {minutes !== null && (
-          <span className="ml-auto whitespace-nowrap text-caption tabular-nums text-muted">{formatOpenFor(minutes)}</span>
+          <span className="ml-auto whitespace-nowrap text-[11px] leading-[14px] tabular-nums text-muted">
+            {formatOpenFor(minutes)}
+          </span>
         )}
       </span>
-      <span className={clsx(statusText, 'mt-1.5 text-warning-strong')}>Ocupada</span>
+      <span className={clsx(statusText, tone.label)}>{tone.text}</span>
 
       {hasTabs ? (
-        <span className="mt-auto pt-3">
+        <span className="mt-auto">
           {/* Símbolo e valor são uma coisa só: nunca quebram entre si. */}
-          <span className="flex items-baseline gap-x-1 whitespace-nowrap">
-            <span className="text-caption text-muted">{currency}</span>
-            <span className="font-semibold leading-6 tracking-tight tabular-nums" style={{ fontSize: amountFontSize(amount) }}>
+          <span className="flex items-baseline gap-x-0.5 whitespace-nowrap">
+            <span className="text-[11px] leading-[14px] text-muted">{currency}</span>
+            <span className="font-bold leading-5 tabular-nums" style={{ fontSize: amountFontSize(amount) }}>
               {amount}
             </span>
           </span>
-          <span className="block text-caption text-muted">{tabCountLabel(table.openTabCount)}</span>
+          <span className={clsx('block', metaText)}>{tabCountLabel(table.openTabCount)}</span>
         </span>
       ) : (
-        <span className="mt-auto pt-3 text-caption text-muted">Sem comanda</span>
+        <span className={clsx('mt-auto', metaText)}>Sem comanda</span>
       )}
     </Link>
   );
@@ -137,12 +150,11 @@ function splitCurrency(formatted: string): [string, string] {
 }
 
 const GridSkeleton: React.FC = () => (
-  <div className="grid grid-cols-3 gap-2" aria-hidden="true">
+  <div className="grid grid-cols-3 gap-3" aria-hidden="true">
     {Array.from({ length: 9 }, (_, index) => (
-      <div key={index} className="flex min-h-[7.75rem] flex-col rounded-token-lg border border-default bg-surface p-2.5">
-        <Skeleton className="h-6 w-8" />
-        <Skeleton className="mt-2 h-3 w-12" />
-        <Skeleton className="mt-auto h-5 w-16" />
+      <div key={index} className="flex h-32 flex-col rounded-token-lg border border-default bg-surface p-3">
+        <Skeleton className="h-7 w-8" />
+        <Skeleton className="mt-1.5 h-3 w-12" />
       </div>
     ))}
   </div>
@@ -249,9 +261,14 @@ const WaiterTablesOverviewPage: React.FC = () => {
 
       <Tabs value={view} onValueChange={changeView}>
         <div className="sticky top-0 z-20 -mx-3 bg-canvas/95 px-3 py-2 backdrop-blur">
-          <TabsList aria-label="Filtrar mesas" className="grid w-full grid-cols-3">
+          {/* Um grupo só: a aba ativa é um cartão levantado; as outras, texto dentro do contêiner. */}
+          <TabsList aria-label="Filtrar mesas" className="grid w-full grid-cols-3 gap-1 rounded-token-lg">
             {VIEWS.map(({ value, label }) => (
-              <TabsTrigger key={value} value={value} className="min-h-11 text-body font-medium">
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="min-h-11 rounded-token-md border border-transparent text-body font-medium aria-selected:border-default"
+              >
                 {label}
               </TabsTrigger>
             ))}
@@ -279,7 +296,7 @@ const WaiterTablesOverviewPage: React.FC = () => {
           )}
 
           {overview.state === 'ready' && overview.tables.length > 0 && (
-            <ul className="grid grid-cols-3 gap-2">
+            <ul className="grid grid-cols-3 gap-3">
               {[...overview.tables]
                 .sort((a, b) => a.number - b.number)
                 .map((table) => (
