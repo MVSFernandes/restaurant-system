@@ -107,6 +107,13 @@ async function main() {
       'utf8'
     ));
 
+    // Reproduces the state left by the former UI after the earlier migrations.
+    await db.exec("update tables set status='OCCUPIED' where id='legacy-empty'");
+    await db.exec(fs.readFileSync(
+      path.join(__dirname, '../supabase/migrations/20261001120000_require_open_tab_for_occupied_table.sql'),
+      'utf8'
+    ));
+
     const migrated = await db.query(`
       select
         (select count(*)::int from orders where status in ('NEW','IN_PROGRESS','READY','DELIVERED') and table_tab_id is null) orphan_orders,
@@ -123,6 +130,13 @@ async function main() {
       legacy_tabs: 1,
     });
     console.log('PASS: general migration preserves active accounts and releases empty occupied tables');
+
+    await assert.rejects(
+      db.exec("update tables set status='OCCUPIED' where id='legacy-empty'"),
+      /TABLE_OCCUPIED_REQUIRES_OPEN_TAB/
+    );
+    assert.equal((await db.query("select status from tables where id='legacy-empty'")).rows[0].status, 'AVAILABLE');
+    console.log('PASS: PostgreSQL directly rejects an occupied table without an open tab');
 
     await db.exec(`
       insert into cash_register_sessions(id,status) values ('atomic-session','OPEN');
@@ -144,6 +158,14 @@ async function main() {
     assert.equal(
       (await db.query("select count(*)::int count from table_tabs where table_id='atomic-free'")).rows[0].count,
       1
+    );
+    await assert.rejects(
+      db.exec("delete from table_tabs where id='atomic-tab'"),
+      /TABLE_OCCUPIED_REQUIRES_OPEN_TAB/
+    );
+    assert.equal(
+      (await db.query("select status from table_tabs where id='atomic-tab'")).rows[0].status,
+      'OPEN'
     );
     await db.query("select public.close_table_tab('atomic-tab',null,null,'user')");
     assert.equal((await db.query("select status from tables where id='atomic-free'")).rows[0].status, 'AVAILABLE');
@@ -240,8 +262,7 @@ async function main() {
     });
     console.log('PASS: a fully paid tab closes without another payment method');
 
-    await db.exec("update tables set status='OCCUPIED' where id='empty-tab-table'");
-    await db.exec("insert into table_tabs(id,table_id,cash_register_session_id,name,opened_by_id) values ('empty-tab','empty-tab-table','empty-session','Vazia','user')");
+    await db.query("select public.open_table_tab('empty-tab','empty-tab-table','empty-session','Vazia','user')");
     await assert.rejects(
       db.exec("update cash_register_sessions set status='CLOSED' where id='empty-session'"),
       /CASH_REGISTER_OPEN_TABS/
