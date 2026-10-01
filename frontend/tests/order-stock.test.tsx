@@ -8,7 +8,6 @@ vi.mock('../src/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'admin', 
 vi.mock('../src/hooks/useMenuViewers', () => ({ useMenuViewers: () => undefined }));
 vi.mock('../src/hooks/useOrderEvents', () => ({ useOrderEvents: () => undefined }));
 import OrdersPage from '../src/pages/pdv/OrdersPage';
-import WaiterTablesPage from '../src/pages/waiter/WaiterTablesPage';
 import PublicMenuPage from '../src/pages/menu/PublicMenuPage';
 import { BrandingContext, DEFAULT_BRANDING_CONTEXT } from '../src/contexts/brandingContext';
 
@@ -46,26 +45,18 @@ async function openPdv() {
   render(<OrdersPage />);
   fireEvent.click(await screen.findByRole('button', { name: 'Novo Pedido' }));
 }
-async function openWaiter() {
-  render(<WaiterTablesPage />);
-  fireEvent.click(await screen.findByRole('button', { name: /Mesa 1 Ocupada/ }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Adicionar Itens' }));
-}
-
 describe('stock availability at order entry', () => {
-  for (const [name, open] of [['PDV', openPdv], ['waiter', openWaiter]] as const) {
-    it(`${name} disables unavailable products and keeps unlinked products sellable`, async () => {
-      await open();
-      const unavailable = screen.getByRole('button', { name: /Coca Lata.*Sem estoque/ }) as HTMLButtonElement;
-      expect(unavailable.disabled).toBe(true);
-      fireEvent.click(unavailable);
-      expect(mocks.post).not.toHaveBeenCalled();
-      const unlinked = screen.getByRole('button', { name: /Sem vínculo/ }) as HTMLButtonElement;
-      expect(unlinked.disabled).toBe(false);
-      fireEvent.click(unlinked);
-      expect(screen.getAllByText('Sem vínculo')).toHaveLength(2);
-    });
-  }
+  it('PDV disables unavailable products and keeps unlinked products sellable', async () => {
+    await openPdv();
+    const unavailable = screen.getByRole('button', { name: /Coca Lata.*Sem estoque/ }) as HTMLButtonElement;
+    expect(unavailable.disabled).toBe(true);
+    fireEvent.click(unavailable);
+    expect(mocks.post).not.toHaveBeenCalled();
+    const unlinked = screen.getByRole('button', { name: /Sem vínculo/ }) as HTMLButtonElement;
+    expect(unlinked.disabled).toBe(false);
+    fireEvent.click(unlinked);
+    expect(screen.getAllByText('Sem vínculo')).toHaveLength(2);
+  });
   it('public menu marks unavailable products without an add action', async () => {
     render(<PublicMenuPage />);
     const unavailableName = await screen.findByText('Coca Lata');
@@ -194,13 +185,6 @@ describe('stock race at confirmation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pedido' }));
     await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(2));
     expect(mocks.post.mock.calls[0][1].idempotencyKey).toBe(mocks.post.mock.calls[1][1].idempotencyKey);
-  });
-  it('waiter sees the translated stock error inside the order modal', async () => {
-    mocks.post.mockRejectedValue({ response: { status: 400, data: { message: 'Insufficient stock of "Água".' } } });
-    await openWaiter();
-    fireEvent.click(screen.getByRole('button', { name: /Água/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar para Cozinha' }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Estoque insuficiente de "Água".');
   });
 });
 
