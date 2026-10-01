@@ -16,6 +16,7 @@ const OrderHistoryPage = lazy(() => import('./pages/pdv/OrderHistoryPage'));
 const CashClosuresPage = lazy(() => import('./pages/pdv/CashClosuresPage'));
 
 const WaiterTablesOverviewPage = lazy(() => import('./pages/waiter/WaiterTablesOverviewPage'));
+const WaiterTablePage = lazy(() => import('./pages/waiter/WaiterTablePage'));
 const WaiterHistoryPage = lazy(() => import('./pages/waiter/WaiterHistoryPage'));
 
 const CategoriesPage = lazy(() => import('./pages/menu/CategoriesPage'));
@@ -93,6 +94,11 @@ const router = createBrowserRouter([
               { path: '/waiter/tables', element: <WaiterTablesOverviewPage /> },
             ]),
           },
+          // Telas de detalhe: cabeçalho com voltar e a própria ação fixa embaixo,
+          // no lugar da navegação inferior.
+          ...insideWaiterShell([
+            { path: '/waiter/tables/:tableId', element: <WaiterTablePage /> },
+          ]),
         ],
       },
       {

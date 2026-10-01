@@ -67,6 +67,26 @@ export interface WaiterTableOverview {
   hasCurrentWaiterTab: boolean;
 }
 
+// Resumo de comanda de GET /tables/:tableId/tabs (docs/api-waiter.md).
+// `balance` é o que falta receber; `total` é a soma bruta e não vai para a tela.
+export interface WaiterTableTab {
+  id: string;
+  tableId: string;
+  name: string;
+  status: 'OPEN' | 'CLOSED';
+  openedAt: string;
+  total: number;
+  balance: number;
+  itemCount: number;
+  lastOrderAt: string | null;
+}
+
+export interface WaiterTableTabsResponse {
+  tabs: WaiterTableTab[];
+  total: number;
+  balance: number;
+}
+
 export interface Table {
   id: string;
   number: number;

@@ -35,6 +35,8 @@ export {
   PanelLeftOpen as SidebarExpandIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
+  ArrowLeft as BackIcon,
+  Plus as AddIcon,
   History as HistoryIcon,
   WifiOff as OfflineIcon,
 } from 'lucide-react';
