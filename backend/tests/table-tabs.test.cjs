@@ -81,14 +81,57 @@ test('service opens the first tab on an available table through the atomic repos
     (error) => error.code === 'VALIDATION_ERROR' && /Já existe/.test(error.message)
   );
 });
+test('service requires a tab for a dine-in order', async () => {
+  await assert.rejects(
+    orderService.createOrder({
+      type: 'DINE_IN', tableId: 'table-1', items: [],
+    }, { id: 'user-1', role: 'CASHIER' }),
+    (error) => error.code === 'VALIDATION_ERROR'
+      && error.details.field === 'tableTabId'
+      && /Selecione a comanda/.test(error.message)
+  );
+});
+
+test('service refuses a tab from another table before creating the order', async () => {
+  tableTabRepository.findById = async () => openTab({ tableId: 'table-2' });
+  let createCalled = false;
+  orderRepository.createWithStock = async () => { createCalled = true; };
+
+  await assert.rejects(
+    orderService.createOrder({
+      type: 'DINE_IN', tableId: 'table-1', tableTabId: 'tab-1', items: [],
+    }, { id: 'user-1', role: 'CASHIER' }),
+    (error) => error.code === 'VALIDATION_ERROR' && /não pertence/.test(error.message)
+  );
+  assert.equal(createCalled, false);
+});
+
 test('service refuses a new order for a closed tab', async () => {
   tableTabRepository.findById = async () => openTab({ status: 'CLOSED', closedById: 'user-1', closedAt: now });
   await assert.rejects(
     orderService.createOrder({
       type: 'DINE_IN', tableId: 'table-1', tableTabId: 'tab-1', items: [],
     }, { id: 'user-1', role: 'CASHIER' }),
-    (error) => error.code === 'VALIDATION_ERROR' && /precisa estar aberta/.test(error.message)
+    (error) => error.code === 'VALIDATION_ERROR' && /conta já foi paga/.test(error.message)
   );
+});
+
+test('dine-in order uses the validated tab name and tab id', async () => {
+  tableTabRepository.findById = async () => openTab({ name: '  Ana  ' });
+  let captured;
+  orderRepository.createWithStock = async (order) => {
+    captured = order;
+    return order;
+  };
+
+  await orderService.createOrder({
+    type: 'DINE_IN', tableId: 'table-1', tableTabId: 'tab-1',
+    customerName: 'Nome divergente', items: [],
+  }, { id: 'user-1', role: 'CASHIER' });
+
+  assert.equal(captured.customerName, 'Ana');
+  assert.equal(captured.tableTabId, 'tab-1');
+  assert.equal(captured.tableId, 'table-1');
 });
 
 test('table totals are derived from the open tabs returned by the repository', async () => {
@@ -167,10 +210,10 @@ test('counter pickup and delivery orders remain tabless', async () => {
   orderRepository.createWithStock = async (order) => { captured.push(order); return order; };
 
   await orderService.createOrder({
-    type: 'TAKE_AWAY', customerName: 'Balcão', items: [{ productId: 'product' }],
+    type: 'TAKE_AWAY', customerName: '  Balcão  ', items: [{ productId: 'product' }],
   }, { id: 'user-1', role: 'CASHIER' });
   await orderService.createOrder({
-    type: 'DELIVERY', customerName: 'Entrega', deliveryType: 'NONE', deliveryFee: 0,
+    type: 'DELIVERY', customerName: '  Entrega  ', deliveryType: 'NONE', deliveryFee: 0,
     items: [{ productId: 'product' }],
   }, { id: 'user-1', role: 'CASHIER' });
 
@@ -178,4 +221,5 @@ test('counter pickup and delivery orders remain tabless', async () => {
     ['TAKE_AWAY', null, null],
     ['DELIVERY', null, null],
   ]);
+  assert.deepEqual(captured.map((order) => order.customerName), ['Balcão', 'Entrega']);
 });
