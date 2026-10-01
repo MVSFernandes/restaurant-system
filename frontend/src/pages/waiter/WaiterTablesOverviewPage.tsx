@@ -58,7 +58,14 @@ function spokenOpenFor(minutes: number) {
 
 const tabCountLabel = (count: number) => `${count} ${count === 1 ? 'comanda' : 'comandas'}`;
 
-const statusText = 'text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]';
+// O saldo ocupa a largura útil do cartão (100cqi) menos o "R$" (~20px), sem
+// passar de 16px nem descer de 12px. Cada dígito tabular mede ~0,56 do tamanho
+// da fonte (medido no Chrome com Inter). Assim "1.234,56" fica em 16px a 390px
+// e só diminui onde não caberia, como a 360px.
+const amountFontSize = (amount: string) =>
+  `max(12px, min(16px, calc((100cqi - 20px) / ${(amount.length * 0.56).toFixed(2)})))`;
+
+const statusText ='text-[11px] font-semibold uppercase leading-4 tracking-[0.06em]';
 
 const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }> = ({ table, elapsedMinutes }) => {
   const href = `/waiter/tables/${encodeURIComponent(table.id)}`;
@@ -95,7 +102,7 @@ const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }
     <Link
       to={href}
       aria-label={spoken}
-      className={clsx(base, 'border border-default bg-surface shadow-token-xs hover:bg-surface-hover')}
+      className={clsx(base, '[container-type:inline-size] border border-default bg-surface shadow-token-xs hover:bg-surface-hover')}
     >
       <span className="flex items-baseline gap-1">
         <span className="text-title font-semibold leading-none tracking-tight tabular-nums">{table.number}</span>
@@ -107,15 +114,10 @@ const TableCard: React.FC<{ table: WaiterTableOverview; elapsedMinutes: number }
 
       {hasTabs ? (
         <span className="mt-auto pt-3">
-          <span className="flex flex-wrap items-baseline gap-x-1">
+          {/* Símbolo e valor são uma coisa só: nunca quebram entre si. */}
+          <span className="flex items-baseline gap-x-1 whitespace-nowrap">
             <span className="text-caption text-muted">{currency}</span>
-            {/* A partir de R$ 10.000,00 o valor desce um tamanho para não encostar na borda a 360px. */}
-            <span
-              className={clsx(
-                'font-semibold leading-6 tracking-tight tabular-nums',
-                amount.length > 8 ? 'text-body' : 'text-body-lg'
-              )}
-            >
+            <span className="font-semibold leading-6 tracking-tight tabular-nums" style={{ fontSize: amountFontSize(amount) }}>
               {amount}
             </span>
           </span>
