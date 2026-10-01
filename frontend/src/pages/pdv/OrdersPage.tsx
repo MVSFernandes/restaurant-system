@@ -190,6 +190,12 @@ const OrdersPage: React.FC = () => {
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const announcedOrderIdsRef = useRef<Set<string>>(new Set());
   const ordersLoadedRef = useRef(false);
+  const requestedTableIdRef = useRef(
+    typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('tableId')
+  );
+  const requestedTableHandledRef = useRef(false);
 
   const [customerName, setCustomerName] = useState('');
   const [deliveryStreet, setDeliveryStreet] = useState('');
@@ -690,6 +696,23 @@ const OrdersPage: React.FC = () => {
     setNewOrderIdempotencyKey(createIdempotencyKey());
     setShowNewOrder(true);
   };
+
+  useEffect(() => {
+    const requestedTableId = requestedTableIdRef.current;
+    if (requestedTableHandledRef.current || loading || !requestedTableId) return;
+
+    requestedTableHandledRef.current = true;
+    const table = tables.find((candidate) => candidate.id === requestedTableId);
+    if (!table) {
+      setToast({ type: 'error', message: 'A mesa informada não foi encontrada.' });
+      return;
+    }
+
+    setOrderType('DINE_IN');
+    setSelectedTableId(table.id);
+    setNewOrderIdempotencyKey(createIdempotencyKey());
+    setShowNewOrder(true);
+  }, [loading, tables]);
 
   const handleCreateOrder = async () => {
     if (orderSubmittingRef.current) return;

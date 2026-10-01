@@ -105,6 +105,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  window.history.replaceState({}, '', '/');
   vi.restoreAllMocks();
 });
 
@@ -184,6 +185,18 @@ describe('PDV table tabs', () => {
     expect(await screen.findByText('Já existe uma comanda aberta com esse nome nesta mesa')).toBeTruthy();
     expect(mocks.post).toHaveBeenCalledTimes(1);
     expect(mocks.post.mock.calls[0][0]).toBe('/tables/free-table/tabs');
+  });
+});
+
+describe('OrdersPage table query', () => {
+  it('preselects the requested table and opens the order modal', async () => {
+    window.history.replaceState({}, '', '/pdv/orders?tableId=occupied-table');
+    render(<OrdersPage />);
+
+    expect(await screen.findByRole('heading', { name: 'Novo Pedido' })).toBeTruthy();
+    expect((screen.getByDisplayValue('Mesa 2 — Ocupada') as HTMLSelectElement).value)
+      .toBe('occupied-table');
+    expect(await screen.findByDisplayValue('Selecione a comanda')).toBeTruthy();
   });
 });
 
