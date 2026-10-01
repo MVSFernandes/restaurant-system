@@ -1,13 +1,14 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { clsx } from 'clsx';
-import { MenuCatalogIcon, TableIcon } from '../ui';
+import { FloorPlanIcon, MenuCatalogIcon } from '../ui';
 
 // Casca do app do garçom: sem sidebar, feita para o celular numa mão só.
 // A navegação fica embaixo, ao alcance do polegar.
 
 const navItems = [
-  { to: '/waiter/tables', label: 'Mesas', icon: TableIcon },
+  // A grade é a forma da tela que o item abre: o salão, não a comida.
+  { to: '/waiter/tables', label: 'Mesas', icon: FloorPlanIcon },
   { to: '/waiter/menu', label: 'Cardápio', icon: MenuCatalogIcon },
 ];
 

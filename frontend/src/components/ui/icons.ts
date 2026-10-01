@@ -6,6 +6,7 @@ export {
   ReceiptText as CreditSaleIcon,
   ShoppingCart as OrderIcon,
   UtensilsCrossed as TableIcon,
+  LayoutGrid as FloorPlanIcon,
   Package as ProductIcon,
   Boxes as StockIcon,
   Truck as SupplierIcon,
