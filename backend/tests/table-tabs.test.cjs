@@ -85,13 +85,16 @@ test('service opens the first tab on an available table through the atomic repos
 
   await assert.rejects(
     tableTabService.create('table-1', '   ', 'user-1'),
-    (error) => error.code === 'VALIDATION_ERROR' && error.details.field === 'name'
+    (error) => error.code === 'VALIDATION_ERROR'
+      && error.details.field === 'name'
+      && error.message === 'Informe o nome da comanda.'
   );
 
   tableTabRepository.findOpenByName = async () => openTab();
   await assert.rejects(
     tableTabService.create('table-1', 'ANA', 'user-1'),
-    (error) => error.code === 'VALIDATION_ERROR' && /Já existe/.test(error.message)
+    (error) => error.code === 'VALIDATION_ERROR'
+      && error.message === 'Já existe uma comanda aberta com esse nome nesta mesa.'
   );
 });
 test('service requires a tab for a dine-in order', async () => {
@@ -101,7 +104,7 @@ test('service requires a tab for a dine-in order', async () => {
     }, { id: 'user-1', role: 'CASHIER' }),
     (error) => error.code === 'VALIDATION_ERROR'
       && error.details.field === 'tableTabId'
-      && /Selecione a comanda/.test(error.message)
+      && error.message === 'Selecione a comanda do pedido.'
   );
 });
 

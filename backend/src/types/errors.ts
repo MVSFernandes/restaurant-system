@@ -222,7 +222,10 @@ export class ForbiddenError extends DomainError {
  */
 export class ValidationError extends DomainError {
   constructor(field: string, reason: string) {
-    super(`Validation failed for "${field}": ${reason}.`, {
+    const userMessage = /[.!?]$/.test(reason.trim())
+      ? reason.trim()
+      : `${reason.trim()}.`;
+    super(userMessage, {
       code: 'VALIDATION_ERROR',
       status: 400,
       details: { field, reason },

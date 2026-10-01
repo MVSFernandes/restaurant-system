@@ -166,7 +166,7 @@ describe('PDV table tabs', () => {
         throw {
           response: {
             status: 400,
-            data: { message: 'Já existe uma comanda aberta com esse nome nesta mesa' },
+            data: { message: 'Já existe uma comanda aberta com esse nome nesta mesa.' },
           },
         };
       }
@@ -182,7 +182,7 @@ describe('PDV table tabs', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pedido' }));
 
-    expect(await screen.findByText('Já existe uma comanda aberta com esse nome nesta mesa')).toBeTruthy();
+    expect(await screen.findByText('Já existe uma comanda aberta com esse nome nesta mesa.')).toBeTruthy();
     expect(mocks.post).toHaveBeenCalledTimes(1);
     expect(mocks.post.mock.calls[0][0]).toBe('/tables/free-table/tabs');
   });
@@ -230,7 +230,7 @@ describe('PDV tables page', () => {
     mocks.post.mockRejectedValueOnce({
       response: {
         status: 400,
-        data: { message: 'Já existe uma comanda aberta com esse nome nesta mesa' },
+        data: { message: 'Já existe uma comanda aberta com esse nome nesta mesa.' },
       },
     });
     renderTablesPage();
@@ -241,7 +241,7 @@ describe('PDV tables page', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Abrir Mesa' }));
 
-    expect(await screen.findByText('Já existe uma comanda aberta com esse nome nesta mesa')).toBeTruthy();
+    expect(await screen.findByText('Já existe uma comanda aberta com esse nome nesta mesa.')).toBeTruthy();
     expect(mocks.patch).not.toHaveBeenCalled();
   });
 });
