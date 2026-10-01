@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 'react-router-dom';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import RouteError from './components/layout/RouteError';
+import WaiterLayout from './components/layout/WaiterLayout';
 import { BrandingRouteEffects } from './contexts/BrandingProvider';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
@@ -14,7 +15,7 @@ const CashRegisterPage = lazy(() => import('./pages/pdv/CashRegisterPage'));
 const OrderHistoryPage = lazy(() => import('./pages/pdv/OrderHistoryPage'));
 const CashClosuresPage = lazy(() => import('./pages/pdv/CashClosuresPage'));
 
-const WaiterTablesPage = lazy(() => import('./pages/waiter/WaiterTablesPage'));
+const WaiterTablesOverviewPage = lazy(() => import('./pages/waiter/WaiterTablesOverviewPage'));
 const WaiterHistoryPage = lazy(() => import('./pages/waiter/WaiterHistoryPage'));
 
 const CategoriesPage = lazy(() => import('./pages/menu/CategoriesPage'));
@@ -43,6 +44,9 @@ const LoadingFallback = () => (
 
 // Erro de uma tela aparece dentro da casca: a sidebar continua utilizável.
 const insideShell = (children: RouteObject[]): RouteObject[] => [{ errorElement: <RouteError />, children }];
+const insideWaiterShell = (children: RouteObject[]): RouteObject[] => [
+  { errorElement: <div className="mx-auto max-w-screen-sm p-3 pt-5"><RouteError /></div>, children },
+];
 
 const router = createBrowserRouter([
   {
@@ -75,9 +79,21 @@ const router = createBrowserRouter([
       {
         element: <ProtectedRoute allowedRoles={['ADMIN', 'WAITER']} />,
         children: insideShell([
-          { path: '/waiter/tables', element: <WaiterTablesPage /> },
           { path: '/waiter/history', element: <WaiterHistoryPage /> },
         ]),
+      },
+      {
+        // App do garçom: casca própria, sem a sidebar administrativa.
+        element: <ProtectedRoute allowedRoles={['ADMIN', 'WAITER']} bare />,
+        children: [
+          {
+            element: <WaiterLayout />,
+            // Erro de uma tela fica dentro da casca: a barra inferior continua.
+            children: insideWaiterShell([
+              { path: '/waiter/tables', element: <WaiterTablesOverviewPage /> },
+            ]),
+          },
+        ],
       },
       {
         element: <ProtectedRoute allowedRoles={['ADMIN']} />,
