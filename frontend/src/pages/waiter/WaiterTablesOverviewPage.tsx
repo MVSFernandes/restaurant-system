@@ -72,7 +72,17 @@ const amountFontSize = (amount: string) =>
 // quieta. Num salão quase vazio, as ocupadas precisam saltar.
 const cardTone = {
   OCCUPIED: { card: 'border-primary bg-primary-subtle', label: 'text-primary-strong', text: 'Ocupada' },
-  AVAILABLE: { card: 'border-default bg-surface hover:bg-surface-hover', label: 'text-success-strong', text: 'Livre' },
+  // Borda com o token de TEXTO text-subtle, de propósito. O cartão livre só
+  // existe na grade pela borda, e borda é elemento de interface: precisa de
+  // 3:1. Nem border-default (1,23) nem border-strong (2,56) chegam lá contra
+  // o surface; text-subtle dá 4,76 no claro e 3,75 no escuro. É provisório:
+  // a correção certa é no token de borda (docs/backlog.md, item 31). Quando
+  // ela vier, este cartão volta a usar um token de borda.
+  AVAILABLE: {
+    card: 'border-[rgb(var(--color-text-subtle))] bg-surface hover:bg-surface-hover',
+    label: 'text-success-strong',
+    text: 'Livre',
+  },
 } as const;
 
 const cardBase =
