@@ -648,3 +648,28 @@ A tela usa o que existe; nada disto foi alterado.
   chave quando o pedido dá certo; depois de qualquer erro, reenvia com a
   mesma. Não abre a duplicata, mas sofre a mesma espera de 5 minutos depois
   de um 5xx.
+
+### 37. Abrir comanda: duas recusas chegam ao cliente sem texto em português
+
+- **Onde:** `POST /api/tables/:tableId/tabs`
+  (`backend/src/services/tableTab.service.ts`, `create`, e a função
+  `open_table_tab`), com o mapeamento em
+  `backend/src/middlewares/errorHandler.middleware.ts` (`mapSupabaseError`).
+- **O que acontece:**
+  - **Caixa fechado:** `CashRegisterClosedError` responde
+    "No cash register session is currently open." (código
+    `CASH_REGISTER_CLOSED`). Se o caixa fechar entre a checagem do serviço e
+    a função do banco, a resposta é o texto cru `CASH_REGISTER_CLOSED`, com
+    código `BUSINESS_RULE`.
+  - **Nome repetido numa corrida:** o serviço confere o nome antes e responde
+    em português ("Já existe uma comanda aberta com esse nome nesta mesa.").
+    Mas se dois garçons abrem o mesmo nome ao mesmo tempo, quem barra é a
+    função do banco, e a resposta é o texto cru
+    `TABLE_TAB_NAME_ALREADY_OPEN`, com código `BUSINESS_RULE`.
+- **Como o frontend lida hoje:** a tela de abrir comanda
+  (`frontend/src/pages/waiter/WaiterOpenTabPage.tsx`, `readRefusal`) traduz
+  esses dois casos pelo código. É texto de regra repetido no frontend.
+- **Correção (backend):** `mapSupabaseError` reconhecer
+  `TABLE_TAB_NAME_ALREADY_OPEN` e `CASH_REGISTER_CLOSED` (como já faz com
+  `TABLE_HAS_OPEN_TABS`) e `CashRegisterClosedError` ter mensagem em
+  português. Depois disso, a tela mostra só a mensagem do servidor.
