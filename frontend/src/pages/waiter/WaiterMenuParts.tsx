@@ -92,10 +92,7 @@ const ProductRow: React.FC<{ product: MenuProduct; onPick?: (product: MenuProduc
   if (!onPick) {
     return (
       <li className="border-b border-default last:border-b-0">
-        <div className={rowLayout}>
-          {unavailable && <span className="sr-only">Sem estoque: </span>}
-          {content}
-        </div>
+        <div className={rowLayout}>{content}</div>
       </li>
     );
   }
