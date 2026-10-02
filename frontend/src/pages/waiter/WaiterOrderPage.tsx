@@ -37,7 +37,11 @@ type ScreenState =
 const isNotFound = (reason: unknown) =>
   (reason as { response?: { status?: number } })?.response?.status === 404;
 
-const hasResponse = (error: unknown) => Boolean((error as { response?: unknown })?.response);
+// Status HTTP da resposta de erro; null quando não houve resposta (rede).
+const responseStatus = (error: unknown): number | null =>
+  (error as { response?: { status?: number } })?.response?.status ?? null;
+
+type SendError = { message: string; checkTab: boolean };
 
 /**
  * Preço por kg que o servidor vai cobrar no item por peso.
@@ -284,14 +288,15 @@ type BagSheetProps = {
   lines: DraftLine[];
   sending: boolean;
   online: boolean;
-  error: string | null;
+  error: SendError | null;
+  tabPath: string;
   onClose: () => void;
   onEdit: (line: DraftLine) => void;
   onRemove: (id: string) => void;
   onSend: () => void;
 };
 
-const BagSheet: React.FC<BagSheetProps> = ({ lines, sending, online, error, onClose, onEdit, onRemove, onSend }) => {
+const BagSheet: React.FC<BagSheetProps> = ({ lines, sending, online, error, tabPath, onClose, onEdit, onRemove, onSend }) => {
   const total = lines.reduce((sum, line) => sum + lineTotal(line), 0);
   return (
     <Modal open onClose={sending ? () => {} : onClose} placement="bottom" closeOnOverlay={!sending}>
@@ -352,9 +357,18 @@ const BagSheet: React.FC<BagSheetProps> = ({ lines, sending, online, error, onCl
           <span className="text-[20px] font-bold tabular-nums">{formatCurrencyBRL(total)}</span>
         </p>
         {error && (
-          <p role="alert" className="mt-3 rounded-token-lg border border-warning bg-warning-subtle px-3 py-2.5 text-[13px] leading-[19px] text-default">
-            {error}
-          </p>
+          <div role="alert" className="mt-3 rounded-token-lg border border-warning bg-warning-subtle px-3 py-2.5 text-[13px] leading-[19px] text-default">
+            <p>{error.message}</p>
+            {/* A sacola fica guardada na sessão: dá para ir à comanda e voltar sem perder nada. */}
+            {error.checkTab && (
+              <Link
+                to={tabPath}
+                className={clsx('mt-2 inline-flex min-h-11 items-center font-semibold underline underline-offset-4', focusRing)}
+              >
+                Conferir a comanda
+              </Link>
+            )}
+          </div>
         )}
         {!online && (
           <p role="status" className="mt-3 text-[13px] leading-[19px] text-warning-strong">
@@ -406,7 +420,7 @@ const WaiterOrderPage: React.FC = () => {
   const [sheet, setSheet] = useState<{ product: MenuProduct; line: DraftLine | null } | null>(null);
   const [bagOpen, setBagOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<SendError | null>(null);
   const { draft, upsertLine, removeLine, renewKey, clear } = useOrderDraft(tabId);
   const requestId = useRef(0);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -515,12 +529,33 @@ const WaiterOrderPage: React.FC = () => {
       toast({ title: 'Pedido enviado', variant: 'success' });
       navigate(tabPath, { replace: true });
     } catch (error) {
-      // A sacola não esvazia: o garçom não pode ter que lembrar de cabeça.
-      setSendError(orderErrorMessage(error));
-      // O servidor respondeu e recusou: o próximo envio é uma tentativa nova.
-      // Sem resposta, não se sabe se o pedido chegou; a mesma chave impede a
-      // duplicata se ele tiver chegado.
-      if (hasResponse(error)) renewKey();
+      // A sacola não esvazia em nenhum caso: o garçom não pode ter que lembrar
+      // de cabeça o que o cliente pediu.
+      const status = responseStatus(error);
+      if (status !== null && status >= 400 && status < 500) {
+        // Recusa de regra de negócio (estoque, caixa fechado, comanda fechada):
+        // o pedido não foi criado. O próximo envio é uma tentativa nova, com
+        // chave nova.
+        setSendError({ message: orderErrorMessage(error), checkTab: false });
+        renewKey();
+      } else if (status !== null) {
+        // Erro do servidor (5xx): a chave NÃO troca. Um 500 pode acontecer
+        // depois de o pedido já estar gravado; com chave nova, o reenvio criaria
+        // um segundo pedido e o cliente pagaria duas vezes. Com a mesma chave,
+        // o servidor reconhece o pedido que já criou. O custo é o garçom receber
+        // o mesmo erro por até 5 minutos se reenviar (o cache de idempotência
+        // guarda o 5xx; docs/backlog.md, item 36). Cobrança dupla é erro
+        // invisível em dinheiro; garçom travado é erro visível. Entre os dois,
+        // o visível ganha sempre.
+        setSendError({
+          message: 'O pedido pode já ter sido registrado. Confira a comanda antes de tentar de novo: se ele estiver lá, não reenvie.',
+          checkTab: true,
+        });
+      } else {
+        // Sem resposta: não se sabe se o pedido chegou. A mesma chave impede a
+        // duplicata se ele tiver chegado.
+        setSendError({ message: orderErrorMessage(error), checkTab: false });
+      }
     } finally {
       setSending(false);
     }
@@ -744,6 +779,7 @@ const WaiterOrderPage: React.FC = () => {
           sending={sending}
           online={online}
           error={sendError}
+          tabPath={tabPath}
           onClose={() => setBagOpen(false)}
           onEdit={editLine}
           onRemove={removeFromBag}
