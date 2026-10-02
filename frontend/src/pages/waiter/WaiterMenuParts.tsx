@@ -71,13 +71,13 @@ const ProductRow: React.FC<{ product: MenuProduct; onPick?: (product: MenuProduc
   const content = (
     <>
       <span className="min-w-0 flex-1">
-        {/* Apaga o nome e o preço, não o aviso: com opacity-50 o "Sem estoque"
+        {/* Apaga o nome e o preço, não o aviso: com opacity-50 o "Esgotado"
             cairia de 4,8:1 para perto de 2:1, e ele é a resposta que o garçom procura. */}
         <span className={clsx('block break-words text-[16px] font-medium leading-[21px]', unavailable && 'opacity-50')}>
           {product.name}
         </span>
         {unavailable && (
-          <span className="mt-0.5 block text-[13px] font-semibold leading-[18px] text-warning-strong">Sem estoque</span>
+          <span className="mt-0.5 block text-[13px] font-semibold leading-[18px] text-warning-strong">Esgotado</span>
         )}
       </span>
       <span className={clsx('shrink-0', unavailable && 'opacity-50')}>
@@ -103,7 +103,7 @@ const ProductRow: React.FC<{ product: MenuProduct; onPick?: (product: MenuProduc
         type="button"
         disabled={unavailable}
         onClick={() => onPick(product)}
-        aria-label={unavailable ? `${product.name}, sem estoque` : undefined}
+        aria-label={unavailable ? `${product.name}, esgotado` : undefined}
         className={clsx(rowLayout, unavailable ? 'cursor-not-allowed' : 'hover:bg-surface-hover', focusRing)}
       >
         {content}

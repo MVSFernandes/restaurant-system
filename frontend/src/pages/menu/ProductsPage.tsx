@@ -25,10 +25,12 @@ import {
   PageHeader,
   Select,
   SkeletonCard,
+  Switch,
   Textarea,
   useToast,
 } from '../../components/ui';
 import { ProductIcon, StockLinkIcon, WarningIcon } from '../../components/ui/icons';
+import { useAuth } from '../../hooks/useAuth';
 
 interface LinkFormRow {
   stockItemId: string;
@@ -37,10 +39,13 @@ interface LinkFormRow {
 
 const ProductsPage: React.FC = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canManageProducts = user?.role === 'ADMIN';
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pausingProductIds, setPausingProductIds] = useState<Set<string>>(new Set());
 
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -67,7 +72,7 @@ const ProductsPage: React.FC = () => {
       const [productsRes, categoriesRes, stockRes] = await Promise.all([
         api.get('/products'),
         api.get('/categories'),
-        api.get('/stock'),
+        canManageProducts ? api.get('/stock') : Promise.resolve({ data: [] }),
       ]);
 
       setProducts(productsRes.data);
@@ -79,11 +84,43 @@ const ProductsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [canManageProducts, toast]);
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
+
+  const handlePauseChange = async (product: Product, paused: boolean) => {
+    if (pausingProductIds.has(product.id)) return;
+
+    setPausingProductIds((current) => new Set(current).add(product.id));
+    try {
+      const { data } = await api.patch<Product>(`/products/${product.id}/pause`, { paused });
+      setProducts((current) => current.map((item) => (
+        item.id === product.id ? { ...item, ...data } : item
+      )));
+      toast({
+        title: paused ? 'Produto pausado' : 'Produto disponível novamente',
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error(error);
+      const responseMessage = (
+        error as { response?: { data?: { message?: unknown } } }
+      ).response?.data?.message;
+      toast({
+        title: 'Erro ao alterar disponibilidade',
+        description: typeof responseMessage === 'string' ? responseMessage : 'Tente novamente.',
+        variant: 'error',
+      });
+    } finally {
+      setPausingProductIds((current) => {
+        const next = new Set(current);
+        next.delete(product.id);
+        return next;
+      });
+    }
+  };
 
   const handleOpenModal = (product?: Product) => {
     if (product) {
@@ -282,7 +319,7 @@ const ProductsPage: React.FC = () => {
       <PageHeader
         title="Produtos"
         description="Gerencie os produtos do cardápio"
-        actions={<Button leftIcon={<Plus aria-hidden="true" />} onClick={() => handleOpenModal()}>Novo Produto</Button>}
+        actions={canManageProducts ? <Button leftIcon={<Plus aria-hidden="true" />} onClick={() => handleOpenModal()}>Novo Produto</Button> : undefined}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -292,7 +329,7 @@ const ProductsPage: React.FC = () => {
             icon={<ProductIcon size={40} />}
             title="Nenhum produto cadastrado."
             description="Cadastre o primeiro produto para começar a montar o cardápio."
-            action={<Button leftIcon={<Plus aria-hidden="true" />} onClick={() => handleOpenModal()}>Novo Produto</Button>}
+            action={canManageProducts ? <Button leftIcon={<Plus aria-hidden="true" />} onClick={() => handleOpenModal()}>Novo Produto</Button> : undefined}
           />
         )}
 
@@ -322,45 +359,67 @@ const ProductsPage: React.FC = () => {
                   {product.isByWeight ? '/kg' : ''}
                 </span>
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    iconOnly
-                    aria-label={`Editar ${product.name}`}
-                    onClick={() => handleOpenModal(product)}
-                    title="Editar produto"
-                  >
-                    <Pencil aria-hidden="true" />
-                  </Button>
+                {canManageProducts && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      iconOnly
+                      aria-label={`Editar ${product.name}`}
+                      onClick={() => handleOpenModal(product)}
+                      title="Editar produto"
+                    >
+                      <Pencil aria-hidden="true" />
+                    </Button>
 
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    iconOnly
-                    aria-label={`Excluir ${product.name}`}
-                    onClick={() => handleOpenDeleteModal(product)}
-                    title="Excluir produto"
-                  >
-                    <Trash2 aria-hidden="true" />
-                  </Button>
-                </div>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      iconOnly
+                      aria-label={`Excluir ${product.name}`}
+                      onClick={() => handleOpenDeleteModal(product)}
+                      title="Excluir produto"
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <p className="mb-2 text-caption text-subtle">{product.category?.name}</p>
 
               {getStockLinkLabel(product)}
 
-              <Button
-                variant="secondary"
-                fullWidth
-                size="sm"
-                leftIcon={<StockLinkIcon aria-hidden="true" />}
-                className="mt-4"
-                onClick={() => handleOpenLinkModal(product)}
-              >
-                Vincular estoque
-              </Button>
+              <div className="mt-4 rounded-control border border-default bg-surface-sunken p-3">
+                <Switch
+                  label={product.isPaused ? 'Produto pausado' : 'Pausar produto'}
+                  checked={product.isPaused}
+                  disabled={pausingProductIds.has(product.id)}
+                  onChange={(event) => void handlePauseChange(product, event.target.checked)}
+                  aria-label={`${product.isPaused ? 'Despausar' : 'Pausar'} ${product.name}`}
+                />
+                {product.isPaused && product.pausedAt && (
+                  <p className="mt-2 text-caption text-muted">
+                    Pausado desde {new Date(product.pausedAt).toLocaleString('pt-BR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
+                  </p>
+                )}
+              </div>
+
+              {canManageProducts && (
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  size="sm"
+                  leftIcon={<StockLinkIcon aria-hidden="true" />}
+                  className="mt-4"
+                  onClick={() => handleOpenLinkModal(product)}
+                >
+                  Vincular estoque
+                </Button>
+              )}
             </div>
           </Card>
         ))}

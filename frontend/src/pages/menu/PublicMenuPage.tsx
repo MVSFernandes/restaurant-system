@@ -212,7 +212,7 @@ const PublicMenuPage: React.FC = () => {
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-primary-600 font-bold">{formatCurrencyBRL(product.price)}{product.isByWeight ? '/kg' : ''}</span>
                       {!productAvailable(product) ? (
-                        <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">Sem estoque</span>
+                        <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">Esgotado</span>
                       ) : cartItem ? (
                         <div className="flex items-center gap-2">
                           <button onClick={() => removeFromCart(product.id)} className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"><Minus size={14} /></button>

@@ -74,6 +74,7 @@ const navSections: NavSection[] = [
           { label: 'Cardápio da marmita', path: '/menu/marmita-menu' },
         ],
       },
+      { label: 'Produtos', path: '/menu/products', icon: MenuCatalogIcon, roles: ['CASHIER'] },
       {
         label: 'Estoque', path: '/stock', icon: StockIcon,
         roles: ['ADMIN', 'FINANCE'],
