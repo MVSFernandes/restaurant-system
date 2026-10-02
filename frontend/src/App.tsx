@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 'react-router-dom';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import RouteError from './components/layout/RouteError';
+import RouteNotFound from './components/layout/RouteNotFound';
 import WaiterLayout from './components/layout/WaiterLayout';
 import { BrandingRouteEffects } from './contexts/BrandingProvider';
 
@@ -17,6 +18,7 @@ const CashClosuresPage = lazy(() => import('./pages/pdv/CashClosuresPage'));
 
 const WaiterTablesOverviewPage = lazy(() => import('./pages/waiter/WaiterTablesOverviewPage'));
 const WaiterTablePage = lazy(() => import('./pages/waiter/WaiterTablePage'));
+const WaiterTabPage = lazy(() => import('./pages/waiter/WaiterTabPage'));
 const WaiterHistoryPage = lazy(() => import('./pages/waiter/WaiterHistoryPage'));
 
 const CategoriesPage = lazy(() => import('./pages/menu/CategoriesPage'));
@@ -98,6 +100,7 @@ const router = createBrowserRouter([
           // no lugar da navegação inferior.
           ...insideWaiterShell([
             { path: '/waiter/tables/:tableId', element: <WaiterTablePage /> },
+            { path: '/waiter/tables/:tableId/tabs/:tabId', element: <WaiterTabPage /> },
           ]),
         ],
       },
@@ -122,7 +125,8 @@ const router = createBrowserRouter([
         ]),
       },
       { path: '/', element: <Navigate to="/dashboard" replace /> },
-      { path: '*', element: <Navigate to="/dashboard" replace /> },
+      // Rota que não existe diz isso, em vez de levar ao Dashboard em silêncio.
+      { path: '*', element: <RouteNotFound /> },
     ],
   },
 ]);

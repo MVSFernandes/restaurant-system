@@ -7,7 +7,6 @@ import { formatCurrencyBRL } from '../../utils/currency';
 import { WAITER_COLUMN } from '../../components/layout/WaiterLayout';
 import {
   AddIcon,
-  BackIcon,
   Button,
   ChevronRightIcon,
   EmptyState,
@@ -18,12 +17,22 @@ import type { WaiterTableOverview, WaiterTableTab, WaiterTableTabsResponse } fro
 import {
   FREE_TABLE_BORDER,
   displayNumber,
-  fitAmountFontSize,
+  formatClock,
   formatOpenFor,
   splitCurrency,
   spokenOpenFor,
   tabCountLabel,
+  totalFontSize,
 } from './tableFormat';
+import {
+  BOTTOM_BAR_CLEARANCE,
+  BottomBar,
+  DetailHeader,
+  SectionLabel,
+  cardBase,
+  focusRing,
+  primaryActionClasses,
+} from './detailLayout';
 
 // Tela 2 — Mesa aberta (docs/tela-mesa-aberta.md).
 // Responde: de quem é cada conta desta mesa, e quanto cada uma deve.
@@ -45,8 +54,6 @@ type ScreenState =
 const isNotFound = (reason: unknown) =>
   (reason as { response?: { status?: number } })?.response?.status === 404;
 
-const formatClock = (iso: string) =>
-  new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 // Primeira letra do primeiro nome e do último; um nome só, as duas primeiras.
 function initialsOf(name: string) {
@@ -65,13 +72,6 @@ const itemsParts = (tab: WaiterTableTab): string[] => {
 // Saldo zero (ou centavo de arredondamento) é comanda paga.
 const isPaid = (balance: number) => Math.abs(balance) < 0.005;
 
-// O valor do bloco de saldo é 30px sempre que cabe e encolhe até 20px onde
-// não cabe. "R$" em 18px com o espaço ocupa 27px; 29px dá folga.
-const totalFontSize = (amount: string) =>
-  fitAmountFontSize(amount, { max: 30, min: 20, reserve: 29, tracking: -0.6 });
-
-const focusRing =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas';
 
 const Header: React.FC<{ screen: ScreenState; minutes: number | null }> = ({ screen, minutes }) => {
   const ready = screen.state === 'ready' ? screen : null;
@@ -92,43 +92,23 @@ const Header: React.FC<{ screen: ScreenState; minutes: number | null }> = ({ scr
   }
 
   return (
-    <header className="sticky top-0 z-20 border-b border-default bg-surface px-5 pb-[18px] pt-5">
-      <div className={clsx(WAITER_COLUMN, 'flex items-center gap-3')}>
-        <Link
-          to="/waiter/tables"
-          aria-label="Voltar para as mesas"
-          className={clsx(
-            'flex size-11 shrink-0 items-center justify-center rounded-token-lg border border-default bg-surface text-default hover:bg-surface-hover',
-            focusRing
-          )}
-        >
-          <BackIcon size={20} strokeWidth={1.75} aria-hidden="true" />
-        </Link>
-
-        <div className="min-w-0 flex-1">
-          {screen.state === 'loading' ? (
-            <>
-              <Skeleton className="h-6 w-28" />
-              <Skeleton className="mt-2 h-3.5 w-40" />
-            </>
-          ) : (
-            <>
-              <h1 className="truncate text-[24px] font-bold leading-[30px] tracking-[-0.3px]">
-                {ready ? (
-                  <>
-                    <span aria-hidden="true">Mesa {displayNumber(ready.table.number)}</span>
-                    <span className="sr-only">Mesa {ready.table.number}</span>
-                  </>
-                ) : (
-                  'Mesa'
-                )}
-              </h1>
-              {subtitle && <p className="mt-0.5 truncate text-[13px] leading-[18px] text-muted">{subtitle}</p>}
-            </>
-          )}
-        </div>
-
-        {ready && (
+    <DetailHeader
+      backTo="/waiter/tables"
+      backLabel="Voltar para as mesas"
+      loading={screen.state === 'loading'}
+      title={
+        ready ? (
+          <>
+            <span aria-hidden="true">Mesa {displayNumber(ready.table.number)}</span>
+            <span className="sr-only">Mesa {ready.table.number}</span>
+          </>
+        ) : (
+          'Mesa'
+        )
+      }
+      subtitle={subtitle}
+      trailing={
+        ready && (
           <span
             className={clsx(
               'shrink-0 rounded-full border px-3 py-1.5 text-[12px] font-bold uppercase leading-4 tracking-[0.4px]',
@@ -137,13 +117,11 @@ const Header: React.FC<{ screen: ScreenState; minutes: number | null }> = ({ scr
           >
             {occupied ? 'Ocupada' : 'Livre'}
           </span>
-        )}
-      </div>
-    </header>
+        )
+      }
+    />
   );
 };
-
-const cardBase = 'rounded-token-xl border border-default bg-surface';
 
 const BalanceBlock: React.FC<{ tabs: WaiterTableTab[] }> = ({ tabs }) => {
   // Soma dos balance (o que falta receber), nunca dos total.
@@ -217,10 +195,6 @@ const TabRow: React.FC<{ tab: WaiterTableTab; tableId: string }> = ({ tab, table
   );
 };
 
-const SectionLabel: React.FC = () => (
-  <h2 className="mt-[18px] text-[13px] font-semibold uppercase leading-[18px] tracking-[0.4px] text-muted">Comandas</h2>
-);
-
 const LoadingBody: React.FC = () => (
   <div aria-hidden="true">
     <div className={clsx(cardBase, 'mt-[18px] p-[18px]')}>
@@ -250,7 +224,7 @@ const ErrorBody: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
       <p className="text-[13px] leading-[18px] text-muted">Total em aberto</p>
       <p className="mt-1 text-body-lg text-muted">Não disponível</p>
     </section>
-    <SectionLabel />
+    <SectionLabel>Comandas</SectionLabel>
     <div className={clsx(cardBase, 'mt-2.5 flex flex-col items-center px-6 py-8 text-center')}>
       <p className="text-body-lg font-semibold">Não disponível</p>
       <p className="mt-1 max-w-xs text-body text-muted">
@@ -273,20 +247,12 @@ const RuleNotice: React.FC = () => (
 );
 
 const ActionBar: React.FC<{ tableId: string; occupied: boolean }> = ({ tableId, occupied }) => (
-  <div className="fixed inset-x-0 bottom-0 z-30 border-t border-default bg-surface px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3">
-    <div className={WAITER_COLUMN}>
-      <Link
-        to={`/waiter/tables/${encodeURIComponent(tableId)}/tabs/new`}
-        className={clsx(
-          'flex h-14 w-full items-center justify-center gap-2.5 rounded-[14px] bg-primary text-[17px] font-semibold text-primary-fg hover:bg-primary-hover',
-          focusRing
-        )}
-      >
-        <AddIcon size={20} strokeWidth={2} aria-hidden="true" />
-        {occupied ? 'Nova comanda' : 'Abrir comanda'}
-      </Link>
-    </div>
-  </div>
+  <BottomBar>
+    <Link to={`/waiter/tables/${encodeURIComponent(tableId)}/tabs/new`} className={primaryActionClasses}>
+      <AddIcon size={20} strokeWidth={2} aria-hidden="true" />
+      {occupied ? 'Nova comanda' : 'Abrir comanda'}
+    </Link>
+  </BottomBar>
 );
 
 const WaiterTablePage: React.FC = () => {
@@ -349,7 +315,7 @@ const WaiterTablePage: React.FC = () => {
         className={clsx(
           WAITER_COLUMN,
           'px-5',
-          ready ? 'pb-[calc(88px+24px+env(safe-area-inset-bottom))]' : 'pb-8'
+          ready ? BOTTOM_BAR_CLEARANCE : 'pb-8'
         )}
         aria-busy={screen.state === 'loading'}
       >
@@ -374,7 +340,7 @@ const WaiterTablePage: React.FC = () => {
           <>
             {occupied && ready.tabs.length > 0 && <BalanceBlock tabs={ready.tabs} />}
 
-            <SectionLabel />
+            <SectionLabel>Comandas</SectionLabel>
             {ready.tabs.length > 0 ? (
               <ul className="mt-2.5 space-y-2.5">
                 {ready.tabs.map((tab) => (

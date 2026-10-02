@@ -81,6 +81,35 @@ export interface WaiterTableTab {
   lastOrderAt: string | null;
 }
 
+// Detalhe de GET /table-tabs/:tabId. Cada pedido em `orders` é um lançamento,
+// com os itens dele. `price` do item já é o valor da linha (quantidade ou peso
+// multiplicados no servidor). Pedido cancelado vem na lista, mas não entra em
+// total, balance nem itemCount.
+export interface WaiterTabOrderItem {
+  id: string;
+  productName: string;
+  quantity: number;
+  weight: number | null;
+  price: number;
+  saleType: string | null;
+  notes: string | null;
+}
+
+export interface WaiterTabOrder {
+  id: string;
+  status: OrderStatus;
+  total: number;
+  createdAt: string;
+  itemCount: number;
+  items: WaiterTabOrderItem[];
+}
+
+export interface WaiterTabDetail extends WaiterTableTab {
+  paidTotal: number;
+  closedAt: string | null;
+  orders: WaiterTabOrder[];
+}
+
 export interface WaiterTableTabsResponse {
   tabs: WaiterTableTab[];
   total: number;
