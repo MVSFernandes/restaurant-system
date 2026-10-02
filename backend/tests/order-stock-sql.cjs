@@ -25,6 +25,7 @@ async function main() {
     }
     await db.exec(`
       create role anon; create role authenticated; create role service_role;
+      create table public.products(id text primary key, name text not null);
       alter table order_items add constraint item_price check(price >= 0);
       alter table payments add constraint valid_method check(method in ('PIX', 'CASH'));
       create function public.consume_order_stock(p_items jsonb) returns jsonb language plpgsql as $$
@@ -42,6 +43,7 @@ async function main() {
         end loop;
         return '{}'::jsonb;
       end; $$;
+      insert into products(id, name) values ('drink', 'Coca Lata'), ('no-stock-links', 'Sem vínculo');
       insert into stock_items(id, name, quantity) values ('coca', 'Coca Lata', 2);
       insert into product_stock_items(id,product_id,stock_item_id,quantity) values ('link','drink','coca',1);
       insert into tables(id,status) values ('table','AVAILABLE');
@@ -49,6 +51,7 @@ async function main() {
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260914200000_atomic_order_creation.sql'), 'utf8'));
     await db.exec("insert into orders(id,status) values (repeat('a',64),'NEW')");
     await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260915150000_separate_order_idempotency_key.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261002120000_pause_products.sql'), 'utf8'));
     assert.equal((await db.query("select idempotency_key from orders where id=repeat('a',64)")).rows[0].idempotency_key, 'a'.repeat(64));
     await db.exec("delete from orders where id=repeat('a',64)");
     const order = id => ({ id, type: 'DINE_IN', status: 'NEW', total: 10, delivery_fee: 0, table_id: 'table', user_id: 'operator' });
@@ -64,6 +67,18 @@ async function main() {
       (select quantity::int from stock_items where id='coca') quantity,
       (select status from tables where id='table') table_status`)).rows[0];
     const initial = await state();
+    const defaultPause = (await db.query("select is_paused, paused_at from products where id='drink'")).rows[0];
+    assert.equal(defaultPause.is_paused, false);
+    assert.equal(defaultPause.paused_at, null);
+    await assert.rejects(
+      db.exec("update products set is_paused=true where id='drink'"),
+      /products_pause_state_check/
+    );
+    await db.exec("update products set is_paused=true, paused_at=now() where id='drink'");
+    await assert.rejects(issue('paused'), /O produto "Coca Lata" está pausado\./);
+    assert.deepEqual(await state(), initial);
+    await db.exec("update products set is_paused=false, paused_at=null where id='drink'");
+    console.log('PASS: pause check stays consistent and the database rejects paused products atomically');
     for (let retry = 0; retry < 2; retry++) {
       await assert.rejects(issue('insufficient', [item('insufficient', { quantity: 3 })]), /Insufficient stock/);
       assert.deepEqual(await state(), initial);

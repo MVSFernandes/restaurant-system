@@ -22,7 +22,7 @@ export const getCategories = async (req: Request, res: Response) => {
           products.map(async (p) => ({
             ...p,
             category: cat,
-            ...await productStockAvailability(p.id),
+            ...await productStockAvailability(p),
           }))
         );
         return { ...cat, products: productsWithStock };

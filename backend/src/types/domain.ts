@@ -174,6 +174,8 @@ export interface Product {
   price: number;
   imageUrl: string | null;
   isByWeight: boolean;
+  isPaused: boolean;
+  pausedAt: Date | null;
   categoryId: string;
   ncm: string | null;
   cfop: string | null;

@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 import { productService } from '../services/domain.services';
 import { categoryRepository } from '../repositories/category.repository';
 import { productStockItemRepository } from '../repositories/productStockItem.repository';
-import { DomainError } from '../types/errors';
+import { DomainError, ValidationError } from '../types/errors';
 
 const handleError = (res: Response, error: unknown, fallback: string) => {
   if (error instanceof DomainError) return res.status(error.status).json({ message: error.message });
@@ -26,7 +26,7 @@ async function enrichProducts(products: Awaited<ReturnType<typeof productService
     products.map(async (p) => ({
       ...p,
       category: catMap.get(p.categoryId) ?? null,
-      ...await productStockAvailability(p.id),
+      ...await productStockAvailability(p),
     }))
   );
 }
@@ -93,6 +93,17 @@ export const updateProduct = async (req: Request, res: Response) => {
     res.json({ ...product, category, stockItems: stockItems });
   } catch (error) {
     handleError(res, error, 'Erro ao atualizar produto');
+  }
+};
+
+export const setProductPaused = async (req: Request, res: Response) => {
+  try {
+    if (typeof req.body.paused !== 'boolean') {
+      throw new ValidationError('paused', 'Informe se o produto deve ficar pausado');
+    }
+    res.json(await productService.setPaused(req.params.id, req.body.paused));
+  } catch (error) {
+    handleError(res, error, 'Erro ao alterar pausa do produto');
   }
 };
 

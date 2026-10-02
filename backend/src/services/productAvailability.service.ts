@@ -1,10 +1,11 @@
 import { productStockItemRepository } from '../repositories/productStockItem.repository';
 import { stockItemRepository } from '../repositories/stockItem.repository';
+import type { Product } from '../types/domain';
 
-export async function productStockAvailability(productId: string) {
-  const stockItems = await productStockItemRepository.findByProduct(productId);
+export async function productStockAvailability(product: Pick<Product, 'id' | 'isPaused'>) {
+  const stockItems = await productStockItemRepository.findByProduct(product.id);
   if (stockItems.length === 0) {
-    return { stockItems, available: true, availableUnits: null };
+    return { stockItems, available: !product.isPaused, availableUnits: null };
   }
 
   const capacities = await Promise.all(stockItems.map(async (link) => {
@@ -17,7 +18,7 @@ export async function productStockAvailability(productId: string) {
 
   return {
     stockItems,
-    available: availableUnits >= 1,
+    available: !product.isPaused && availableUnits >= 1,
     availableUnits: Number.isFinite(availableUnits) ? availableUnits : null,
   };
 }
