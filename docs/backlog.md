@@ -543,3 +543,62 @@ a correção da navegação pertence à etapa das telas do garçom.
   Contra a página (`canvas`), o valor do claro fica em **2,91**: nenhum valor
   entre 3,0 e 3,2 contra o cartão passa de 3:1 contra a página, que é mais
   escura. O token novo precisa resolver os dois fundos.
+
+---
+
+## Encontrados na tela de lançar pedido do garçom (2026-10-01)
+
+Vistos ao conferir a API para a Tela 4 (`docs/etapas/tela-lancar-pedido.md`).
+A tela usa o que existe; nada disto foi alterado.
+
+### 32. Produto sem vínculo de insumo aparece sempre disponível
+
+- **Onde:** `backend/src/services/productAvailability.service.ts`
+  (`productStockAvailability`), usado por `GET /api/products` e
+  `GET /api/categories`.
+- **O que acontece:** a disponibilidade é calculada pelos insumos vinculados
+  ao produto. Sem vínculo, o serviço devolve `available: true` com
+  `availableUnits: null`. Prato que a cozinha não vinculou a insumo nenhum
+  (prato do dia, por exemplo) aparece como disponível na tela do garçom
+  mesmo depois de acabar.
+- **Por que importa:** a tela de lançar responde "tem tal coisa?" com esse
+  dado. O garçom confia, promete ao cliente, e a cozinha não tem.
+- **Relacionado:** item 33. Com produto por peso a conta também é fraca: ela
+  é feita em unidades, e o produto só fica indisponível quando um insumo
+  vinculado zera.
+
+### 33. FUNCIONALIDADE DE PRODUTO: não existe "esgotado" manual
+
+- **Onde:** `Product` (`backend/src/types/domain.ts`) não tem campo de
+  ativo ou indisponível; a disponibilidade vem só do estoque (item 32).
+- **O que acontece:** quando um prato acaba antes do estoque registrar, a
+  cozinha não tem como marcar "acabou". O garçom continua vendo o prato
+  como disponível.
+- **É funcionalidade, não ajuste:** precisa de campo no banco, de quem pode
+  marcar e desmarcar, de onde isso aparece no PDV e na cozinha, e de como
+  combina com a disponibilidade por estoque. Etapa própria.
+
+### 34. A API não devolve o preço efetivo por kg
+
+- **Onde:** `backend/src/services/order.service.ts` (`resolveItemPricing`).
+  A regra está duplicada em
+  `frontend/src/pages/waiter/WaiterOrderPage.tsx` (`effectivePricePerKg`).
+- **O que acontece:** para produto por peso em categoria de refeição
+  (`isMealCategory`), o servidor cobra o `pricePerKg` da categoria, não o
+  `price` do produto. O cardápio não devolve esse preço pronto, então a tela
+  do garçom repete a regra para mostrar "R$ / kg" e o valor da linha.
+- **Por que importa:** se o servidor mudar a regra e ninguém lembrar da
+  tela, o garçom passa um preço e o caixa cobra outro, na frente do cliente.
+- **Correção:** `GET /api/products` e `GET /api/categories` devolverem o
+  preço efetivo por kg (e o modo de venda), e a tela deixar de calcular.
+
+### 35. FUNCIONALIDADE DE PRODUTO: montagem de marmita e complementos no app do garçom
+
+- **Onde:** a tela de lançar pedido do garçom (Tela 4) não monta marmita nem
+  escolhe complementos. A montagem existe só no PDV.
+- **O que acontece:** o garçom não consegue lançar marmita, que é parte
+  grande do que o restaurante vende. Pedido de marmita na mesa continua
+  dependendo do caixa.
+- **É funcionalidade, não ajuste:** etapa própria, depois da Tela 4. O
+  `docs/etapas/etapa-telas-garcom.md` já listava montagem e complementos
+  entre o que não pode se perder da tela antiga.
