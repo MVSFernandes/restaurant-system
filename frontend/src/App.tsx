@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import RouteError from './components/layout/RouteError';
 import RouteNotFound from './components/layout/RouteNotFound';
+import HomeRedirect from './components/layout/HomeRedirect';
 import WaiterLayout from './components/layout/WaiterLayout';
 import { BrandingRouteEffects } from './contexts/BrandingProvider';
 
@@ -130,7 +131,9 @@ const router = createBrowserRouter([
           { path: '/finance/credit', element: <CreditPage /> },
         ]),
       },
-      { path: '/', element: <Navigate to="/dashboard" replace /> },
+      { path: '/', element: <HomeRedirect /> },
+      // O endereço que qualquer pessoa digita para o app do garçom.
+      { path: '/waiter', element: <Navigate to="/waiter/tables" replace /> },
       // Rota que não existe diz isso, em vez de levar ao Dashboard em silêncio.
       { path: '*', element: <RouteNotFound /> },
     ],
