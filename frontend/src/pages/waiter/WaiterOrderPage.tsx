@@ -369,6 +369,19 @@ const WaiterOrderPage: React.FC = () => {
     void load();
   }, [load]);
 
+  // Atualiza a disponibilidade quando o garçom volta ao app ou a conexão retorna.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    window.addEventListener('online', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('online', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [load]);
+
   const ready = screen.state === 'ready' ? screen : null;
 
   const categories = ready?.categories;

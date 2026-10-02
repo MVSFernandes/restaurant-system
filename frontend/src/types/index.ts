@@ -26,6 +26,8 @@ export interface Product {
   description?: string;
   price: number;
   isByWeight: boolean;
+  isPaused: boolean;
+  pausedAt?: string | null;
   imageUrl?: string;
   categoryId: string;
   category?: Category;

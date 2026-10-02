@@ -106,6 +106,8 @@ export const productService = {
       categoryId: input.categoryId,
       imageUrl: input.imageUrl ?? null,
       isByWeight: input.isByWeight ?? false,
+      isPaused: false,
+      pausedAt: null,
       ncm: input.ncm ?? null,
       cfop: input.cfop ?? null,
       origin: input.origin ?? null,
@@ -117,6 +119,15 @@ export const productService = {
 
   async update(id: string, input: Partial<Omit<Product, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Product> {
     return productRepository.update(id, input);
+  },
+
+  async setPaused(id: string, paused: boolean): Promise<Product> {
+    const product = await this.findById(id);
+    if (product.isPaused === paused) return product;
+    return productRepository.update(id, {
+      isPaused: paused,
+      pausedAt: paused ? new Date() : null,
+    });
   },
 
   async delete(id: string): Promise<void> {

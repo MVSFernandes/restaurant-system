@@ -180,6 +180,9 @@ function normalizeOrderItemWeight(
 async function resolveItemPricing(item: CreateOrderItemInput): Promise<ResolvedItemPricing> {
   const product = await productRepository.findById(item.productId);
   if (!product) throw new NotFoundError('Product', item.productId);
+  if (product.isPaused) {
+    throw new ValidationError('productId', `O produto "${product.name}" está pausado`);
+  }
 
   const category = await categoryRepository.findById(product.categoryId);
   const saleType: SaleType = (item.saleType as SaleType) ?? (product.isByWeight ? 'WEIGHT' : 'UNIT');
@@ -627,6 +630,14 @@ export const orderService = {
     }
 
     if (input.items && input.items.length > 0) {
+      let newTotal = 0;
+      const resolvedItems: ResolvedItemPricing[] = [];
+      for (const item of input.items) {
+        const pricing = await resolveItemPricing(item);
+        newTotal += pricing.price;
+        resolvedItems.push(pricing);
+      }
+
       const oldItems = await orderRepository.findItems(orderId);
       const oldStockPayload: StockRpcItem[] = oldItems.map((i) => ({
         product_id: i.productId,
@@ -637,14 +648,6 @@ export const orderService = {
 
       for (const item of oldItems) {
         await orderRepository.removeItem(item.id);
-      }
-
-      let newTotal = 0;
-      const resolvedItems: ResolvedItemPricing[] = [];
-      for (const item of input.items) {
-        const pricing = await resolveItemPricing(item);
-        newTotal += pricing.price;
-        resolvedItems.push(pricing);
       }
 
       patch.total = newTotal + effectiveDeliveryFee;

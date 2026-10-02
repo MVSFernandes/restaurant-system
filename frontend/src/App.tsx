@@ -114,10 +114,15 @@ const router = createBrowserRouter([
         ],
       },
       {
+        element: <ProtectedRoute allowedRoles={['ADMIN', 'CASHIER']} />,
+        children: insideShell([
+          { path: '/menu/products', element: <ProductsPage /> },
+        ]),
+      },
+      {
         element: <ProtectedRoute allowedRoles={['ADMIN']} />,
         children: insideShell([
           { path: '/menu/categories', element: <CategoriesPage /> },
-          { path: '/menu/products', element: <ProductsPage /> },
           { path: '/menu/marmita-menu', element: <MarmitaMenuPage /> },
           { path: '/admin/waiters', element: <WaitersManagementPage /> },
         ]),

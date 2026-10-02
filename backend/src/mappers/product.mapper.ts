@@ -12,6 +12,8 @@ export function toProductDomain(row: ProductRow): Product {
     price: row.price,
     imageUrl: row.image_url,
     isByWeight: row.is_by_weight,
+    isPaused: row.is_paused ?? false,
+    pausedAt: row.paused_at ? new Date(row.paused_at) : null,
     categoryId: row.category_id,
     ncm: row.ncm ?? null,
     cfop: row.cfop ?? null,
@@ -30,6 +32,8 @@ export function toProductInsert(domain: Product): ProductInsert {
     price: domain.price,
     image_url: domain.imageUrl,
     is_by_weight: domain.isByWeight,
+    is_paused: domain.isPaused,
+    paused_at: domain.pausedAt?.toISOString() ?? null,
     category_id: domain.categoryId,
     ncm: domain.ncm,
     cfop: domain.cfop,
@@ -45,6 +49,8 @@ export function toProductUpdate(patch: Partial<Product>): ProductUpdate {
   if (patch.price !== undefined) update.price = patch.price;
   if (patch.imageUrl !== undefined) update.image_url = patch.imageUrl;
   if (patch.isByWeight !== undefined) update.is_by_weight = patch.isByWeight;
+  if (patch.isPaused !== undefined) update.is_paused = patch.isPaused;
+  if (patch.pausedAt !== undefined) update.paused_at = patch.pausedAt?.toISOString() ?? null;
   if (patch.categoryId !== undefined) update.category_id = patch.categoryId;
   if (patch.ncm !== undefined) update.ncm = patch.ncm;
   if (patch.cfop !== undefined) update.cfop = patch.cfop;

@@ -16,6 +16,7 @@ const { userRepository } = require('../src/repositories/user.repository');
 const { productStockItemRepository } = require('../src/repositories/productStockItem.repository');
 const { stockItemRepository } = require('../src/repositories/stockItem.repository');
 const { productStockAvailability } = require('../src/services/productAvailability.service');
+const { productService } = require('../src/services/domain.services');
 const input = { type: 'TAKE_AWAY', customerName: 'Teste', items: [{ productId: 'drink', quantity: 2 }] };
 let requests;
 beforeEach(() => {
@@ -26,7 +27,7 @@ beforeEach(() => {
     deliveryFee: 5,
     enabledPayments: 'CASH,PIX,CREDIT_CARD,DEBIT_CARD',
   });
-  productRepository.findById = async () => ({ id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks', isByWeight: false });
+  productRepository.findById = async () => ({ id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks', isByWeight: false, isPaused: false, pausedAt: null });
   categoryRepository.findById = async () => ({ id: 'drinks' });
   userRepository.findAdminUser = async () => ({ id: 'admin' });
   orderRepository.create = async () => assert.fail('must not insert an order outside the transaction');
@@ -71,6 +72,77 @@ test('product names are captured at sale time and do not change when the catalog
   assert.equal(requests[0].args.p_items[0].product_name, 'Coca Lata');
   assert.equal(requests[1].args.p_items[0].product_name, 'Coca-Cola Lata 350ml');
 });
+test('pause operation keeps state and timestamp paired without resetting an existing pause', async () => {
+  const active = {
+    id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks',
+    isByWeight: false, isPaused: false, pausedAt: null,
+  };
+  let updatedPatch;
+  productRepository.findById = async () => active;
+  productRepository.update = async (_id, patch) => {
+    updatedPatch = patch;
+    return { ...active, ...patch };
+  };
+
+  const paused = await productService.setPaused('drink', true);
+  assert.equal(paused.isPaused, true);
+  assert.ok(paused.pausedAt instanceof Date);
+  assert.equal(updatedPatch.isPaused, true);
+  assert.ok(updatedPatch.pausedAt instanceof Date);
+
+  const originalPauseDate = new Date('2026-10-02T12:00:00.000Z');
+  const alreadyPaused = { ...active, isPaused: true, pausedAt: originalPauseDate };
+  productRepository.findById = async () => alreadyPaused;
+  productRepository.update = async () => assert.fail('repeating pause must preserve the original timestamp');
+  assert.equal(await productService.setPaused('drink', true), alreadyPaused);
+
+  productRepository.update = async (_id, patch) => ({ ...alreadyPaused, ...patch });
+  const resumed = await productService.setPaused('drink', false);
+  assert.equal(resumed.isPaused, false);
+  assert.equal(resumed.pausedAt, null);
+});
+
+test('private and public creation reject a paused product with a specific message', async () => {
+  productRepository.findById = async () => ({
+    id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks',
+    isByWeight: false, isPaused: true, pausedAt: new Date(),
+  });
+  const expected = 'O produto "Coca Lata" está pausado.';
+  await assert.rejects(
+    orderService.createOrder(input, { id: 'admin', role: 'ADMIN' }),
+    error => error.status === 400 && error.message === expected
+  );
+  await assert.rejects(
+    orderService.createPublicOrder({ ...input, paymentMethod: 'PIX' }, 'public:paused'),
+    error => error.status === 400 && error.message === expected
+  );
+  assert.equal(requests.length, 0);
+});
+test('editing an order rejects paused products before changing existing items or stock', async () => {
+  const existing = {
+    id: 'existing-order', type: 'TAKE_AWAY', status: 'NEW',
+    waiterId: null, deliveryFee: 0, deliveryType: null,
+  };
+  orderRepository.findById = async () => existing;
+  orderRepository.findItems = async () => [{ id: 'old-item', productId: 'old', quantity: 1, weight: null }];
+  orderRepository.restoreStock = async () => assert.fail('paused validation must run before restoring stock');
+  orderRepository.removeItem = async () => assert.fail('paused validation must run before removing items');
+  orderRepository.update = async () => assert.fail('paused validation must run before updating the order');
+  productRepository.findById = async () => ({
+    id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks',
+    isByWeight: false, isPaused: true, pausedAt: new Date(),
+  });
+
+  await assert.rejects(
+    orderService.updateOrder(
+      existing.id,
+      { items: [{ productId: 'drink', quantity: 1 }] },
+      { id: 'admin', role: 'ADMIN' }
+    ),
+    error => error.status === 400 && error.message === 'O produto "Coca Lata" está pausado.'
+  );
+});
+
 test('public delivery creation includes a DB-valid payment and the delivery fee in the total', async () => {
   await orderService.createPublicOrder(
     { ...input, type: 'DELIVERY', deliveryFee: 99, paymentMethod: 'CASH' },
@@ -276,7 +348,7 @@ test('availability reports the limiting whole units using stock consumption prop
   ];
   stockItemRepository.findById = async id => ({ quantity: id === 'a' ? 5 : 9 });
   assert.deepEqual(
-    await productStockAvailability('drink'),
+    await productStockAvailability({ id: 'drink', isPaused: false }),
     {
       stockItems: [
         { stockItemId: 'a', quantity: 2 },
@@ -288,12 +360,15 @@ test('availability reports the limiting whole units using stock consumption prop
   );
 
   stockItemRepository.findById = async id => ({ quantity: id === 'a' ? 1 : 5 });
-  const unavailable = await productStockAvailability('drink');
+  const unavailable = await productStockAvailability({ id: 'drink', isPaused: false });
   assert.equal(unavailable.available, false);
   assert.equal(unavailable.availableUnits, 0);
 
   productStockItemRepository.findByProduct = async () => [];
-  const uncontrolled = await productStockAvailability('uncontrolled');
+  const paused = await productStockAvailability({ id: 'paused', isPaused: true });
+  assert.equal(paused.available, false);
+  assert.equal(paused.availableUnits, null);
+  const uncontrolled = await productStockAvailability({ id: 'uncontrolled', isPaused: false });
   assert.equal(uncontrolled.available, true);
   assert.equal(uncontrolled.availableUnits, null);
 });

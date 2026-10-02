@@ -61,7 +61,7 @@ describe('stock availability at order entry', () => {
     render(<PublicMenuPage />);
     const unavailableName = await screen.findByText('Coca Lata');
     const card = unavailableName.parentElement!.parentElement!;
-    expect(card.textContent).toContain('Sem estoque');
+    expect(card.textContent).toContain('Esgotado');
     expect(card.querySelector('button')).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Adicionar' })).toHaveLength(2);
     fireEvent.click(screen.getAllByRole('button', { name: 'Adicionar' })[1]);
