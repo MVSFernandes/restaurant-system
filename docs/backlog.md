@@ -630,12 +630,21 @@ A tela usa o que existe; nada disto foi alterado.
   no banco e sobrevive a reinício. O cache em memória também não é
   compartilhado entre instâncias, mas isso só muda qual resposta volta, não
   se o pedido duplica.
-- **Como o frontend lida hoje:** a tela de lançar do garçom
-  (`frontend/src/pages/waiter/WaiterOrderPage.tsx`, `send`) troca a chave
-  depois de qualquer resposta de erro do servidor, 5xx incluído, porque com
-  a mesma chave o 5xx guardado voltaria por 5 minutos. Sem resposta (rede),
-  mantém a chave. É essa troca no 5xx que abre a duplicata.
-- **Correção (backend):** a camada de idempotência não deve guardar 5xx. A
-  mesma chave precisa poder tentar de novo, e a checagem no banco que já
-  existe reconhece o pedido criado. Depois disso, o frontend passa a trocar
-  a chave só em recusa de regra de negócio (4xx).
+- **Decisão aplicada no frontend (2026-10-02):** a tela de lançar do garçom
+  (`frontend/src/pages/waiter/WaiterOrderPage.tsx`, `send`) troca a chave só
+  em recusa de regra de negócio (4xx). Em 5xx e sem resposta, mantém a mesma
+  chave. A mensagem do 5xx diz o que fazer: o pedido pode já ter sido
+  registrado, conferir a comanda antes de tentar de novo, com link para a
+  comanda (a sacola fica guardada na sessão). Motivo, também no comentário
+  do código: cobrança dupla é erro invisível em dinheiro; garçom travado é
+  erro visível. Entre os dois, o visível ganha sempre.
+- **O que falta (backend):** o cache de idempotência não guardar 5xx. Hoje,
+  com a mesma chave, o garçom que reenvia depois de um 500 recebe o mesmo
+  500 por até 5 minutos, mesmo que o pedido não tenha sido gravado e a nova
+  tentativa fosse dar certo. Sem guardar o 5xx, o reenvio chega ao serviço,
+  e a checagem no banco que já existe devolve o pedido criado ou cria o que
+  faltou. É isso que tira a espera de 5 minutos.
+- **Outras telas:** o cardápio público (`PublicMenuPage.tsx`) só descarta a
+  chave quando o pedido dá certo; depois de qualquer erro, reenvia com a
+  mesma. Não abre a duplicata, mas sofre a mesma espera de 5 minutos depois
+  de um 5xx.
