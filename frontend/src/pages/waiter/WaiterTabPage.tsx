@@ -40,7 +40,7 @@ const visibleOrders = (tab: WaiterTabDetail): WaiterTabOrder[] =>
     .filter((order) => order.status !== 'CANCELED')
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-// Peso vem em gramas; a quantidade de item por peso é sempre 1.
+// Peso vem em gramas.
 const formatWeight = (grams: number) =>
   `${(grams / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
 
@@ -82,26 +82,36 @@ const BalanceBlock: React.FC<{ tab: WaiterTabDetail }> = ({ tab }) => {
   );
 };
 
-const ItemRow: React.FC<{ item: WaiterTabOrderItem }> = ({ item }) => (
-  <li className="flex items-start border-t border-default py-3 first:border-t-0 first:pt-0 last:pb-0">
-    {/* Coluna fixa de 32px: os nomes alinham entre linhas e entre lançamentos. */}
-    <span className="w-8 shrink-0 text-[15px] font-bold leading-5 tabular-nums">{item.quantity}×</span>
-    <div className="min-w-0 flex-1">
-      {/* Nome quebra em duas linhas se precisar; não corta. */}
-      <p className="break-words text-[15px] font-medium leading-5">{item.productName}</p>
-      {item.weight !== null && item.weight > 0 && (
-        <p className="mt-0.5 text-[13px] leading-[18px] text-muted tabular-nums">{formatWeight(item.weight)}</p>
-      )}
-      {/* A observação nunca é cortada: é ela que diz "sem cebola". */}
-      {item.notes?.trim() && (
-        <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-[18px] text-muted">{item.notes.trim()}</p>
-      )}
-    </div>
-    <span className="ml-3 shrink-0 whitespace-nowrap text-[15px] font-semibold leading-5 tabular-nums">
-      {formatCurrencyBRL(item.price)}
-    </span>
-  </li>
-);
+const ItemRow: React.FC<{ item: WaiterTabOrderItem }> = ({ item }) => {
+  // A coluna responde "quanto": "2×" para item por unidade, "0,450 kg" para
+  // item por peso (que tem sempre quantidade 1, e o "1×" não diria nada).
+  const byWeight = item.weight !== null && item.weight > 0;
+  return (
+    <li className="flex items-start border-t border-default py-3 first:border-t-0 first:pt-0 last:pb-0">
+      {/* Coluna fixa de 32px: os nomes alinham entre linhas e entre lançamentos.
+          O peso não cabe em 32px; só nessa linha a coluna cresce, com 12px até o nome. */}
+      <span
+        className={clsx(
+          'shrink-0 whitespace-nowrap text-[15px] font-bold leading-5 tabular-nums',
+          byWeight ? 'min-w-8 pr-3' : 'w-8'
+        )}
+      >
+        {byWeight ? formatWeight(item.weight as number) : `${item.quantity}×`}
+      </span>
+      <div className="min-w-0 flex-1">
+        {/* Nome quebra em duas linhas se precisar; não corta. */}
+        <p className="break-words text-[15px] font-medium leading-5">{item.productName}</p>
+        {/* A observação nunca é cortada: é ela que diz "sem cebola". */}
+        {item.notes?.trim() && (
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-[18px] text-muted">{item.notes.trim()}</p>
+        )}
+      </div>
+      <span className="ml-3 shrink-0 whitespace-nowrap text-[15px] font-semibold leading-5 tabular-nums">
+        {formatCurrencyBRL(item.price)}
+      </span>
+    </li>
+  );
+};
 
 const OrderGroup: React.FC<{ order: WaiterTabOrder }> = ({ order }) => (
   <li>
