@@ -282,7 +282,7 @@ const ItemSheet: React.FC<ItemSheetProps> = ({ product, line, onClose, onConfirm
 };
 
 // ---------------------------------------------------------------------------
-// Sacola
+// Pedido em montagem (no código, "bag": o garçom só vê "pedido")
 
 type BagSheetProps = {
   lines: DraftLine[];
@@ -301,12 +301,12 @@ const BagSheet: React.FC<BagSheetProps> = ({ lines, sending, online, error, tabP
   return (
     <Modal open onClose={sending ? () => {} : onClose} placement="bottom" closeOnOverlay={!sending}>
       <div className="flex items-center justify-between gap-3 px-5 pt-5">
-        <ModalTitle className="!text-[20px] !font-bold !leading-[26px]">Sacola</ModalTitle>
+        <ModalTitle className="!text-[20px] !font-bold !leading-[26px]">Pedido</ModalTitle>
         <button
           type="button"
           onClick={onClose}
           disabled={sending}
-          aria-label="Fechar sacola"
+          aria-label="Fechar pedido"
           className={clsx('-mr-2 flex size-11 items-center justify-center rounded-token-lg text-muted hover:bg-surface-hover disabled:opacity-40', focusRing)}
         >
           <CloseIcon size={20} strokeWidth={1.75} aria-hidden="true" />
@@ -359,7 +359,7 @@ const BagSheet: React.FC<BagSheetProps> = ({ lines, sending, online, error, tabP
         {error && (
           <div role="alert" className="mt-3 rounded-token-lg border border-warning bg-warning-subtle px-3 py-2.5 text-[13px] leading-[19px] text-default">
             <p>{error.message}</p>
-            {/* A sacola fica guardada na sessão: dá para ir à comanda e voltar sem perder nada. */}
+            {/* O pedido montado fica guardado na sessão: dá para ir à comanda e voltar sem perder nada. */}
             {error.checkTab && (
               <Link
                 to={tabPath}
@@ -529,8 +529,8 @@ const WaiterOrderPage: React.FC = () => {
       toast({ title: 'Pedido enviado', variant: 'success' });
       navigate(tabPath, { replace: true });
     } catch (error) {
-      // A sacola não esvazia em nenhum caso: o garçom não pode ter que lembrar
-      // de cabeça o que o cliente pediu.
+      // O pedido montado não se perde em nenhum caso: o garçom não pode ter
+      // que lembrar de cabeça o que o cliente pediu.
       const status = responseStatus(error);
       if (status !== null && status >= 400 && status < 500) {
         // Recusa de regra de negócio (estoque, caixa fechado, comanda fechada):
@@ -732,7 +732,7 @@ const WaiterOrderPage: React.FC = () => {
         )}
       </main>
 
-      {/* Sacola vazia: a barra não existe e a lista usa a tela inteira. */}
+      {/* Pedido vazio: a barra não existe e a lista usa a tela inteira. */}
       {showBar && (
         <BottomBar>
           <div className="w-full">
@@ -752,7 +752,7 @@ const WaiterOrderPage: React.FC = () => {
               <span className="text-[14px] font-semibold leading-[18px]">
                 {itemCount} {itemCount === 1 ? 'item' : 'itens'}
               </span>
-              <span>Ver sacola</span>
+              <span>Ver pedido</span>
               <span className="font-bold tabular-nums">{formatCurrencyBRL(total)}</span>
             </button>
           </div>

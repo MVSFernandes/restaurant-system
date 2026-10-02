@@ -635,7 +635,7 @@ A tela usa o que existe; nada disto foi alterado.
   em recusa de regra de negócio (4xx). Em 5xx e sem resposta, mantém a mesma
   chave. A mensagem do 5xx diz o que fazer: o pedido pode já ter sido
   registrado, conferir a comanda antes de tentar de novo, com link para a
-  comanda (a sacola fica guardada na sessão). Motivo, também no comentário
+  comanda (o pedido montado fica guardado na sessão). Motivo, também no comentário
   do código: cobrança dupla é erro invisível em dinheiro; garçom travado é
   erro visível. Entre os dois, o visível ganha sempre.
 - **O que falta (backend):** o cache de idempotência não guardar 5xx. Hoje,

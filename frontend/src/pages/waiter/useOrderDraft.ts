@@ -35,13 +35,13 @@ export const createId = () =>
 export const lineTotal = (line: Pick<DraftLine, 'byWeight' | 'unitPrice' | 'quantity' | 'weightGrams'>) =>
   line.byWeight ? (line.unitPrice * (line.weightGrams ?? 0)) / 1000 : line.unitPrice * line.quantity;
 
-// Item por peso conta como um item na sacola.
+// Item por peso conta como um item no pedido.
 export const draftItemCount = (lines: DraftLine[]) =>
   lines.reduce((sum, line) => sum + (line.byWeight ? 1 : line.quantity), 0);
 
 const storageKey = (tabId: string) => `waiter-order-draft:${tabId}`;
 
-// sessionStorage segura a sacola numa recarga acidental da página. Pode
+// sessionStorage segura o pedido montado numa recarga acidental da página. Pode
 // falhar (navegação privada, armazenamento bloqueado): aí ela vive só na memória.
 function readDraft(tabId: string): Draft {
   try {
@@ -59,7 +59,7 @@ function writeDraft(tabId: string, draft: Draft) {
     if (draft.lines.length === 0) sessionStorage.removeItem(storageKey(tabId));
     else sessionStorage.setItem(storageKey(tabId), JSON.stringify(draft));
   } catch {
-    // Sem armazenamento: a sacola continua na memória.
+    // Sem armazenamento: o pedido montado continua na memória.
   }
 }
 
