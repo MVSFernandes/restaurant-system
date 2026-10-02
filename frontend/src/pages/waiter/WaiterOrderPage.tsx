@@ -14,11 +14,11 @@ import {
   Modal,
   ModalTitle,
   RemoveOneIcon,
-  SearchIcon,
-  Skeleton,
   useToast,
 } from '../../components/ui';
-import type { Category, Product, Table, WaiterTabDetail } from '../../types';
+import type { Category, Table, WaiterTabDetail } from '../../types';
+import { buildMenu, useMenuFilter, type MenuProduct } from './waiterMenu';
+import { MenuBody, MenuListSkeleton, MenuSearchBar } from './WaiterMenuParts';
 import { displayNumber } from './tableFormat';
 import { BOTTOM_BAR_CLEARANCE, BottomBar, DetailHeader, cardBase, focusRing, primaryActionClasses } from './detailLayout';
 import { createId, draftItemCount, lineTotal, useOrderDraft, type DraftLine } from './useOrderDraft';
@@ -43,30 +43,6 @@ const responseStatus = (error: unknown): number | null =>
 
 type SendError = { message: string; checkTab: boolean };
 
-/**
- * Preço por kg que o servidor vai cobrar no item por peso.
- *
- * REGRA DUPLICADA DO SERVIDOR (backend/src/services/order.service.ts,
- * resolveItemPricing): em categoria de refeição, o item por peso é cobrado
- * pelo pricePerKg da categoria, não pelo price do produto. O cardápio não
- * devolve esse preço pronto, então a tela repete a escolha aqui.
- *
- * Se o servidor mudar a regra e ninguém lembrar desta tela, o garçom passa um
- * preço e o caixa cobra outro, na frente do cliente. O conserto é a API
- * devolver o preço efetivo por kg e esta função sumir (docs/backlog.md, item 34).
- */
-function effectivePricePerKg(product: Product, category: Category | undefined) {
-  if (product.isByWeight && category?.isMealCategory && category.pricePerKg != null) {
-    return Number(category.pricePerKg);
-  }
-  return Number(product.price);
-}
-
-type MenuProduct = Product & { categoryName: string; unitPrice: number };
-
-const normalize = (text: string) =>
-  text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('pt-BR').trim();
-
 // "0,450" ou "0.450" -> 450 gramas. Inválido ou zero -> null.
 function parseKg(text: string): number | null {
   const kg = Number(text.replace(',', '.').trim());
@@ -77,62 +53,6 @@ function parseKg(text: string): number | null {
 
 const formatKg = (grams: number) =>
   `${(grams / 1000).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
-
-// ---------------------------------------------------------------------------
-// Lista
-
-const PriceTag: React.FC<{ product: MenuProduct }> = ({ product }) => (
-  <span className="shrink-0 whitespace-nowrap text-[16px] font-semibold leading-[21px] tabular-nums">
-    {formatCurrencyBRL(product.unitPrice)}
-    {product.isByWeight && <span className="text-[13px] font-normal text-muted"> / kg</span>}
-  </span>
-);
-
-const ProductRow: React.FC<{ product: MenuProduct; onPick: (product: MenuProduct) => void }> = ({ product, onPick }) => {
-  // Indisponível aparece, apagado e sem ação: o garçom responde "acabou" sem
-  // ir à cozinha. Esconder obrigaria a procurar para descobrir que não existe.
-  const unavailable = product.available === false;
-  return (
-    <li className="border-b border-default last:border-b-0">
-      <button
-        type="button"
-        disabled={unavailable}
-        onClick={() => onPick(product)}
-        aria-label={unavailable ? `${product.name}, sem estoque` : undefined}
-        className={clsx(
-          'flex min-h-16 w-full items-center gap-3 py-3 text-left',
-          unavailable ? 'cursor-not-allowed' : 'hover:bg-surface-hover',
-          focusRing
-        )}
-      >
-        <span className="min-w-0 flex-1">
-          {/* Apaga o nome e o preço, não o aviso: com opacity-50 o "Sem estoque"
-              cairia de 4,8:1 para perto de 2:1, e ele é a resposta que o garçom procura. */}
-          <span className={clsx('block break-words text-[16px] font-medium leading-[21px]', unavailable && 'opacity-50')}>
-            {product.name}
-          </span>
-          {unavailable && (
-            <span className="mt-0.5 block text-[13px] font-semibold leading-[18px] text-warning-strong">Sem estoque</span>
-          )}
-        </span>
-        <span className={clsx('shrink-0', unavailable && 'opacity-50')}>
-          <PriceTag product={product} />
-        </span>
-      </button>
-    </li>
-  );
-};
-
-const ListSkeleton: React.FC = () => (
-  <ul aria-hidden="true">
-    {Array.from({ length: 6 }, (_, index) => (
-      <li key={index} className="flex min-h-16 items-center gap-3 border-b border-default py-3 last:border-b-0">
-        <Skeleton className="h-4 flex-1" />
-        <Skeleton className="h-4 w-16" />
-      </li>
-    ))}
-  </ul>
-);
 
 // ---------------------------------------------------------------------------
 // Folha do item
@@ -405,8 +325,6 @@ function useOnline() {
   return online;
 }
 
-const ALL = 'all';
-
 const WaiterOrderPage: React.FC = () => {
   const { tableId = '', tabId = '' } = useParams();
   const navigate = useNavigate();
@@ -415,15 +333,12 @@ const WaiterOrderPage: React.FC = () => {
   const tabPath = `/waiter/tables/${encodeURIComponent(tableId)}/tabs/${encodeURIComponent(tabId)}`;
 
   const [screen, setScreen] = useState<ScreenState>({ state: 'loading' });
-  const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState(ALL);
   const [sheet, setSheet] = useState<{ product: MenuProduct; line: DraftLine | null } | null>(null);
   const [bagOpen, setBagOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<SendError | null>(null);
   const { draft, upsertLine, removeLine, renewKey, clear } = useOrderDraft(tabId);
   const requestId = useRef(0);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
     const id = ++requestId.current;
@@ -456,24 +371,9 @@ const WaiterOrderPage: React.FC = () => {
 
   const ready = screen.state === 'ready' ? screen : null;
 
-  const menu = useMemo<MenuProduct[]>(() => {
-    if (!ready) return [];
-    return ready.categories.flatMap((category) =>
-      (category.products ?? []).map((product) => ({
-        ...product,
-        categoryName: category.name,
-        unitPrice: product.isByWeight ? effectivePricePerKg(product, category) : Number(product.price),
-      }))
-    );
-  }, [ready]);
-
-  const query = normalize(search);
-  // Com texto, a busca ignora a categoria: "coca" acha a Coca em qualquer uma.
-  const visible = query
-    ? menu.filter((product) => normalize(product.name).includes(query))
-    : categoryId === ALL
-      ? menu
-      : menu.filter((product) => product.categoryId === categoryId);
+  const categories = ready?.categories;
+  const menu = useMemo(() => (categories ? buildMenu(categories) : []), [categories]);
+  const filter = useMenuFilter(menu);
 
   const total = draft.lines.reduce((sum, line) => sum + lineTotal(line), 0);
   const itemCount = draftItemCount(draft.lines);
@@ -587,50 +487,13 @@ const WaiterOrderPage: React.FC = () => {
             ) : null
           }
         />
-        {ready && !tabClosed && (
-          <div className="border-b border-default bg-surface px-5 py-3">
-            <div className={clsx(WAITER_COLUMN, 'relative')}>
-              <SearchIcon
-                size={20}
-                strokeWidth={1.75}
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-              />
-              <input
-                ref={searchRef}
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar no cardápio"
-                aria-label="Buscar no cardápio"
-                className={clsx(
-                  'h-12 w-full appearance-none rounded-token-lg border border-default bg-surface-sunken pl-11 text-[16px] text-default placeholder:text-subtle [&::-webkit-search-cancel-button]:hidden',
-                  search ? 'pr-12' : 'pr-3',
-                  focusRing
-                )}
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch('');
-                    searchRef.current?.focus();
-                  }}
-                  aria-label="Limpar busca"
-                  className={clsx('absolute right-0.5 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-token-lg text-muted hover:bg-surface-hover', focusRing)}
-                >
-                  <CloseIcon size={18} strokeWidth={1.75} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+        {ready && !tabClosed && <MenuSearchBar filter={filter} />}
       </div>
 
       <main className={clsx(WAITER_COLUMN, showBar ? BOTTOM_BAR_CLEARANCE : 'pb-8')} aria-busy={screen.state === 'loading'}>
         {screen.state === 'loading' && (
           <div className="px-5 pt-3">
-            <ListSkeleton />
+            <MenuListSkeleton />
           </div>
         )}
 
@@ -685,51 +548,7 @@ const WaiterOrderPage: React.FC = () => {
           </div>
         )}
 
-        {ready && !tabClosed && (
-          <>
-            {/* Categorias: a faixa rola na horizontal; a página, nunca. */}
-            {!query && (
-              <div className="overflow-x-auto px-5 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div role="group" aria-label="Categorias" className="flex w-max gap-2">
-                  {[{ id: ALL, name: 'Todos' }, ...ready.categories].map((category) => {
-                    const selected = categoryId === category.id;
-                    return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => setCategoryId(category.id)}
-                        className={clsx(
-                          'h-9 whitespace-nowrap rounded-full border px-[14px] text-[14px] leading-[18px]',
-                          selected
-                            ? 'border-primary bg-primary-subtle font-semibold text-primary-strong'
-                            : 'border-transparent bg-surface-sunken font-medium text-muted hover:text-default',
-                          focusRing
-                        )}
-                      >
-                        {category.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className={clsx('px-5', query && 'pt-3')}>
-              {visible.length > 0 ? (
-                <ul aria-label={query ? `Resultados para ${search.trim()}` : 'Produtos'}>
-                  {visible.map((product) => (
-                    <ProductRow key={product.id} product={product} onPick={pickProduct} />
-                  ))}
-                </ul>
-              ) : (
-                <EmptyState
-                  title={query ? `Nada encontrado para «${search.trim()}»` : 'Nenhum produto nesta categoria'}
-                />
-              )}
-            </div>
-          </>
-        )}
+        {ready && !tabClosed && <MenuBody categories={ready.categories} filter={filter} onPick={pickProduct} />}
       </main>
 
       {/* Pedido vazio: a barra não existe e a lista usa a tela inteira. */}

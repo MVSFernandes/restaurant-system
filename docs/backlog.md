@@ -582,7 +582,8 @@ A tela usa o que existe; nada disto foi alterado.
 
 - **Onde:** `backend/src/services/order.service.ts` (`resolveItemPricing`).
   A regra está duplicada em
-  `frontend/src/pages/waiter/WaiterOrderPage.tsx` (`effectivePricePerKg`).
+  `frontend/src/pages/waiter/waiterMenu.ts` (`effectivePricePerKg`), usada
+  pelas telas de lançar pedido e de cardápio do garçom.
 - **O que acontece:** para produto por peso em categoria de refeição
   (`isMealCategory`), o servidor cobra o `pricePerKg` da categoria, não o
   `price` do produto. O cardápio não devolve esse preço pronto, então a tela
