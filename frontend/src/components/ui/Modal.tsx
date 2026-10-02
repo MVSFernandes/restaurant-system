@@ -22,6 +22,8 @@ export type ModalProps = {
   onClose: () => void;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'full';
+  /** `bottom`: folha que sobe de baixo, presa à borda inferior (celular, uma mão). */
+  placement?: 'center' | 'bottom';
   closeOnOverlay?: boolean;
   className?: string;
 };
@@ -29,7 +31,7 @@ export type ModalProps = {
 const sizeClasses = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-3xl', full: 'max-w-[calc(100vw-2rem)] min-h-[calc(100vh-2rem)]' };
 const focusableSelector = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ open, onClose, children, size = 'md', closeOnOverlay = true, className }: ModalProps) {
+export function Modal({ open, onClose, children, size = 'md', placement = 'center', closeOnOverlay = true, className }: ModalProps) {
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -91,7 +93,13 @@ export function Modal({ open, onClose, children, size = 'md', closeOnOverlay = t
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" onMouseDown={handleOverlay}>
+    <div
+      className={clsx(
+        'fixed inset-0 z-[100] flex justify-center bg-black/55',
+        placement === 'bottom' ? 'items-end' : 'items-center p-4'
+      )}
+      onMouseDown={handleOverlay}
+    >
       <ModalContext.Provider value={{ titleId, descriptionId, onClose }}>
         <div
           ref={panelRef}
@@ -100,7 +108,13 @@ export function Modal({ open, onClose, children, size = 'md', closeOnOverlay = t
           aria-labelledby={titleId}
           aria-describedby={descriptionId}
           tabIndex={-1}
-          className={clsx('max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-token-lg border border-default bg-surface shadow-token-md outline-none', sizeClasses[size], className)}
+          className={clsx(
+            'w-full overflow-y-auto border border-default bg-surface shadow-token-md outline-none',
+            placement === 'bottom'
+              ? 'max-h-[85dvh] max-w-screen-sm rounded-t-[20px] border-b-0'
+              : clsx('max-h-[calc(100vh-2rem)] rounded-token-lg', sizeClasses[size]),
+            className
+          )}
         >
           {children}
         </div>

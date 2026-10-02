@@ -543,3 +543,133 @@ a correção da navegação pertence à etapa das telas do garçom.
   Contra a página (`canvas`), o valor do claro fica em **2,91**: nenhum valor
   entre 3,0 e 3,2 contra o cartão passa de 3:1 contra a página, que é mais
   escura. O token novo precisa resolver os dois fundos.
+
+---
+
+## Encontrados na tela de lançar pedido do garçom (2026-10-01)
+
+Vistos ao conferir a API para a Tela 4 (`docs/etapas/tela-lancar-pedido.md`).
+A tela usa o que existe; nada disto foi alterado.
+
+### 32. Produto sem vínculo de insumo aparece sempre disponível
+
+- **Onde:** `backend/src/services/productAvailability.service.ts`
+  (`productStockAvailability`), usado por `GET /api/products` e
+  `GET /api/categories`.
+- **O que acontece:** a disponibilidade é calculada pelos insumos vinculados
+  ao produto. Sem vínculo, o serviço devolve `available: true` com
+  `availableUnits: null`. Prato que a cozinha não vinculou a insumo nenhum
+  (prato do dia, por exemplo) aparece como disponível na tela do garçom
+  mesmo depois de acabar.
+- **Por que importa:** a tela de lançar responde "tem tal coisa?" com esse
+  dado. O garçom confia, promete ao cliente, e a cozinha não tem.
+- **Relacionado:** item 33. Com produto por peso a conta também é fraca: ela
+  é feita em unidades, e o produto só fica indisponível quando um insumo
+  vinculado zera.
+
+### 33. FUNCIONALIDADE DE PRODUTO: não existe "esgotado" manual
+
+- **Onde:** `Product` (`backend/src/types/domain.ts`) não tem campo de
+  ativo ou indisponível; a disponibilidade vem só do estoque (item 32).
+- **O que acontece:** quando um prato acaba antes do estoque registrar, a
+  cozinha não tem como marcar "acabou". O garçom continua vendo o prato
+  como disponível.
+- **É funcionalidade, não ajuste:** precisa de campo no banco, de quem pode
+  marcar e desmarcar, de onde isso aparece no PDV e na cozinha, e de como
+  combina com a disponibilidade por estoque. Etapa própria.
+
+### 34. A API não devolve o preço efetivo por kg
+
+- **Onde:** `backend/src/services/order.service.ts` (`resolveItemPricing`).
+  A regra está duplicada em
+  `frontend/src/pages/waiter/WaiterOrderPage.tsx` (`effectivePricePerKg`).
+- **O que acontece:** para produto por peso em categoria de refeição
+  (`isMealCategory`), o servidor cobra o `pricePerKg` da categoria, não o
+  `price` do produto. O cardápio não devolve esse preço pronto, então a tela
+  do garçom repete a regra para mostrar "R$ / kg" e o valor da linha.
+- **Por que importa:** se o servidor mudar a regra e ninguém lembrar da
+  tela, o garçom passa um preço e o caixa cobra outro, na frente do cliente.
+- **Correção:** `GET /api/products` e `GET /api/categories` devolverem o
+  preço efetivo por kg (e o modo de venda), e a tela deixar de calcular.
+
+### 35. FUNCIONALIDADE DE PRODUTO: montagem de marmita e complementos no app do garçom
+
+- **Onde:** a tela de lançar pedido do garçom (Tela 4) não monta marmita nem
+  escolhe complementos. A montagem existe só no PDV.
+- **O que acontece:** o garçom não consegue lançar marmita, que é parte
+  grande do que o restaurante vende. Pedido de marmita na mesa continua
+  dependendo do caixa.
+- **É funcionalidade, não ajuste:** etapa própria, depois da Tela 4. O
+  `docs/etapas/etapa-telas-garcom.md` já listava montagem e complementos
+  entre o que não pode se perder da tela antiga.
+
+### 36. RISCO DE COBRANÇA DUPLICADA: o cache de idempotência guarda erro 500 e empurra o cliente para uma chave nova
+
+- **Onde:** `backend/src/controllers/order.controller.ts` (`runIdempotent` e
+  `idempotencyStore`), usado por `POST /api/orders` e
+  `POST /api/orders/public`.
+- **O que já protege:** a chave é gravada no pedido (`orders.idempotency_key`,
+  o hash da chave com o escopo e o usuário, índice único
+  `orders_idempotency_key_idx`). `orderService.createOrder` procura o pedido
+  por essa chave antes de criar e devolve o que já existe; a função
+  `create_order_with_stock` faz a mesma checagem. Com a **mesma** chave, um
+  reenvio nunca duplica, nem depois de um reinício ou deploy do backend.
+- **O que acontece:** antes de chegar ao serviço, a requisição passa pelo
+  `idempotencyStore`, um `Map` na memória do processo. Quando a criação
+  termina em 5xx, o cache guarda esse erro sob a chave por 5 minutos, e um
+  reenvio com a mesma chave recebe o mesmo 500 sem tentar de novo. Para
+  conseguir reenviar dentro desses 5 minutos, o cliente precisa de uma chave
+  nova. Mas um 500 pode acontecer **depois de o pedido já estar gravado**
+  (falha ao montar a resposta, ao publicar o evento, ao ler os itens de
+  volta). Com chave nova, a checagem no banco não acha nada e a segunda
+  tentativa cria um segundo pedido: a cozinha prepara duas vezes e o
+  cliente paga duas vezes.
+- **Sobre a chave viver na memória:** registrado antes como ressalva da Tela 4
+  e **conferido em 2026-10-02: não procede para a duplicata**. O que vive só
+  na memória é o cache de respostas; a proteção contra pedido duplicado está
+  no banco e sobrevive a reinício. O cache em memória também não é
+  compartilhado entre instâncias, mas isso só muda qual resposta volta, não
+  se o pedido duplica.
+- **Decisão aplicada no frontend (2026-10-02):** a tela de lançar do garçom
+  (`frontend/src/pages/waiter/WaiterOrderPage.tsx`, `send`) troca a chave só
+  em recusa de regra de negócio (4xx). Em 5xx e sem resposta, mantém a mesma
+  chave. A mensagem do 5xx diz o que fazer: o pedido pode já ter sido
+  registrado, conferir a comanda antes de tentar de novo, com link para a
+  comanda (o pedido montado fica guardado na sessão). Motivo, também no comentário
+  do código: cobrança dupla é erro invisível em dinheiro; garçom travado é
+  erro visível. Entre os dois, o visível ganha sempre.
+- **O que falta (backend):** o cache de idempotência não guardar 5xx. Hoje,
+  com a mesma chave, o garçom que reenvia depois de um 500 recebe o mesmo
+  500 por até 5 minutos, mesmo que o pedido não tenha sido gravado e a nova
+  tentativa fosse dar certo. Sem guardar o 5xx, o reenvio chega ao serviço,
+  e a checagem no banco que já existe devolve o pedido criado ou cria o que
+  faltou. É isso que tira a espera de 5 minutos.
+- **Outras telas:** o cardápio público (`PublicMenuPage.tsx`) só descarta a
+  chave quando o pedido dá certo; depois de qualquer erro, reenvia com a
+  mesma. Não abre a duplicata, mas sofre a mesma espera de 5 minutos depois
+  de um 5xx.
+
+### 37. Abrir comanda: duas recusas chegam ao cliente sem texto em português
+
+- **Onde:** `POST /api/tables/:tableId/tabs`
+  (`backend/src/services/tableTab.service.ts`, `create`, e a função
+  `open_table_tab`), com o mapeamento em
+  `backend/src/middlewares/errorHandler.middleware.ts` (`mapSupabaseError`).
+- **O que acontece:**
+  - **Caixa fechado:** `CashRegisterClosedError` responde
+    "No cash register session is currently open." (código
+    `CASH_REGISTER_CLOSED`). Se o caixa fechar entre a checagem do serviço e
+    a função do banco, a resposta é o texto cru `CASH_REGISTER_CLOSED`, com
+    código `BUSINESS_RULE`.
+  - **Nome repetido numa corrida:** o serviço confere o nome antes e responde
+    em português ("Já existe uma comanda aberta com esse nome nesta mesa.").
+    Mas se dois garçons abrem o mesmo nome ao mesmo tempo, quem barra é a
+    função do banco, e a resposta é o texto cru
+    `TABLE_TAB_NAME_ALREADY_OPEN`, com código `BUSINESS_RULE`.
+- **Como o frontend lida hoje:** a tela de abrir comanda
+  (`frontend/src/pages/waiter/WaiterOpenTabPage.tsx`, `readRefusal`) traduz
+  esses dois casos pelo código. É texto de regra repetido no frontend.
+- **Correção (backend):** `mapSupabaseError` reconhecer
+  `TABLE_TAB_NAME_ALREADY_OPEN` e `CASH_REGISTER_CLOSED` (como já faz com
+  `TABLE_HAS_OPEN_TABS`) e `CashRegisterClosedError` ter mensagem em
+  português. Depois disso, a tela mostra só a mensagem do servidor.
