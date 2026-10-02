@@ -21,6 +21,12 @@ export function spokenOpenFor(minutes: number) {
 
 export const tabCountLabel = (count: number) => `${count} ${count === 1 ? 'comanda' : 'comandas'}`;
 
+export const itemCountLabel = (count: number) => `${count} ${count === 1 ? 'item' : 'itens'}`;
+
+// "20:34". Usa o fuso do aparelho (docs/backlog.md, item 25).
+export const formatClock = (iso: string) =>
+  new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
 // "R$ 1.234,56" -> ["R$", "1.234,56"]: o símbolo vai menor, o valor ganha o destaque.
 export function splitCurrency(formatted: string): [string, string] {
   const match = formatted.match(/^(\D+?)\s*(\d.*)$/);
@@ -51,6 +57,11 @@ export function fitAmountFontSize(amount: string, { max, min, reserve, tracking 
   const freed = (-tracking * amount.length).toFixed(1);
   return `max(${min}px, min(${max}px, calc((100cqi - ${reserve}px + ${freed}px) / ${amountEms(amount).toFixed(3)})))`;
 }
+
+// Valor do bloco de saldo das telas de detalhe: 30px sempre que cabe, até
+// 20px onde não cabe. "R$" em 18px com o espaço ocupa 27px; 29px dá folga.
+export const totalFontSize = (amount: string) =>
+  fitAmountFontSize(amount, { max: 30, min: 20, reserve: 29, tracking: -0.6 });
 
 // Borda da mesa livre: cartão da grade e pílula de situação da Mesa aberta.
 //

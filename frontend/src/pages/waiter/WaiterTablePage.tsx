@@ -17,11 +17,12 @@ import type { WaiterTableOverview, WaiterTableTab, WaiterTableTabsResponse } fro
 import {
   FREE_TABLE_BORDER,
   displayNumber,
-  fitAmountFontSize,
+  formatClock,
   formatOpenFor,
   splitCurrency,
   spokenOpenFor,
   tabCountLabel,
+  totalFontSize,
 } from './tableFormat';
 import {
   BOTTOM_BAR_CLEARANCE,
@@ -53,8 +54,6 @@ type ScreenState =
 const isNotFound = (reason: unknown) =>
   (reason as { response?: { status?: number } })?.response?.status === 404;
 
-const formatClock = (iso: string) =>
-  new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 // Primeira letra do primeiro nome e do último; um nome só, as duas primeiras.
 function initialsOf(name: string) {
@@ -73,10 +72,6 @@ const itemsParts = (tab: WaiterTableTab): string[] => {
 // Saldo zero (ou centavo de arredondamento) é comanda paga.
 const isPaid = (balance: number) => Math.abs(balance) < 0.005;
 
-// O valor do bloco de saldo é 30px sempre que cabe e encolhe até 20px onde
-// não cabe. "R$" em 18px com o espaço ocupa 27px; 29px dá folga.
-const totalFontSize = (amount: string) =>
-  fitAmountFontSize(amount, { max: 30, min: 20, reserve: 29, tracking: -0.6 });
 
 const Header: React.FC<{ screen: ScreenState; minutes: number | null }> = ({ screen, minutes }) => {
   const ready = screen.state === 'ready' ? screen : null;
