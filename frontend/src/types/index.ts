@@ -30,7 +30,10 @@ export interface Product {
   categoryId: string;
   category?: Category;
   stockItems?: ProductStockLink[];
+  // Disponibilidade calculada no servidor pelos insumos vinculados
+  // (docs/backlog.md, itens 32 e 33). availableUnits é null sem vínculo.
   available?: boolean;
+  availableUnits?: number | null;
   ncm?: string | null;
   cfop?: string | null;
   origin?: string | null;

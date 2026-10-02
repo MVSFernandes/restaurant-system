@@ -37,6 +37,9 @@ export {
   ChevronRight as ChevronRightIcon,
   ArrowLeft as BackIcon,
   Plus as AddIcon,
+  Minus as RemoveOneIcon,
+  Search as SearchIcon,
+  Trash2 as DeleteIcon,
   History as HistoryIcon,
   WifiOff as OfflineIcon,
 } from 'lucide-react';
