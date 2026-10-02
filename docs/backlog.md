@@ -602,3 +602,40 @@ A tela usa o que existe; nada disto foi alterado.
 - **É funcionalidade, não ajuste:** etapa própria, depois da Tela 4. O
   `docs/etapas/etapa-telas-garcom.md` já listava montagem e complementos
   entre o que não pode se perder da tela antiga.
+
+### 36. RISCO DE COBRANÇA DUPLICADA: o cache de idempotência guarda erro 500 e empurra o cliente para uma chave nova
+
+- **Onde:** `backend/src/controllers/order.controller.ts` (`runIdempotent` e
+  `idempotencyStore`), usado por `POST /api/orders` e
+  `POST /api/orders/public`.
+- **O que já protege:** a chave é gravada no pedido (`orders.idempotency_key`,
+  o hash da chave com o escopo e o usuário, índice único
+  `orders_idempotency_key_idx`). `orderService.createOrder` procura o pedido
+  por essa chave antes de criar e devolve o que já existe; a função
+  `create_order_with_stock` faz a mesma checagem. Com a **mesma** chave, um
+  reenvio nunca duplica, nem depois de um reinício ou deploy do backend.
+- **O que acontece:** antes de chegar ao serviço, a requisição passa pelo
+  `idempotencyStore`, um `Map` na memória do processo. Quando a criação
+  termina em 5xx, o cache guarda esse erro sob a chave por 5 minutos, e um
+  reenvio com a mesma chave recebe o mesmo 500 sem tentar de novo. Para
+  conseguir reenviar dentro desses 5 minutos, o cliente precisa de uma chave
+  nova. Mas um 500 pode acontecer **depois de o pedido já estar gravado**
+  (falha ao montar a resposta, ao publicar o evento, ao ler os itens de
+  volta). Com chave nova, a checagem no banco não acha nada e a segunda
+  tentativa cria um segundo pedido: a cozinha prepara duas vezes e o
+  cliente paga duas vezes.
+- **Sobre a chave viver na memória:** registrado antes como ressalva da Tela 4
+  e **conferido em 2026-10-02: não procede para a duplicata**. O que vive só
+  na memória é o cache de respostas; a proteção contra pedido duplicado está
+  no banco e sobrevive a reinício. O cache em memória também não é
+  compartilhado entre instâncias, mas isso só muda qual resposta volta, não
+  se o pedido duplica.
+- **Como o frontend lida hoje:** a tela de lançar do garçom
+  (`frontend/src/pages/waiter/WaiterOrderPage.tsx`, `send`) troca a chave
+  depois de qualquer resposta de erro do servidor, 5xx incluído, porque com
+  a mesma chave o 5xx guardado voltaria por 5 minutos. Sem resposta (rede),
+  mantém a chave. É essa troca no 5xx que abre a duplicata.
+- **Correção (backend):** a camada de idempotência não deve guardar 5xx. A
+  mesma chave precisa poder tentar de novo, e a checagem no banco que já
+  existe reconhece o pedido criado. Depois disso, o frontend passa a trocar
+  a chave só em recusa de regra de negócio (4xx).
