@@ -20,6 +20,7 @@ const WaiterTablesOverviewPage = lazy(() => import('./pages/waiter/WaiterTablesO
 const WaiterTablePage = lazy(() => import('./pages/waiter/WaiterTablePage'));
 const WaiterTabPage = lazy(() => import('./pages/waiter/WaiterTabPage'));
 const WaiterOrderPage = lazy(() => import('./pages/waiter/WaiterOrderPage'));
+const WaiterOpenTabPage = lazy(() => import('./pages/waiter/WaiterOpenTabPage'));
 const WaiterHistoryPage = lazy(() => import('./pages/waiter/WaiterHistoryPage'));
 
 const CategoriesPage = lazy(() => import('./pages/menu/CategoriesPage'));
@@ -101,6 +102,8 @@ const router = createBrowserRouter([
           // no lugar da navegação inferior.
           ...insideWaiterShell([
             { path: '/waiter/tables/:tableId', element: <WaiterTablePage /> },
+            // tabs/new antes de tabs/:tabId: o "new" não pode ser lido como id de comanda.
+            { path: '/waiter/tables/:tableId/tabs/new', element: <WaiterOpenTabPage /> },
             { path: '/waiter/tables/:tableId/tabs/:tabId', element: <WaiterTabPage /> },
             // Tela cheia, sem navegação inferior: o garçom está lançando.
             { path: '/waiter/tables/:tableId/tabs/:tabId/order', element: <WaiterOrderPage /> },
