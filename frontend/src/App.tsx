@@ -2,6 +2,7 @@ import { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 'react-router-dom';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import RouteError from './components/layout/RouteError';
+import RouteNotFound from './components/layout/RouteNotFound';
 import WaiterLayout from './components/layout/WaiterLayout';
 import { BrandingRouteEffects } from './contexts/BrandingProvider';
 
@@ -124,7 +125,8 @@ const router = createBrowserRouter([
         ]),
       },
       { path: '/', element: <Navigate to="/dashboard" replace /> },
-      { path: '*', element: <Navigate to="/dashboard" replace /> },
+      // Rota que não existe diz isso, em vez de levar ao Dashboard em silêncio.
+      { path: '*', element: <RouteNotFound /> },
     ],
   },
 ]);
