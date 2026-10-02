@@ -22,6 +22,7 @@ const WaiterTablePage = lazy(() => import('./pages/waiter/WaiterTablePage'));
 const WaiterTabPage = lazy(() => import('./pages/waiter/WaiterTabPage'));
 const WaiterOrderPage = lazy(() => import('./pages/waiter/WaiterOrderPage'));
 const WaiterOpenTabPage = lazy(() => import('./pages/waiter/WaiterOpenTabPage'));
+const WaiterMenuPage = lazy(() => import('./pages/waiter/WaiterMenuPage'));
 const WaiterHistoryPage = lazy(() => import('./pages/waiter/WaiterHistoryPage'));
 
 const CategoriesPage = lazy(() => import('./pages/menu/CategoriesPage'));
@@ -97,6 +98,7 @@ const router = createBrowserRouter([
             // Erro de uma tela fica dentro da casca: a barra inferior continua.
             children: insideWaiterShell([
               { path: '/waiter/tables', element: <WaiterTablesOverviewPage /> },
+              { path: '/waiter/menu', element: <WaiterMenuPage /> },
             ]),
           },
           // Telas de detalhe: cabeçalho com voltar e a própria ação fixa embaixo,
