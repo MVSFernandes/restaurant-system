@@ -22,3 +22,4 @@ export * from './Textarea';
 export { Toast, ToastProvider } from './Toast';
 export type { ToastOptions, ToastProps, ToastVariant } from './toastContext';
 export * from './useToast';
+export { useReserveBottomSpace } from './toastOffset';

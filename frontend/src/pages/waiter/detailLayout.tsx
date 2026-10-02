@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { WAITER_COLUMN } from '../../components/layout/WaiterLayout';
-import { BackIcon, Skeleton } from '../../components/ui';
+import { BackIcon, Skeleton, useReserveBottomSpace } from '../../components/ui';
 
 // Peças das telas de detalhe do garçom (Mesa aberta, Comanda): cabeçalho com
 // voltar, cards, rótulo de seção e a barra de ação fixa embaixo.
@@ -64,11 +64,16 @@ export const DetailHeader: React.FC<DetailHeaderProps> = ({ backTo, backLabel, l
 // reserva esse espaço embaixo para o último conteúdo não ficar atrás dela.
 export const BOTTOM_BAR_CLEARANCE = 'pb-[calc(88px+24px+env(safe-area-inset-bottom))]';
 
-export const BottomBar: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="fixed inset-x-0 bottom-0 z-30 border-t border-default bg-surface px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3">
-    <div className={clsx(WAITER_COLUMN, 'flex gap-2.5')}>{children}</div>
-  </div>
-);
+export const BottomBar: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  // O aviso (toast) sobe acima da barra: não tampa a ação que vem em seguida.
+  useReserveBottomSpace(ref);
+  return (
+    <div ref={ref} className="fixed inset-x-0 bottom-0 z-30 border-t border-default bg-surface px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-3">
+      <div className={clsx(WAITER_COLUMN, 'flex gap-2.5')}>{children}</div>
+    </div>
+  );
+};
 
 // Ação principal da barra: 56px, raio 14px, fundo primary, ícone de 20px.
 export const primaryActionClasses =

@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { ToastContext, type ToastOptions, type ToastProps, type ToastVariant } from './toastContext';
+import { useReservedBottom } from './toastOffset';
 
 const variantStyles: Record<ToastVariant, { icon: typeof CheckCircle2; className: string }> = {
   success: { icon: CheckCircle2, className: 'border-success/30 bg-success-subtle text-success' },
@@ -81,6 +82,7 @@ export function Toast({ id, title, description, variant = 'info', duration = 400
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Array<ToastOptions & { id: string }>>([]);
   const nextId = useRef(0);
+  const reservedBottom = useReservedBottom();
 
   const dismiss = useCallback((id: string) => {
     setToasts((current) => current.filter((item) => item.id !== id));
@@ -96,7 +98,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ toast, dismiss }}>
       {children}
       {typeof document !== 'undefined' && createPortal(
-        <div className="pointer-events-none fixed bottom-4 right-4 z-[200] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3" aria-label="Notificações">
+        <div
+          className="pointer-events-none fixed right-4 z-[200] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-3 transition-[bottom] duration-150"
+          // Com barra fixa no pé da tela, o aviso fica acima dela, com 12px de folga.
+          style={{ bottom: reservedBottom > 0 ? reservedBottom + 12 : 16 }}
+          aria-label="Notificações"
+        >
           {toasts.map((item) => <Toast key={item.id} {...item} onDismiss={dismiss} />)}
         </div>,
         document.body
