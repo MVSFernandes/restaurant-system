@@ -1,0 +1,73 @@
+select
+  table_namespace.nspname as schema_name,
+  table_row.relname as table_name,
+  trigger_row.tgname as trigger_name,
+  case
+    when (trigger_row.tgtype & 2) <> 0 then 'BEFORE'
+    when (trigger_row.tgtype & 64) <> 0 then 'INSTEAD OF'
+    else 'AFTER'
+  end as timing,
+  concat_ws(
+    ', ',
+    case when (trigger_row.tgtype & 4) <> 0 then 'INSERT' end,
+    case when (trigger_row.tgtype & 16) <> 0 then 'UPDATE' end,
+    case when (trigger_row.tgtype & 8) <> 0 then 'DELETE' end,
+    case when (trigger_row.tgtype & 32) <> 0 then 'TRUNCATE' end
+  ) as events,
+  case
+    when (trigger_row.tgtype & 1) <> 0 then 'ROW'
+    else 'STATEMENT'
+  end as orientation,
+  case trigger_row.tgenabled
+    when 'O' then 'ENABLED'
+    when 'D' then 'DISABLED'
+    when 'R' then 'REPLICA'
+    when 'A' then 'ALWAYS'
+  end as enabled_state,
+  format(
+    '%I.%I(%s)',
+    function_namespace.nspname,
+    function_row.proname,
+    pg_get_function_identity_arguments(function_row.oid)
+  ) as called_function,
+  pg_get_triggerdef(trigger_row.oid, true) as trigger_definition
+from pg_trigger as trigger_row
+join pg_class as table_row
+  on table_row.oid = trigger_row.tgrelid
+join pg_namespace as table_namespace
+  on table_namespace.oid = table_row.relnamespace
+join pg_proc as function_row
+  on function_row.oid = trigger_row.tgfoid
+join pg_namespace as function_namespace
+  on function_namespace.oid = function_row.pronamespace
+where table_namespace.nspname = 'public'
+  and not trigger_row.tgisinternal
+order by
+  table_row.relname,
+  trigger_row.tgname;
+
+| schema_name | table_name             | trigger_name                                          | timing | events                 | orientation | enabled_state | called_function                                            | trigger_definition                                                                                                                                                                                                                              |
+| ----------- | ---------------------- | ----------------------------------------------------- | ------ | ---------------------- | ----------- | ------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| public      | cash_register_sessions | trg_block_cash_close_with_pending_orders              | BEFORE | UPDATE                 | ROW         | ENABLED       | public.block_cash_close_with_pending_orders()              | CREATE TRIGGER trg_block_cash_close_with_pending_orders BEFORE UPDATE OF status ON cash_register_sessions FOR EACH ROW EXECUTE FUNCTION block_cash_close_with_pending_orders()                                                                  |
+| public      | customers              | trg_customers_updated_at                              | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_customers_updated_at BEFORE UPDATE ON customers FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                               |
+| public      | invoices               | invoices_set_updated_at                               | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER invoices_set_updated_at BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                                 |
+| public      | marmita_menu_items     | trg_marmita_updated_at                                | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_marmita_updated_at BEFORE UPDATE ON marmita_menu_items FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                        |
+| public      | orders                 | trg_cancel_pending_payments_with_order                | AFTER  | UPDATE                 | ROW         | ENABLED       | public.cancel_pending_payments_with_order()                | CREATE TRIGGER trg_cancel_pending_payments_with_order AFTER UPDATE OF status ON orders FOR EACH ROW WHEN (new.status = 'CANCELED'::text AND old.status IS DISTINCT FROM 'CANCELED'::text) EXECUTE FUNCTION cancel_pending_payments_with_order() |
+| public      | orders                 | trg_close_empty_implicit_table_tab_after_order_delete | AFTER  | DELETE                 | ROW         | ENABLED       | public.close_empty_implicit_table_tab_after_order_delete() | CREATE TRIGGER trg_close_empty_implicit_table_tab_after_order_delete AFTER DELETE ON orders FOR EACH ROW EXECUTE FUNCTION close_empty_implicit_table_tab_after_order_delete()                                                                   |
+| public      | orders                 | trg_close_settled_table_tab_after_order               | AFTER  | UPDATE                 | ROW         | ENABLED       | public.close_settled_table_tab_after_order()               | CREATE TRIGGER trg_close_settled_table_tab_after_order AFTER UPDATE OF status ON orders FOR EACH ROW EXECUTE FUNCTION close_settled_table_tab_after_order()                                                                                     |
+| public      | orders                 | trg_orders_updated_at                                 | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_orders_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                                     |
+| public      | orders                 | trg_validate_order_table_tab                          | BEFORE | INSERT, UPDATE         | ROW         | ENABLED       | public.validate_order_table_tab()                          | CREATE TRIGGER trg_validate_order_table_tab BEFORE INSERT OR UPDATE OF table_tab_id, table_id, type ON orders FOR EACH ROW EXECUTE FUNCTION validate_order_table_tab()                                                                          |
+| public      | payable_accounts       | trg_payable_accounts_updated_at                       | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_payable_accounts_updated_at BEFORE UPDATE ON payable_accounts FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                 |
+| public      | products               | trg_products_updated_at                               | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                                 |
+| public      | restaurant_config      | trg_restaurant_config_updated_at                      | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_restaurant_config_updated_at BEFORE UPDATE ON restaurant_config FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                               |
+| public      | stock_items            | trg_stock_items_updated_at                            | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_stock_items_updated_at BEFORE UPDATE ON stock_items FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                           |
+| public      | supplier_stock_items   | trg_supplier_stock_items_updated_at                   | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_supplier_stock_items_updated_at BEFORE UPDATE ON supplier_stock_items FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                         |
+| public      | suppliers              | trg_suppliers_updated_at                              | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_suppliers_updated_at BEFORE UPDATE ON suppliers FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                               |
+| public      | table_tabs             | trg_keep_occupied_table_with_open_tab                 | AFTER  | INSERT, UPDATE, DELETE | ROW         | ENABLED       | public.require_open_tab_for_occupied_table()               | CREATE CONSTRAINT TRIGGER trg_keep_occupied_table_with_open_tab AFTER INSERT OR DELETE OR UPDATE OF table_id, status ON table_tabs DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION require_open_tab_for_occupied_table()            |
+| public      | table_tabs             | trg_release_table_after_last_tab                      | AFTER  | UPDATE                 | ROW         | ENABLED       | public.release_table_after_last_tab()                      | CREATE TRIGGER trg_release_table_after_last_tab AFTER UPDATE OF status ON table_tabs FOR EACH ROW EXECUTE FUNCTION release_table_after_last_tab()                                                                                               |
+| public      | table_tabs             | trg_validate_table_tab_close                          | BEFORE | UPDATE                 | ROW         | ENABLED       | public.validate_table_tab_close()                          | CREATE TRIGGER trg_validate_table_tab_close BEFORE UPDATE OF status ON table_tabs FOR EACH ROW EXECUTE FUNCTION validate_table_tab_close()                                                                                                      |
+| public      | table_tabs             | trg_validate_table_tab_parent                         | BEFORE | INSERT, UPDATE         | ROW         | ENABLED       | public.validate_table_tab_parent()                         | CREATE TRIGGER trg_validate_table_tab_parent BEFORE INSERT OR UPDATE ON table_tabs FOR EACH ROW EXECUTE FUNCTION validate_table_tab_parent()                                                                                                    |
+| public      | tables                 | trg_prevent_table_release_with_open_tabs              | BEFORE | UPDATE                 | ROW         | ENABLED       | public.prevent_table_release_with_open_tabs()              | CREATE TRIGGER trg_prevent_table_release_with_open_tabs BEFORE UPDATE OF status ON tables FOR EACH ROW EXECUTE FUNCTION prevent_table_release_with_open_tabs()                                                                                  |
+| public      | tables                 | trg_require_open_tab_for_occupied_table               | AFTER  | INSERT, UPDATE         | ROW         | ENABLED       | public.require_open_tab_for_occupied_table()               | CREATE CONSTRAINT TRIGGER trg_require_open_tab_for_occupied_table AFTER INSERT OR UPDATE OF status ON tables DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION require_open_tab_for_occupied_table()                                  |
+| public      | users                  | trg_users_updated_at                                  | BEFORE | UPDATE                 | ROW         | ENABLED       | public.set_updated_at()                                    | CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION set_updated_at()                                                                                                                                       |
+

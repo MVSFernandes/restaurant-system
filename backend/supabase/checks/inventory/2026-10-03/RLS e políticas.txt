@@ -1,0 +1,50 @@
+select
+  namespace.nspname as schema_name,
+  table_row.relname as table_name,
+  table_row.relrowsecurity as rls_enabled,
+  table_row.relforcerowsecurity as rls_forced,
+  count(policy.policyname) over (
+    partition by table_row.oid
+  ) as policy_count,
+  policy.policyname as policy_name,
+  policy.permissive,
+  policy.roles,
+  policy.cmd as command,
+  policy.qual as using_expression,
+  policy.with_check as check_expression
+from pg_class as table_row
+join pg_namespace as namespace
+  on namespace.oid = table_row.relnamespace
+left join pg_policies as policy
+  on policy.schemaname = namespace.nspname
+ and policy.tablename = table_row.relname
+where namespace.nspname = 'public'
+  and table_row.relkind in ('r', 'p')
+order by
+  table_row.relname,
+  policy.policyname nulls first;
+
+| schema_name | table_name             | rls_enabled | rls_forced | policy_count | policy_name | permissive | roles | command | using_expression | check_expression |
+| ----------- | ---------------------- | ----------- | ---------- | ------------ | ----------- | ---------- | ----- | ------- | ---------------- | ---------------- |
+| public      | audit_logs             | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | cash_register_sessions | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | cash_withdrawals       | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | categories             | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | credit_settlements     | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | credit_transactions    | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | customers              | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | invoices               | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | marmita_menu_items     | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | order_items            | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | orders                 | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | payable_accounts       | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | payments               | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | product_stock_items    | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | products               | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | restaurant_config      | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | stock_items            | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | supplier_stock_items   | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | suppliers              | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | table_tabs             | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | tables                 | true        | false      | 0            | null        | null       | null  | null    | null             | null             |
+| public      | users                  | true        | false      | 0            | null        | null       | null  | null    | null             | null             |

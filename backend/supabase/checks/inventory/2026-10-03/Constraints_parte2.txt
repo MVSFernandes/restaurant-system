@@ -1,0 +1,47 @@
+select
+  namespace.nspname as schema_name,
+  table_row.relname as table_name,
+  constraint_row.conname as constraint_name,
+  case constraint_row.contype
+    when 'p' then 'PRIMARY KEY'
+    when 'u' then 'UNIQUE'
+    when 'f' then 'FOREIGN KEY'
+    when 'c' then 'CHECK'
+    when 'x' then 'EXCLUDE'
+  end as constraint_type,
+  constraint_row.convalidated as is_validated,
+  constraint_row.condeferrable as is_deferrable,
+  constraint_row.condeferred as initially_deferred,
+  pg_get_constraintdef(constraint_row.oid, true) as constraint_definition
+from pg_constraint as constraint_row
+join pg_class as table_row
+  on table_row.oid = constraint_row.conrelid
+join pg_namespace as namespace
+  on namespace.oid = table_row.relnamespace
+where namespace.nspname = 'public'
+  and constraint_row.contype in ('p', 'u', 'f', 'c', 'x')
+  and table_row.relname >= 'suppliers'
+order by
+  table_row.relname,
+  constraint_type,
+  constraint_row.conname;
+
+| schema_name | table_name | constraint_name                          | constraint_type | is_validated | is_deferrable | initially_deferred | constraint_definition                                                                                                                                          |
+| ----------- | ---------- | ---------------------------------------- | --------------- | ------------ | ------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| public      | suppliers  | suppliers_pkey                           | PRIMARY KEY     | true         | false         | false              | PRIMARY KEY (id)                                                                                                                                               |
+| public      | suppliers  | suppliers_email_unique                   | UNIQUE          | true         | false         | false              | UNIQUE (email)                                                                                                                                                 |
+| public      | table_tabs | table_tabs_closed_fields_check           | CHECK           | true         | false         | false              | CHECK (status = 'OPEN'::text AND closed_by_id IS NULL AND closed_at IS NULL OR status = 'CLOSED'::text AND closed_by_id IS NOT NULL AND closed_at IS NOT NULL) |
+| public      | table_tabs | table_tabs_name_check                    | CHECK           | true         | false         | false              | CHECK (btrim(name) <> ''::text)                                                                                                                                |
+| public      | table_tabs | table_tabs_status_check                  | CHECK           | true         | false         | false              | CHECK (status = ANY (ARRAY['OPEN'::text, 'CLOSED'::text]))                                                                                                     |
+| public      | table_tabs | table_tabs_cash_register_session_id_fkey | FOREIGN KEY     | true         | false         | false              | FOREIGN KEY (cash_register_session_id) REFERENCES cash_register_sessions(id) ON DELETE RESTRICT                                                                |
+| public      | table_tabs | table_tabs_closed_by_id_fkey             | FOREIGN KEY     | true         | false         | false              | FOREIGN KEY (closed_by_id) REFERENCES users(id) ON DELETE RESTRICT                                                                                             |
+| public      | table_tabs | table_tabs_opened_by_id_fkey             | FOREIGN KEY     | true         | false         | false              | FOREIGN KEY (opened_by_id) REFERENCES users(id) ON DELETE RESTRICT                                                                                             |
+| public      | table_tabs | table_tabs_table_id_fkey                 | FOREIGN KEY     | true         | false         | false              | FOREIGN KEY (table_id) REFERENCES tables(id) ON DELETE RESTRICT                                                                                                |
+| public      | table_tabs | table_tabs_pkey                          | PRIMARY KEY     | true         | false         | false              | PRIMARY KEY (id)                                                                                                                                               |
+| public      | table_tabs | table_tabs_id_table_id_key               | UNIQUE          | true         | false         | false              | UNIQUE (id, table_id)                                                                                                                                          |
+| public      | tables     | tables_status_check                      | CHECK           | true         | false         | false              | CHECK (status = ANY (ARRAY['AVAILABLE'::text, 'OCCUPIED'::text]))                                                                                              |
+| public      | tables     | tables_pkey                              | PRIMARY KEY     | true         | false         | false              | PRIMARY KEY (id)                                                                                                                                               |
+| public      | tables     | tables_number_unique                     | UNIQUE          | true         | false         | false              | UNIQUE (number)                                                                                                                                                |
+| public      | users      | users_role_check                         | CHECK           | true         | false         | false              | CHECK (role = ANY (ARRAY['ADMIN'::text, 'CASHIER'::text, 'WAITER'::text, 'FINANCE'::text]))                                                                    |
+| public      | users      | users_pkey                               | PRIMARY KEY     | true         | false         | false              | PRIMARY KEY (id)                                                                                                                                               |
+| public      | users      | users_email_unique                       | UNIQUE          | true         | false         | false              | UNIQUE (email)                                                                                                                                                 |

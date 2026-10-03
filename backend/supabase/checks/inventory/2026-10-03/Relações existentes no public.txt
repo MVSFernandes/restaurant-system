@@ -1,0 +1,50 @@
+select
+  namespace.nspname as schema_name,
+  relation.relname as relation_name,
+  case relation.relkind
+    when 'r' then 'TABLE'
+    when 'p' then 'PARTITIONED TABLE'
+    when 'v' then 'VIEW'
+    when 'm' then 'MATERIALIZED VIEW'
+    when 'S' then 'SEQUENCE'
+    when 'f' then 'FOREIGN TABLE'
+  end as relation_kind,
+  owner_role.rolname as owner_name,
+  relation.relpersistence as persistence,
+  relation.relrowsecurity as rls_enabled,
+  relation.relforcerowsecurity as rls_forced
+from pg_class as relation
+join pg_namespace as namespace
+  on namespace.oid = relation.relnamespace
+join pg_roles as owner_role
+  on owner_role.oid = relation.relowner
+where namespace.nspname = 'public'
+  and relation.relkind in ('r', 'p', 'v', 'm', 'S', 'f')
+order by
+  relation_kind,
+  relation.relname;
+
+| schema_name | relation_name          | relation_kind | owner_name | persistence | rls_enabled | rls_forced |
+| ----------- | ---------------------- | ------------- | ---------- | ----------- | ----------- | ---------- |
+| public      | audit_logs             | TABLE         | postgres   | p           | true        | false      |
+| public      | cash_register_sessions | TABLE         | postgres   | p           | true        | false      |
+| public      | cash_withdrawals       | TABLE         | postgres   | p           | true        | false      |
+| public      | categories             | TABLE         | postgres   | p           | true        | false      |
+| public      | credit_settlements     | TABLE         | postgres   | p           | true        | false      |
+| public      | credit_transactions    | TABLE         | postgres   | p           | true        | false      |
+| public      | customers              | TABLE         | postgres   | p           | true        | false      |
+| public      | invoices               | TABLE         | postgres   | p           | true        | false      |
+| public      | marmita_menu_items     | TABLE         | postgres   | p           | true        | false      |
+| public      | order_items            | TABLE         | postgres   | p           | true        | false      |
+| public      | orders                 | TABLE         | postgres   | p           | true        | false      |
+| public      | payable_accounts       | TABLE         | postgres   | p           | true        | false      |
+| public      | payments               | TABLE         | postgres   | p           | true        | false      |
+| public      | product_stock_items    | TABLE         | postgres   | p           | true        | false      |
+| public      | products               | TABLE         | postgres   | p           | true        | false      |
+| public      | restaurant_config      | TABLE         | postgres   | p           | true        | false      |
+| public      | stock_items            | TABLE         | postgres   | p           | true        | false      |
+| public      | supplier_stock_items   | TABLE         | postgres   | p           | true        | false      |
+| public      | suppliers              | TABLE         | postgres   | p           | true        | false      |
+| public      | table_tabs             | TABLE         | postgres   | p           | true        | false      |
+| public      | tables                 | TABLE         | postgres   | p           | true        | false      |
+| public      | users                  | TABLE         | postgres   | p           | true        | false      |

@@ -1,0 +1,18 @@
+select
+  extension.extname as extension_name,
+  extension.extversion as installed_version,
+  namespace.nspname as installed_schema,
+  extension.extrelocatable as is_relocatable
+from pg_extension as extension
+join pg_namespace as namespace
+  on namespace.oid = extension.extnamespace
+order by extension.extname;
+
+| extension_name     | installed_version | installed_schema | is_relocatable |
+| ------------------ | ----------------- | ---------------- | -------------- |
+| pg_stat_statements | 1.11              | extensions       | true           |
+| pg_trgm            | 1.6               | public           | true           |
+| pgcrypto           | 1.3               | extensions       | true           |
+| plpgsql            | 1.0               | pg_catalog       | false          |
+| supabase_vault     | 0.3.1             | vault            | false          |
+| uuid-ossp          | 1.1               | extensions       | true           |
