@@ -681,3 +681,16 @@ A tela usa o que existe; nada disto foi alterado.
   `TABLE_TAB_NAME_ALREADY_OPEN` e `CASH_REGISTER_CLOSED` (como já faz com
   `TABLE_HAS_OPEN_TABS`) e `CashRegisterClosedError` ter mensagem em
   português. Depois disso, a tela mostra só a mensagem do servidor.
+
+---
+
+## Etapas futuras
+
+### 38. FUNCIONALIDADE DE PRODUTO: etapa de delivery (tela de entregas)
+
+- **O que existia:** `frontend/src/pages/delivery/DeliveryPage.tsx`, um
+  rascunho sem rota: listava pedidos `DELIVERY` por situação, com endereço,
+  telefone, itens e total, e um botão que marcava o pedido como `DELIVERED`.
+- **Onde está:** removido em 2026-10-02 (branch `chore/frontend-lint-and-tests`);
+  a última versão está em `cf2aa1d` —
+  `git show cf2aa1d:frontend/src/pages/delivery/DeliveryPage.tsx`.
