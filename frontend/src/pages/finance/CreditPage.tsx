@@ -247,6 +247,7 @@ const CreditPage: React.FC = () => {
   const { toast } = useToast();
   const [paying, setPaying] = useState(false);
   const [charging, setCharging] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -339,21 +340,35 @@ const CreditPage: React.FC = () => {
     setShowCustomerModal(true);
   };
 
+  const savingCustomerRef = useRef(false);
+
   const handleSaveCustomer = async () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || savingCustomerRef.current) return;
 
     const payload = customerPayload(form);
 
+    savingCustomerRef.current = true;
+    setSavingCustomer(true);
     try {
       if (editingCustomer) await api.put(`/customers/${editingCustomer.id}`, payload);
       else await api.post('/customers', payload);
 
+      // O limite de crédito é o dinheiro deste formulário: o aviso confirma o valor salvo.
+      toast({
+        title: `Cliente ${payload.name.trim()} ${editingCustomer ? 'atualizado' : 'cadastrado'}`,
+        description: `Limite de crédito de ${formatCurrencyBRL(payload.creditLimit)}.`,
+        variant: 'success',
+      });
       setShowCustomerModal(false);
       resetCustomerForm();
       fetchCustomers();
     } catch (error) {
       console.error(error);
-      showError('Não foi possível salvar o cliente.');
+      // O formulário continua preenchido para corrigir e tentar de novo.
+      showError(serverMessage(error) || 'Não foi possível salvar o cliente.');
+    } finally {
+      savingCustomerRef.current = false;
+      setSavingCustomer(false);
     }
   };
 
@@ -411,18 +426,23 @@ const CreditPage: React.FC = () => {
     }
   };
 
-  const handleDeleteCustomer = async () => {
-    if (!customerToDelete) return;
+  const deletingCustomerRef = useRef(false);
 
+  const handleDeleteCustomer = async () => {
+    if (!customerToDelete || deletingCustomerRef.current) return;
+
+    deletingCustomerRef.current = true;
     try {
       setDeleteLoading(true);
       await api.delete(`/customers/${customerToDelete.id}`);
+      toast({ title: `Cliente ${customerToDelete.name} excluído`, variant: 'success' });
       setCustomerToDelete(null);
       fetchCustomers();
     } catch (error) {
       console.error(error);
-      showError('Não foi possível excluir o cliente.');
+      showError(serverMessage(error) || 'Não foi possível excluir o cliente.');
     } finally {
+      deletingCustomerRef.current = false;
       setDeleteLoading(false);
     }
   };
@@ -519,17 +539,30 @@ const CreditPage: React.FC = () => {
     }
   };
 
+  const issuingInvoiceRef = useRef(new Set<string>());
+
   const handleIssueInvoice = async (row: CreditEntry) => {
+    if (issuingInvoiceRef.current.has(row.id)) return;
+
+    issuingInvoiceRef.current.add(row.id);
     try {
       setInvoiceLoadingId(row.id);
       const { data } = await api.post<Invoice>('/invoices', { creditTransactionId: row.id });
       if (data) updateInvoice(data);
+      // A nota quase nunca sai autorizada no ato: o aviso só diz "autorizada"
+      // quando o servidor diz; senão, diz que foi enviada e a etiqueta acompanha.
+      toast({
+        title: data?.status === 'authorized'
+          ? `NF-e de ${formatCurrencyBRL(row.amount)} autorizada`
+          : `NF-e de ${formatCurrencyBRL(row.amount)} enviada para emissão`,
+        variant: 'success',
+      });
       await fetchCustomers();
     } catch (error: unknown) {
       console.error(error);
-      const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      showError(apiMessage || 'Não foi possível emitir a NF-e.', 'Erro ao emitir NF-e');
+      showError(serverMessage(error) || 'Não foi possível emitir a NF-e.', 'Erro ao emitir NF-e');
     } finally {
+      issuingInvoiceRef.current.delete(row.id);
       setInvoiceLoadingId(null);
     }
   };
@@ -647,8 +680,8 @@ const CreditPage: React.FC = () => {
           <CustomerFormFields form={form} setForm={setForm} />
 
           <div className="mt-5 flex gap-3">
-            <button onClick={handleSaveCustomer} className="btn-primary flex-1">
-              Salvar
+            <button onClick={handleSaveCustomer} disabled={savingCustomer} className="btn-primary flex-1">
+              {savingCustomer ? 'Salvando…' : 'Salvar'}
             </button>
             <button
               onClick={() => {
