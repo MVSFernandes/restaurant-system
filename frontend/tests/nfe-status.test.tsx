@@ -17,6 +17,10 @@ import {
   useInvoiceStatusPolling,
 } from '../src/hooks/useInvoiceStatusPolling';
 import CreditPage from '../src/pages/finance/CreditPage';
+import { ToastProvider } from '../src/components/ui';
+
+// Como no app: a tela de fiado vive dentro do ToastProvider (main.tsx).
+const renderCreditPage = () => render(<ToastProvider><CreditPage /></ToastProvider>);
 
 const makeInvoice = (status: Invoice['status'], patch: Partial<Invoice> = {}): Invoice => ({
   id: 'invoice-1',
@@ -208,7 +212,7 @@ describe('credit invoice actions', () => {
       throw new Error('Unexpected GET ' + url);
     });
 
-    render(<CreditPage />);
+    renderCreditPage();
     fireEvent.click(await screen.findByText('Venda de teste'));
     fireEvent.click(await screen.findByRole('button', { name: 'Atualizar status' }));
 
@@ -234,7 +238,7 @@ describe('credit invoice actions', () => {
       return { data: fresh };
     });
 
-    render(<CreditPage />);
+    renderCreditPage();
     fireEvent.click(await screen.findByText('Venda de teste'));
     expect(screen.getByText(message)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Emitir novamente' }));
