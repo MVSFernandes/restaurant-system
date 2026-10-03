@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../services/api';
 import type { Order, Role, User } from '../../types';
 import { clsx } from 'clsx';
@@ -50,6 +50,10 @@ interface ToastState {
 
 const roleLabel = (role: Role) => roleOptions.find((item) => item.value === role)?.label || role;
 
+// Mensagem do servidor quando houver; senão, o texto padrão da ação.
+const apiMessage = (error: unknown, fallback: string) =>
+  (error as { response?: { data?: { message?: string } } })?.response?.data?.message || fallback;
+
 const WaitersManagementPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -67,12 +71,12 @@ const WaitersManagementPage: React.FC = () => {
   const selectedRole = roleOptions.find((role) => role.value === form.role) || roleOptions[0];
   const selectedEditRole = roleOptions.find((role) => role.value === editForm.role) || roleOptions[0];
 
-  const showToast = (type: 'success' | 'error', message: string) => {
+  const showToast = useCallback((type: 'success' | 'error', message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const { data } = await api.get('/users');
       setUsers(data);
@@ -82,13 +86,23 @@ const WaitersManagementPage: React.FC = () => {
     } finally {
       setLoadingUsers(false);
     }
-  };
+  }, [showToast]);
 
-  const fetchOrders = async () => {
+  // A busca vai para o servidor só quando o filtro de garçom muda; enquanto a
+  // pessoa digita, a lista é filtrada aqui (filteredOrders). O ref mantém esse
+  // comportamento sem refazer a consulta a cada letra.
+  const searchRef = useRef(search);
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
+
+  const fetchOrders = useCallback(async () => {
+    setLoadingOrders(true);
     try {
       const params = new URLSearchParams();
+      const term = searchRef.current.trim();
       if (filterWaiterId) params.set('waiterId', filterWaiterId);
-      if (search.trim()) params.set('search', search.trim());
+      if (term) params.set('search', term);
       const qs = params.toString();
       const { data } = await api.get(`/orders${qs ? `?${qs}` : ''}`);
       setOrders(data);
@@ -98,16 +112,15 @@ const WaitersManagementPage: React.FC = () => {
     } finally {
       setLoadingOrders(false);
     }
-  };
+  }, [filterWaiterId, showToast]);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    void fetchUsers();
+  }, [fetchUsers]);
 
   useEffect(() => {
-    setLoadingOrders(true);
-    fetchOrders();
-  }, [filterWaiterId]);
+    void fetchOrders();
+  }, [fetchOrders]);
 
   const filteredOrders = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -133,8 +146,8 @@ const WaitersManagementPage: React.FC = () => {
       setForm({ name: '', email: '', password: '', role: 'WAITER' });
       await fetchUsers();
       showToast('success', 'Login criado com sucesso.');
-    } catch (error: any) {
-      showToast('error', error?.response?.data?.message || 'Erro ao criar usuário.');
+    } catch (error) {
+      showToast('error', apiMessage(error, 'Erro ao criar usuário.'));
     } finally {
       setSubmitting(false);
     }
@@ -156,8 +169,8 @@ const WaitersManagementPage: React.FC = () => {
       await fetchUsers();
       cancelEditing();
       showToast('success', 'Login atualizado com sucesso.');
-    } catch (error: any) {
-      showToast('error', error?.response?.data?.message || 'Erro ao atualizar usuário.');
+    } catch (error) {
+      showToast('error', apiMessage(error, 'Erro ao atualizar usuário.'));
     }
   };
 
@@ -170,8 +183,8 @@ const WaitersManagementPage: React.FC = () => {
       await api.delete(`/users/${user.id}`);
       await fetchUsers();
       showToast('success', 'Login excluído com sucesso.');
-    } catch (error: any) {
-      showToast('error', error?.response?.data?.message || 'Erro ao excluir usuário.');
+    } catch (error) {
+      showToast('error', apiMessage(error, 'Erro ao excluir usuário.'));
     } finally {
       setDeleteLoadingId(null);
     }

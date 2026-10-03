@@ -136,6 +136,8 @@ export interface OrderItem {
   weight?: number;
   price: number;
   unitPrice?: number;
+  /** Preço da linha fixado à mão no PDV; null quando segue o cardápio. */
+  manualPrice?: number | null;
   saleType?: OrderItemSaleType;
   notes?: string;
   productId: string;

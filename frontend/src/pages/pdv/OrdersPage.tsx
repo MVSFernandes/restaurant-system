@@ -1,5 +1,5 @@
 import { orderErrorMessage } from '../../lib/orderErrors';
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useEffectEvent, useMemo, useRef, useCallback } from 'react';
 import api from '../../services/api';
 import type {
   Order,
@@ -120,7 +120,7 @@ const parseNotesAndExtras = (originalNotes: string) => {
   const extras: { id: string; name: string; price: number }[] = [];
   const cleanLines: string[] = [];
 
-  for (let line of lines) {
+  for (const line of lines) {
     const trimmedLine = line.trim();
 
     const newFormatMatch = trimmedLine.match(/^\[EXTRA\]\s*(.+?)\s*\|\s*([\d.,]+)$/i);
@@ -480,8 +480,14 @@ const OrdersPage: React.FC = () => {
     }
   };
 
+  // Carga completa uma vez, ao abrir a tela. fetchData muda quando o som de
+  // aviso é ligado ou desligado (via refreshOperationalData); pôr ela nas
+  // dependências recarregaria tudo e voltaria a categoria para a primeira.
+  const loadOnOpen = useEffectEvent(() => {
+    void fetchData();
+  });
   useEffect(() => {
-    fetchData();
+    loadOnOpen();
   }, []);
 
   useEffect(() => {
@@ -953,7 +959,7 @@ const OrdersPage: React.FC = () => {
         const baseUnitPrice = Number(item.unitPrice ?? item.price ?? 0) - extraTotalPerUnit;
 
         let baseItemTotal = baseUnitPrice * multiplier;
-        const manualPrice = (item as any).manualPrice;
+        const manualPrice = item.manualPrice;
 
         if (manualPrice !== undefined && manualPrice !== null) {
           baseItemTotal = Number(manualPrice);
@@ -1570,7 +1576,7 @@ const OrdersPage: React.FC = () => {
                 let baseItemTotal = baseUnitPrice * multiplier;
                 let extraItemTotal = extraTotalPerUnit * multiplier;
 
-                const manualPrice = (item as any).manualPrice;
+                const manualPrice = item.manualPrice;
 
                 if (manualPrice !== undefined && manualPrice !== null) {
                   baseItemTotal = Number(manualPrice);

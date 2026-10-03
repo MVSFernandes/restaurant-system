@@ -266,7 +266,11 @@ describe('Settings sidebar group', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Restaurante' }));
 
     await waitFor(() => expect(screen.getByLabelText('Localização atual').textContent).toBe('/settings/restaurant'));
-    expect(screen.getAllByRole('link', { name: 'Restaurante' }).some((link) => link.className.includes('bg-primary-600'))).toBe(true);
-    expect(screen.getAllByRole('link', { name: 'Documentos Fiscais' }).length).toBeGreaterThan(0);
+    // O item ativo é marcado por aria-current, não por uma cor: a cor muda com
+    // o design system, o "você está aqui" para leitor de tela não.
+    expect(screen.getAllByRole('link', { name: 'Restaurante' }).some((link) => link.getAttribute('aria-current') === 'page')).toBe(true);
+    const fiscalLinks = screen.getAllByRole('link', { name: 'Documentos fiscais' });
+    expect(fiscalLinks.length).toBeGreaterThan(0);
+    expect(fiscalLinks.every((link) => link.getAttribute('aria-current') !== 'page')).toBe(true);
   });
 });
