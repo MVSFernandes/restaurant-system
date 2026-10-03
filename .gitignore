@@ -50,4 +50,6 @@ backend/prisma_backup/
 backend/supabase/*
 !backend/supabase/migrations/
 !backend/supabase/migrations/*.sql
+!backend/supabase/checks/
+!backend/supabase/checks/*.sql
 .claude/settings.local.json
