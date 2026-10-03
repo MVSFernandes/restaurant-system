@@ -44,7 +44,7 @@ const parseNotesAndExtras = (originalNotes: string) => {
   const extras: ExtraItem[] = [];
   const cleanLines: string[] = [];
 
-  for (let line of lines) {
+  for (const line of lines) {
     const trimmedLine = line.trim();
     
     // Novo formato padrão: [EXTRA] Nome | Valor
@@ -105,7 +105,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, categorie
         extras,
         saleType: item.saleType || (item.product?.isByWeight ? 'WEIGHT' : 'UNIT'),
         baseUnitPrice: baseUnitPrice,
-        manualPrice: (item as any).manualPrice !== null && (item as any).manualPrice !== undefined ? (item as any).manualPrice : '',
+        manualPrice: item.manualPrice ?? '',
       };
     })
   );

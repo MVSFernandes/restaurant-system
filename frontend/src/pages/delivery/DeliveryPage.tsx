@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import api from '../../services/api';
 import type { Order } from '../../types';
 import { MapPin, Phone, FileText, CheckCircle } from 'lucide-react';
@@ -9,7 +9,7 @@ const DeliveryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('READY');
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const { data } = await api.get(`/orders?status=${filter}&type=DELIVERY`);
       setOrders(data);
@@ -18,11 +18,11 @@ const DeliveryPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
   useEffect(() => {
-    fetchOrders();
-  }, [filter]);
+    void fetchOrders();
+  }, [fetchOrders]);
 
   const handleMarkDelivered = async (orderId: string) => {
     try {

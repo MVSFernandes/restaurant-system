@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../services/api';
 import type { MarmitaMenuItem } from '../../types';
 import { Plus, Trash2, Pencil, CheckCircle, AlertTriangle, X } from 'lucide-react';
@@ -59,12 +59,12 @@ const MarmitaMenuPage: React.FC = () => {
   const [form, setForm] = useState(emptyForm);
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  const showToast = (type: 'success' | 'error', message: string) => {
+  const showToast = useCallback((type: 'success' | 'error', message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
 
-  const fetchItems = async (day: number) => {
+  const fetchItems = useCallback(async (day: number) => {
     try {
       setLoading(true);
       const res = await api.get(`/marmita-menu/day/${day}`);
@@ -75,11 +75,11 @@ const MarmitaMenuPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
-    fetchItems(selectedDay);
-  }, [selectedDay]);
+    void fetchItems(selectedDay);
+  }, [fetchItems, selectedDay]);
 
   const groupedItems = useMemo(() => {
     return groups.map((group) => ({
