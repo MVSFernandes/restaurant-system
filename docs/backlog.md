@@ -218,6 +218,13 @@ Vistos durante a correção; nenhum foi corrigido nela.
 
 ### 18. Teste da sidebar de Configurações falhando na `main`
 
+> **Resolvido** na branch `chore/frontend-lint-and-tests` (2026-10-02). O teste
+> passou a conferir o item ativo por `aria-current="page"` em vez da classe
+> `bg-primary-600`, que a sidebar não usa mais, e o rótulo "Documentos
+> fiscais" (`ebd2d75`). Os 10 erros e 5 avisos de lint foram resolvidos sem
+> mudar comportamento (`cf2aa1d`). `npm run lint` e a suíte de testes passam
+> limpos.
+
 - **Onde:** `frontend/tests/settings-pages.test.tsx` ("expands like other
   groups and highlights the active settings child").
 - **O que acontece:** o teste procura o link "Documentos Fiscais"; a sidebar
