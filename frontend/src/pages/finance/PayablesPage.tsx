@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../services/api';
+import { useToast } from '../../components/ui';
 import type { PayableAccount, Supplier } from '../../types';
 import {
   Plus,
@@ -17,6 +18,9 @@ import {
 import { formatCurrencyBRL } from '../../utils/currency';
 
 type FilterStatus = 'ALL' | 'PENDING' | 'PAID' | 'OVERDUE';
+
+const serverMessage = (error: unknown) =>
+  (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
 
 const emptyForm = {
   description: '',
@@ -40,6 +44,13 @@ const PayablesPage: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [payableToDelete, setPayableToDelete] = useState<PayableAccount | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [payingIds, setPayingIds] = useState<Set<string>>(() => new Set());
+
+  const { toast } = useToast();
+  // Falha: a mensagem do servidor, quando houver. O aviso de erro fica até ser dispensado.
+  const showFailure = (error: unknown, fallback: string) =>
+    toast({ title: 'Não foi possível concluir', description: serverMessage(error) || fallback, variant: 'error' });
 
   const fetchData = async () => {
     try {
@@ -95,9 +106,19 @@ const PayablesPage: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleSave = async () => {
-    if (!form.description || !form.amount || !form.dueDate) return;
+  // Dinheiro: o botão fica desabilitado durante a requisição, o ref barra o
+  // segundo clique antes mesmo de a tela redesenhar, o sucesso é confirmado
+  // com o valor e a falha mostra a mensagem do servidor sem perder o que foi
+  // digitado.
+  const savingRef = useRef(false);
+  const payingRef = useRef(new Set<string>());
+  const deletingRef = useRef(false);
 
+  const handleSave = async () => {
+    if (!form.description || !form.amount || !form.dueDate || savingRef.current) return;
+
+    savingRef.current = true;
+    setSaving(true);
     try {
       const payload = {
         ...form,
@@ -111,21 +132,42 @@ const PayablesPage: React.FC = () => {
         await api.post('/finance/payables', payload);
       }
 
+      toast({
+        title: `Conta de ${formatCurrencyBRL(payload.amount)} ${editingPayable ? 'atualizada' : 'cadastrada'}`,
+        variant: 'success',
+      });
       setShowModal(false);
       setEditingPayable(null);
       setForm(emptyForm);
       fetchData();
     } catch (error) {
       console.error(error);
+      showFailure(error, editingPayable ? 'Não foi possível salvar as alterações da conta.' : 'Não foi possível cadastrar a conta.');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
-  const handleMarkAsPaid = async (id: string) => {
+  const handleMarkAsPaid = async (payable: PayableAccount) => {
+    if (payingRef.current.has(payable.id)) return;
+
+    payingRef.current.add(payable.id);
+    setPayingIds((current) => new Set(current).add(payable.id));
     try {
-      await api.patch(`/finance/payables/${id}/pay`);
+      await api.patch(`/finance/payables/${payable.id}/pay`);
+      toast({ title: `Conta de ${formatCurrencyBRL(payable.amount)} marcada como paga`, variant: 'success' });
       fetchData();
     } catch (error) {
       console.error(error);
+      showFailure(error, 'Não foi possível marcar a conta como paga.');
+    } finally {
+      payingRef.current.delete(payable.id);
+      setPayingIds((current) => {
+        const next = new Set(current);
+        next.delete(payable.id);
+        return next;
+      });
     }
   };
 
@@ -141,17 +183,21 @@ const PayablesPage: React.FC = () => {
   };
 
   const handleConfirmDelete = async () => {
-    if (!payableToDelete) return;
+    if (!payableToDelete || deletingRef.current) return;
 
+    deletingRef.current = true;
     try {
       setDeleting(true);
       await api.delete(`/finance/payables/${payableToDelete.id}`);
+      toast({ title: `Conta de ${formatCurrencyBRL(payableToDelete.amount)} excluída`, variant: 'success' });
       setDeleteModalOpen(false);
       setPayableToDelete(null);
       fetchData();
     } catch (error) {
       console.error(error);
+      showFailure(error, 'Não foi possível excluir a conta.');
     } finally {
+      deletingRef.current = false;
       setDeleting(false);
     }
   };
@@ -478,12 +524,13 @@ const PayablesPage: React.FC = () => {
                       <div className="flex items-center justify-end gap-2">
                         {!p.paid && (
                           <button
-                            onClick={() => handleMarkAsPaid(p.id)}
-                            className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-3 py-2 text-white font-medium hover:bg-green-700 transition"
+                            onClick={() => handleMarkAsPaid(p)}
+                            disabled={payingIds.has(p.id)}
+                            className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-3 py-2 text-white font-medium hover:bg-green-700 transition disabled:cursor-not-allowed disabled:opacity-60"
                             title="Marcar como paga"
                           >
                             <CheckCircle size={16} />
-                            Pagar
+                            {payingIds.has(p.id) ? 'Pagando…' : 'Pagar'}
                           </button>
                         )}
 
@@ -607,8 +654,8 @@ const PayablesPage: React.FC = () => {
             </div>
 
             <div className="flex gap-3 p-6 pt-0">
-              <button onClick={handleSave} className="btn-primary flex-1">
-                {editingPayable ? 'Salvar alterações' : 'Salvar conta'}
+              <button onClick={handleSave} disabled={saving} className="btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-60">
+                {saving ? 'Salvando…' : editingPayable ? 'Salvar alterações' : 'Salvar conta'}
               </button>
               <button
                 onClick={() => {
