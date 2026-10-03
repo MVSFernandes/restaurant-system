@@ -449,6 +449,15 @@ diferenças de desempenho ou falha funcional sem aviso durante a instalação.
 A correção exige uma etapa própria para decidir como reconstruir e versionar o
 esquema-base antes de adicionar uma baseline ou migrations de reconciliação.
 
+**Pergunta em aberto (2026-10-03), para responder quando a base existir:**
+existe algum gatilho no banco atual ligado a `payable_accounts` que mova
+dinheiro (caixa, lançamento financeiro) quando uma conta é marcada como paga?
+Pelo código versionado, `PATCH /api/finance/payables/:id/pay` é um único
+`UPDATE` idempotente (`paid = true`, `paid_at = agora`), e um clique duplo não
+paga duas vezes. Mas, sem o esquema-base versionado, não dá para descartar um
+gatilho que só existe no Supabase. Não foi investigado agora: com a base
+versionada, a resposta sai da leitura dela.
+
 ---
 
 ## Encontrados na modelagem de comandas (2026-09-29)
