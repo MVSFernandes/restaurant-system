@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { clsx } from 'clsx';
 import {
   AlertCircle,
-  Banknote,
   Check,
   ChevronDown,
   ChevronRight,
@@ -402,9 +401,9 @@ const CreditPage: React.FC = () => {
     }
   };
 
-  const openPayModal = (customer: Customer, row?: CreditEntry) => {
+  const openPayModal = (customer: Customer) => {
     setSelectedCustomer(customer);
-    setPayAmount(row ? String(row.openAmount) : '');
+    setPayAmount('');
     setShowPayModal(true);
   };
 
@@ -598,7 +597,7 @@ const CreditPage: React.FC = () => {
               onEdit={() => openEditCustomerModal(customer)}
               onDelete={() => setCustomerToDelete(customer)}
               onCharge={() => openChargeModal(customer)}
-              onPay={(row) => openPayModal(customer, row)}
+              onPay={() => openPayModal(customer)}
               onWhatsApp={() => openWhatsApp(customer)}
               onIssueInvoice={handleIssueInvoice}
               onRefreshInvoice={handleRefreshInvoice}
@@ -651,6 +650,8 @@ const CreditPage: React.FC = () => {
             value={payAmount}
             onChange={setPayAmount}
           />
+          {/* O sistema abate da dívida mais antiga (pay_customer_credit): a tela diz isso. */}
+          <p className="mt-1.5 text-[13px] leading-[18px] text-muted">O valor abate as dívidas mais antigas primeiro.</p>
           <div className="mt-5 flex gap-3">
             <button onClick={handlePayCredit} disabled={!payAmount} className="btn-primary flex-1">
               Confirmar
@@ -824,7 +825,7 @@ const CustomerCard: React.FC<{
   onEdit: () => void;
   onDelete: () => void;
   onCharge: () => void;
-  onPay: (row?: CreditEntry) => void;
+  onPay: () => void;
   onWhatsApp: () => void;
   onIssueInvoice: (row: CreditEntry) => void;
   onRefreshInvoice: (invoice: Invoice) => void;
@@ -937,7 +938,6 @@ const CustomerCard: React.FC<{
                   row={row}
                   expanded={expandedRows.has(row.id)}
                   onToggle={() => onToggleRow(row.id)}
-                  onPay={() => onPay(row)}
                   onWhatsApp={onWhatsApp}
                   onIssueInvoice={() => onIssueInvoice(row)}
                   onRefreshInvoice={() => row.invoice && onRefreshInvoice(row.invoice)}
@@ -960,9 +960,12 @@ const CustomerCard: React.FC<{
           <button onClick={onCharge} className="rounded-lg border border-[#cbd5e1] bg-white px-3.5 py-2 text-[13px] font-medium text-[#1e293b] hover:bg-slate-50">
             Lançar fiado
           </button>
+          {/* O pagamento é do cliente, não do pedido: o valor abate as dívidas
+              mais antigas primeiro (pay_customer_credit). Por isso o botão mora
+              aqui, e não dentro do card de cada pedido. */}
           {openRows.length > 0 && (
             <button
-              onClick={() => onPay()}
+              onClick={onPay}
               disabled={customer.creditUsed <= 0}
               className="rounded-lg border border-[#cbd5e1] bg-white px-3.5 py-2 text-[13px] font-medium text-[#1e293b] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -984,7 +987,6 @@ const CustomerCard: React.FC<{
                 row={row}
                 expanded={expandedRows.has(row.id)}
                 onToggle={() => onToggleRow(row.id)}
-                onPay={() => onPay(row)}
                 onWhatsApp={onWhatsApp}
                 onIssueInvoice={() => onIssueInvoice(row)}
                 onRefreshInvoice={() => row.invoice && onRefreshInvoice(row.invoice)}
@@ -1007,7 +1009,6 @@ const CreditRow: React.FC<{
   row: CreditEntry;
   expanded: boolean;
   onToggle: () => void;
-  onPay: () => void;
   onWhatsApp: () => void;
   onIssueInvoice: () => void;
   onRefreshInvoice: () => void;
@@ -1021,7 +1022,6 @@ const CreditRow: React.FC<{
   row,
   expanded,
   onToggle,
-  onPay,
   onWhatsApp,
   onIssueInvoice,
   onRefreshInvoice,
@@ -1133,17 +1133,12 @@ const CreditRow: React.FC<{
           {(showCollectionActions || (canIssueInvoice && !row.invoice)) && (
             <div className="mt-3 flex flex-wrap gap-2">
               {showCollectionActions && (
-                <>
-                  <button onClick={onPay} className={clsx(actionButtonBase, 'bg-[#ea580c] text-white shadow-sm hover:bg-[#c2410c]')}>
-                    <Banknote size={15} /> Registrar pagamento
-                  </button>
-                  <button
-                    onClick={onWhatsApp}
-                    className={clsx(actionButtonBase, 'border border-[#25D366]/50 bg-white text-[#166534] hover:bg-[#f0fdf4]')}
-                  >
-                    <WhatsAppIcon className="text-[#25D366]" /> Cobrar no WhatsApp
-                  </button>
-                </>
+                <button
+                  onClick={onWhatsApp}
+                  className={clsx(actionButtonBase, 'border border-[#25D366]/50 bg-white text-[#166534] hover:bg-[#f0fdf4]')}
+                >
+                  <WhatsAppIcon className="text-[#25D366]" /> Cobrar no WhatsApp
+                </button>
               )}
               {canIssueInvoice && !row.invoice && (
                 <button
