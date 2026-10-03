@@ -1,7 +1,7 @@
 import { emptyForm, customerPayload } from '../../lib/customerForm';
 import { CustomerFormFields, Field } from '../../components/customers/CustomerFormFields';
 import { getMissingFiscalFields } from '../../lib/fiscalCustomer';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
 import {
   AlertCircle,
@@ -29,6 +29,7 @@ import {
   type InvoicePollingState,
 } from '../../hooks/useInvoiceStatusPolling';
 import { formatCurrencyBRL } from '../../utils/currency';
+import { useToast } from '../../components/ui';
 
 type FilterMode = 'all' | 'open' | 'paid';
 
@@ -44,6 +45,10 @@ const formatDate = (value?: string | null) => {
 };
 
 const digitsOnly = (value?: string | null) => String(value ?? '').replace(/\D/g, '');
+
+// Mensagem do servidor, quando houver.
+const serverMessage = (error: unknown) =>
+  (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
 
 const formatDocument = (value?: string | null) => {
   const digits = digitsOnly(value);
@@ -239,6 +244,9 @@ const CreditPage: React.FC = () => {
   const showError = useCallback((message: string, title = 'Não foi possível concluir') => {
     setNotice({ title, message, variant: 'error' });
   }, []);
+  const { toast } = useToast();
+  const [paying, setPaying] = useState(false);
+  const [charging, setCharging] = useState(false);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -349,39 +357,57 @@ const CreditPage: React.FC = () => {
     }
   };
 
-  const handlePayCredit = async () => {
-    if (!selectedCustomer || !payAmount) return;
+  // Dinheiro: sem resposta, o caixa clica de novo e a dívida entra em dobro.
+  // O botão fica desabilitado durante a requisição, o ref barra o segundo
+  // clique antes mesmo de a tela redesenhar, e o sucesso é confirmado com o
+  // valor. Na falha, o valor digitado fica no campo.
+  const moneyRequestInFlight = useRef(false);
 
+  const handlePayCredit = async () => {
+    if (!selectedCustomer || !payAmount || moneyRequestInFlight.current) return;
+    const amount = Number.parseFloat(payAmount);
+
+    moneyRequestInFlight.current = true;
+    setPaying(true);
     try {
-      await api.post(`/customers/${selectedCustomer.id}/payments`, {
-        amount: Number.parseFloat(payAmount),
-      });
+      await api.post(`/customers/${selectedCustomer.id}/payments`, { amount });
       setShowPayModal(false);
       setPayAmount('');
       setSelectedCustomer(null);
+      toast({ title: `Pagamento de ${formatCurrencyBRL(amount)} registrado`, variant: 'success' });
       fetchCustomers();
     } catch (error) {
       console.error(error);
-      showError('Não foi possível registrar o pagamento.');
+      showError(serverMessage(error) || 'Não foi possível registrar o pagamento.');
+    } finally {
+      moneyRequestInFlight.current = false;
+      setPaying(false);
     }
   };
 
   const handleChargeCredit = async () => {
-    if (!selectedCustomer || !chargeAmount) return;
+    if (!selectedCustomer || !chargeAmount || moneyRequestInFlight.current) return;
+    const amount = Number.parseFloat(chargeAmount);
 
+    moneyRequestInFlight.current = true;
+    setCharging(true);
     try {
       await api.post(`/customers/${selectedCustomer.id}/charge-credit`, {
-        amount: Number.parseFloat(chargeAmount),
+        amount,
         description: chargeDescription || 'Lançamento manual no fiado',
       });
       setShowChargeModal(false);
       setChargeAmount('');
       setChargeDescription('');
       setSelectedCustomer(null);
+      toast({ title: `Fiado de ${formatCurrencyBRL(amount)} lançado`, variant: 'success' });
       fetchCustomers();
     } catch (error) {
       console.error(error);
-      showError('Não foi possível lançar no fiado.');
+      showError(serverMessage(error) || 'Não foi possível lançar no fiado.');
+    } finally {
+      moneyRequestInFlight.current = false;
+      setCharging(false);
     }
   };
 
@@ -653,8 +679,8 @@ const CreditPage: React.FC = () => {
           {/* O sistema abate da dívida mais antiga (pay_customer_credit): a tela diz isso. */}
           <p className="mt-1.5 text-[13px] leading-[18px] text-muted">O valor abate as dívidas mais antigas primeiro.</p>
           <div className="mt-5 flex gap-3">
-            <button onClick={handlePayCredit} disabled={!payAmount} className="btn-primary flex-1">
-              Confirmar
+            <button onClick={handlePayCredit} disabled={!payAmount || paying} className="btn-primary flex-1">
+              {paying ? 'Registrando…' : 'Confirmar'}
             </button>
             <button onClick={() => setShowPayModal(false)} className="btn-secondary flex-1">
               Cancelar
@@ -676,8 +702,8 @@ const CreditPage: React.FC = () => {
             />
           </div>
           <div className="mt-5 flex gap-3">
-            <button onClick={handleChargeCredit} disabled={!chargeAmount} className="btn-primary flex-1">
-              Lançar
+            <button onClick={handleChargeCredit} disabled={!chargeAmount || charging} className="btn-primary flex-1">
+              {charging ? 'Lançando…' : 'Lançar'}
             </button>
             <button onClick={() => setShowChargeModal(false)} className="btn-secondary flex-1">
               Cancelar
