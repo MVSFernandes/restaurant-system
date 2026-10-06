@@ -449,14 +449,21 @@ diferenças de desempenho ou falha funcional sem aviso durante a instalação.
 A correção exige uma etapa própria para decidir como reconstruir e versionar o
 esquema-base antes de adicionar uma baseline ou migrations de reconciliação.
 
-**Pergunta em aberto (2026-10-03), para responder quando a base existir:**
-existe algum gatilho no banco atual ligado a `payable_accounts` que mova
-dinheiro (caixa, lançamento financeiro) quando uma conta é marcada como paga?
-Pelo código versionado, `PATCH /api/finance/payables/:id/pay` é um único
-`UPDATE` idempotente (`paid = true`, `paid_at = agora`), e um clique duplo não
-paga duas vezes. Mas, sem o esquema-base versionado, não dá para descartar um
-gatilho que só existe no Supabase. Não foi investigado agora: com a base
-versionada, a resposta sai da leitura dela.
+**Pergunta (2026-10-03), respondida em 2026-10-06:** existe algum gatilho no
+banco atual ligado a `payable_accounts` que mova dinheiro (caixa, lançamento
+financeiro) quando uma conta é marcada como paga?
+
+> **Resposta: não.** Marcar conta como paga não move dinheiro, e um clique
+> duplo não paga duas vezes. Duas evidências:
+>
+> 1. **Backend:** `PATCH /api/finance/payables/:id/pay` chama
+>    `payableAccountRepository.markAsPaid`
+>    (`backend/src/repositories/payableAccount.repository.ts`), um único
+>    `UPDATE` idempotente (`paid = true`, `paid_at = agora`) na própria conta.
+> 2. **Banco de produção:** o `verify_database_inventory.sql`, rodado em
+>    produção, confirmou que o único gatilho em `payable_accounts` é
+>    `trg_payable_accounts_updated_at`, que só chama `set_updated_at()`
+>    (`backend/supabase/migrations/20261003132000_base_runtime.sql`).
 
 ---
 
