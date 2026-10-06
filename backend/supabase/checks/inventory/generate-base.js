@@ -3,6 +3,32 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// PostgreSQL 17 RESERVED_KEYWORD and TYPE_FUNC_NAME_KEYWORD entries.
+// Source: src/include/parser/kwlist.h in PostgreSQL REL_17_STABLE.
+const postgresIdentifiersRequiringQuotes = new Set(`
+  all analyse analyze and any array as asc asymmetric authorization binary both
+  case cast check collate collation column concurrently constraint create cross
+  current_catalog current_date current_role current_schema current_time
+  current_timestamp current_user default deferrable desc distinct do else end
+  except false fetch for foreign freeze from full grant group having ilike in
+  initially inner intersect into is isnull join lateral leading left like limit
+  localtime localtimestamp natural not notnull null offset on only or order outer
+  overlaps placing primary references returning right select session_user similar
+  some symmetric system_user table tablesample then to trailing true union unique
+  user using variadic verbose when where window with
+`.trim().split(/\s+/));
+
+function quoteIdentifier(value) {
+  const identifier = String(value);
+  const canRemainUnquoted = /^[a-z_][a-z0-9_]*$/.test(identifier)
+    && !postgresIdentifiersRequiringQuotes.has(identifier);
+  return canRemainUnquoted ? identifier : `"${identifier.replaceAll('"', '""')}"`;
+}
+
+function qualifiedIdentifier(schema, name) {
+  return `${quoteIdentifier(schema)}.${quoteIdentifier(name)}`;
+}
+
 const inventoryDate = process.argv[2] || '2026-10-03';
 const dir = path.join(__dirname, inventoryDate);
 const migrationsDir = path.resolve(__dirname, '..', '..', 'migrations');
@@ -63,7 +89,7 @@ for (const line of functionLines) {
   const signature = match[2].trim();
   const args = signature.slice(signature.indexOf('(') + 1, -1).trim();
   const identityTypes = args === '' ? '' : args.split(',').map((arg) => arg.trim().replace(/^[a-z_][a-z0-9_]*\s+/i, '')).join(', ');
-  functions.push({ name: match[1], signature, identitySignature: `public.${match[1]}(${identityTypes})`, rawDefinition, definition });
+  functions.push({ name: match[1], signature, identityTypes, rawDefinition, definition });
 }
 
 const triggers = markdownRows('Triggers.txt').map(([
@@ -163,10 +189,10 @@ structure.push(`set local search_path = public, extensions, pg_catalog;`);
 structure.push(``);
 structure.push(`-- Tables and columns. Constraints are added after every table exists.`);
 for (const table of tableNames) {
-  structure.push(`create table if not exists public.${table} (`);
+  structure.push(`create table if not exists ${qualifiedIdentifier('public', table)} (`);
   const tableColumns = byTable.get(table);
   tableColumns.forEach((column, index) => {
-    const parts = [`  ${column.name} ${column.type}`];
+    const parts = [`  ${quoteIdentifier(column.name)} ${column.type}`];
     if (!column.nullable) parts.push('not null');
     if (column.defaultValue !== null) parts.push(`default ${column.defaultValue}`);
     if (column.identity === 'GENERATED ALWAYS') parts.push('generated always as identity');
@@ -188,15 +214,15 @@ for (const item of [...nonForeign, ...foreign]) {
   structure.push(`  if not exists (`);
   structure.push(`    select 1`);
   structure.push(`    from pg_constraint`);
-  structure.push(`    where conrelid = 'public.${item.table}'::regclass`);
+  structure.push(`    where conrelid = ${sqlLiteral(qualifiedIdentifier('public', item.table))}::regclass`);
   structure.push(`      and conname = ${sqlLiteral(item.name)}`);
   structure.push(`  ) then`);
-  structure.push(`    alter table public.${item.table} drop constraint if exists ${item.name};`);
+  structure.push(`    alter table ${qualifiedIdentifier('public', item.table)} drop constraint if exists ${quoteIdentifier(item.name)};`);
   let suffix = '';
   if (item.deferrable) suffix += ' deferrable';
   if (item.deferred) suffix += ' initially deferred';
   if (!item.validated) suffix += ' not valid';
-  structure.push(`    alter table public.${item.table} add constraint ${item.name} ${item.definition}${suffix};`);
+  structure.push(`    alter table ${qualifiedIdentifier('public', item.table)} add constraint ${quoteIdentifier(item.name)} ${item.definition}${suffix};`);
   structure.push(`  end if;`);
   structure.push(``);
 }
@@ -227,8 +253,9 @@ for (const item of functions.sort((a, b) => a.name.localeCompare(b.name))) {
 functionSql.push(`-- Application functions are backend-only. Trigger execution does not require`);
 functionSql.push(`-- callers to hold EXECUTE on the trigger function.`);
 for (const item of functions) {
-  functionSql.push(`revoke all on function ${item.identitySignature} from public, anon, authenticated;`);
-  functionSql.push(`grant execute on function ${item.identitySignature} to service_role;`);
+  const identitySignature = `${qualifiedIdentifier('public', item.name)}(${item.identityTypes})`;
+  functionSql.push(`revoke all on function ${identitySignature} from public, anon, authenticated;`);
+  functionSql.push(`grant execute on function ${identitySignature} to service_role;`);
 }
 functionSql.push(``);
 functionSql.push(`commit;`);
@@ -548,12 +575,12 @@ runtime.push(``);
 runtime.push(`set local search_path = public, extensions, pg_catalog;`);
 runtime.push(``);
 for (const item of triggers.sort((a, b) => (a.table + '.' + a.name).localeCompare(b.table + '.' + b.name))) {
-  runtime.push(`drop trigger if exists ${item.name} on public.${item.table};`);
+  runtime.push(`drop trigger if exists ${quoteIdentifier(item.name)} on ${qualifiedIdentifier('public', item.table)};`);
   runtime.push(item.definition + ';');
   runtime.push(``);
 }
 runtime.push(`-- RLS is enabled on every application table. The live catalog has no policies.`);
-for (const table of tableNames) runtime.push(`alter table public.${table} enable row level security;`);
+for (const table of tableNames) runtime.push(`alter table ${qualifiedIdentifier('public', table)} enable row level security;`);
 runtime.push(``);
 runtime.push(`commit;`);
 runtime.push(``);

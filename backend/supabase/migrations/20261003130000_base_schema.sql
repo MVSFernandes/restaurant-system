@@ -145,7 +145,7 @@ create table if not exists public.marmita_menu_items (
   id text not null,
   day_of_week integer not null,
   name text not null,
-  group text not null,
+  "group" text not null,
   price numeric(12,2) not null default 0,
   is_active boolean not null default true,
   sort_order integer not null default 0,
