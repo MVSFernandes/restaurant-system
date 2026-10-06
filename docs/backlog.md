@@ -407,6 +407,27 @@ uma leitura incorreta.
 
 ### 28. PRIORIDADE ALTA: o esquema versionado não reproduz o banco atual
 
+> **Resolvido** no PR #47 (`chore/version-database-base`, 2026-10-06). O
+> esquema-base foi reconstruído a partir do catálogo de produção e versionado
+> em três migrations: `20261003130000_base_schema.sql` (tabelas, restrições e
+> índices), `20261003131000_base_functions.sql` (funções e permissões, incluindo
+> a `finance_report`) e `20261003132000_base_runtime.sql` (gatilhos e RLS). As
+> 16 migrations anteriores foram para `backend/supabase/migrations/history/`.
+>
+> A base foi provada nos dois lados: o
+> `backend/supabase/checks/verify_database_inventory.sql` fechou as dez
+> categorias (tabelas, colunas, restrições, índices, funções, gatilhos, RLS,
+> políticas e as extensões `pg_trgm` e `pgcrypto`) **no banco de produção**,
+> mostrando que as migrations descrevem o que existe, e **num projeto Supabase
+> vazio**, mostrando que elas criam o sistema do zero.
+>
+> **Daqui para frente,** a forma de conferir se um banco bate com o esquema
+> versionado é rodar `backend/supabase/checks/verify_database_inventory.sql`.
+> A consulta só lê e devolve uma linha por categoria, com o esperado, o
+> encontrado e o que falta ou sobra.
+>
+> O texto abaixo é o registro do problema como foi encontrado.
+
 O catálogo real do Supabase contém índices que não são criados pelas migrations
 em `backend/supabase/migrations/`. A comparação considera tanto comandos
 `CREATE INDEX` explícitos quanto índices implícitos de `PRIMARY KEY` e `UNIQUE`.
@@ -446,17 +467,25 @@ reproduz o banco atual. Um segundo restaurante pode nascer sem índices usados
 pelos fluxos mais acessados e sem a função do relatório financeiro, causando
 diferenças de desempenho ou falha funcional sem aviso durante a instalação.
 
-A correção exige uma etapa própria para decidir como reconstruir e versionar o
-esquema-base antes de adicionar uma baseline ou migrations de reconciliação.
+A correção exigia uma etapa própria para reconstruir e versionar o
+esquema-base. Essa etapa foi feita no PR #47 (ver o bloco "Resolvido" no topo
+deste item).
 
-**Pergunta em aberto (2026-10-03), para responder quando a base existir:**
-existe algum gatilho no banco atual ligado a `payable_accounts` que mova
-dinheiro (caixa, lançamento financeiro) quando uma conta é marcada como paga?
-Pelo código versionado, `PATCH /api/finance/payables/:id/pay` é um único
-`UPDATE` idempotente (`paid = true`, `paid_at = agora`), e um clique duplo não
-paga duas vezes. Mas, sem o esquema-base versionado, não dá para descartar um
-gatilho que só existe no Supabase. Não foi investigado agora: com a base
-versionada, a resposta sai da leitura dela.
+**Pergunta (2026-10-03), respondida em 2026-10-06:** existe algum gatilho no
+banco atual ligado a `payable_accounts` que mova dinheiro (caixa, lançamento
+financeiro) quando uma conta é marcada como paga?
+
+> **Resposta: não.** Marcar conta como paga não move dinheiro, e um clique
+> duplo não paga duas vezes. Duas evidências:
+>
+> 1. **Backend:** `PATCH /api/finance/payables/:id/pay` chama
+>    `payableAccountRepository.markAsPaid`
+>    (`backend/src/repositories/payableAccount.repository.ts`), um único
+>    `UPDATE` idempotente (`paid = true`, `paid_at = agora`) na própria conta.
+> 2. **Banco de produção:** o `verify_database_inventory.sql`, rodado em
+>    produção, confirmou que o único gatilho em `payable_accounts` é
+>    `trg_payable_accounts_updated_at`, que só chama `set_updated_at()`
+>    (`backend/supabase/migrations/20261003132000_base_runtime.sql`).
 
 ---
 
