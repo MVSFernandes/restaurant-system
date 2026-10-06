@@ -18,6 +18,7 @@ export {
   Scissors as WithdrawalIcon,
   Unlock as CashOpenIcon,
   Lock as CashClosedIcon,
+  Lock as RestrictedIcon,
   Link2 as StockLinkIcon,
   AlertTriangle as WarningIcon,
   Phone as PhoneIcon,
