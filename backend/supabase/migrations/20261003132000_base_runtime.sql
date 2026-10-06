@@ -759,7 +759,7 @@ actual_objects(category, object_key, definition_hash) as (
   select
     'triggers',
     table_row.relname || '.' || trigger_row.tgname,
-    md5(btrim(pg_get_triggerdef(trigger_row.oid, true)) || '|' || trigger_row.tgenabled)
+    md5(btrim(pg_get_triggerdef(trigger_row.oid, true)) || '|' || trigger_row.tgenabled::text)
   from pg_trigger as trigger_row
   join pg_class as table_row on table_row.oid = trigger_row.tgrelid
   join pg_namespace as namespace on namespace.oid = table_row.relnamespace

@@ -377,7 +377,7 @@ function buildVerificationQuery() {
   q.push(`  select`);
   q.push(`    'triggers',`);
   q.push(`    table_row.relname || '.' || trigger_row.tgname,`);
-  q.push(`    md5(btrim(pg_get_triggerdef(trigger_row.oid, true)) || '|' || trigger_row.tgenabled)`);
+  q.push(`    md5(btrim(pg_get_triggerdef(trigger_row.oid, true)) || '|' || trigger_row.tgenabled::text)`);
   q.push(`  from pg_trigger as trigger_row`);
   q.push(`  join pg_class as table_row on table_row.oid = trigger_row.tgrelid`);
   q.push(`  join pg_namespace as namespace on namespace.oid = table_row.relnamespace`);
