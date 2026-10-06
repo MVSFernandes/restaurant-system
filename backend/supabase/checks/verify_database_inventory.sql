@@ -547,7 +547,7 @@ expected_categories(category, expected_count, sort_order) as (
 actual_objects(category, object_key, definition_hash) as (
   select
     'tables',
-    table_row.relname,
+    table_row.relname::text,
     md5(table_row.relname)
   from pg_class as table_row
   join pg_namespace as namespace on namespace.oid = table_row.relnamespace
@@ -558,7 +558,7 @@ actual_objects(category, object_key, definition_hash) as (
 
   select
     'columns',
-    table_row.relname || '.' || attribute.attname,
+    table_row.relname::text || '.' || attribute.attname::text,
     md5(concat_ws(
       '|',
       table_row.relname,
@@ -584,7 +584,7 @@ actual_objects(category, object_key, definition_hash) as (
 
   select
     'constraints',
-    table_row.relname || '.' || constraint_row.conname,
+    table_row.relname::text || '.' || constraint_row.conname::text,
     md5(concat_ws(
       '|',
       table_row.relname,
@@ -608,7 +608,7 @@ actual_objects(category, object_key, definition_hash) as (
 
   select
     'indexes',
-    table_row.relname || '.' || index_row.relname,
+    table_row.relname::text || '.' || index_row.relname::text,
     md5(concat_ws(
       '|',
       table_row.relname,
@@ -635,10 +635,18 @@ actual_objects(category, object_key, definition_hash) as (
 
   select
     'functions',
-    procedure_row.proname,
+    procedure_row.proname::text,
     md5(
-      btrim(pg_get_functiondef(procedure_row.oid))
-      || '|owner=' || owner_role.rolname
+      btrim(
+        regexp_replace(
+          pg_get_functiondef(procedure_row.oid),
+          E'\r\n?',
+          E'\n',
+          'g'
+        ),
+        E' \t\n\r'
+      )
+      || '|owner=' || owner_role.rolname::text
       || '|anon=' || has_function_privilege('anon', procedure_row.oid, 'EXECUTE')::text
       || '|authenticated=' || has_function_privilege('authenticated', procedure_row.oid, 'EXECUTE')::text
       || '|service_role=' || has_function_privilege('service_role', procedure_row.oid, 'EXECUTE')::text
@@ -661,7 +669,7 @@ actual_objects(category, object_key, definition_hash) as (
 
   select
     'triggers',
-    table_row.relname || '.' || trigger_row.tgname,
+    table_row.relname::text || '.' || trigger_row.tgname::text,
     md5(btrim(pg_get_triggerdef(trigger_row.oid, true)) || '|' || trigger_row.tgenabled::text)
   from pg_trigger as trigger_row
   join pg_class as table_row on table_row.oid = trigger_row.tgrelid
@@ -673,7 +681,7 @@ actual_objects(category, object_key, definition_hash) as (
 
   select
     'rls',
-    table_row.relname,
+    table_row.relname::text,
     md5(concat_ws('|', table_row.relname, table_row.relrowsecurity::text, table_row.relforcerowsecurity::text))
   from pg_class as table_row
   join pg_namespace as namespace on namespace.oid = table_row.relnamespace
@@ -684,7 +692,7 @@ actual_objects(category, object_key, definition_hash) as (
 
   select
     'policies',
-    policy.tablename || '.' || policy.policyname,
+    policy.tablename::text || '.' || policy.policyname::text,
     md5(concat_ws(
       '|', policy.tablename, policy.policyname, policy.permissive,
       array_to_string(policy.roles, ','), policy.cmd,

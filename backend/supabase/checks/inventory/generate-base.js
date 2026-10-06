@@ -53,7 +53,11 @@ const functions = [];
 for (const line of functionLines) {
   const match = line.match(/^\|\s*([a-z_][a-z0-9_]*)\s*\|\s*(public\.[^|]+?)\s*\|\s*(CREATE OR REPLACE FUNCTION.*)\|\s*$/);
   if (!match) continue;
-  const rawDefinition = match[3].trimEnd().replaceAll('<br>', '\n').replaceAll('\\|', '|').trim();
+  const rawDefinition = match[3]
+    .replaceAll('<br>', '\n')
+    .replaceAll('\\|', '|')
+    .replace(/\r\n?/g, '\n')
+    .trim();
   let definition = rawDefinition;
   if (!definition.endsWith(';')) definition += ';';
   const signature = match[2].trim();
@@ -262,7 +266,7 @@ function buildVerificationQuery() {
   q.push(`actual_objects(category, object_key, definition_hash) as (`);
   q.push(`  select`);
   q.push(`    'tables',`);
-  q.push(`    table_row.relname,`);
+  q.push(`    table_row.relname::text,`);
   q.push(`    md5(table_row.relname)`);
   q.push(`  from pg_class as table_row`);
   q.push(`  join pg_namespace as namespace on namespace.oid = table_row.relnamespace`);
@@ -273,7 +277,7 @@ function buildVerificationQuery() {
   q.push(``);
   q.push(`  select`);
   q.push(`    'columns',`);
-  q.push(`    table_row.relname || '.' || attribute.attname,`);
+  q.push(`    table_row.relname::text || '.' || attribute.attname::text,`);
   q.push(`    md5(concat_ws(`);
   q.push(`      '|',`);
   q.push(`      table_row.relname,`);
@@ -299,7 +303,7 @@ function buildVerificationQuery() {
   q.push(``);
   q.push(`  select`);
   q.push(`    'constraints',`);
-  q.push(`    table_row.relname || '.' || constraint_row.conname,`);
+  q.push(`    table_row.relname::text || '.' || constraint_row.conname::text,`);
   q.push(`    md5(concat_ws(`);
   q.push(`      '|',`);
   q.push(`      table_row.relname,`);
@@ -323,7 +327,7 @@ function buildVerificationQuery() {
   q.push(``);
   q.push(`  select`);
   q.push(`    'indexes',`);
-  q.push(`    table_row.relname || '.' || index_row.relname,`);
+  q.push(`    table_row.relname::text || '.' || index_row.relname::text,`);
   q.push(`    md5(concat_ws(`);
   q.push(`      '|',`);
   q.push(`      table_row.relname,`);
@@ -350,10 +354,18 @@ function buildVerificationQuery() {
   q.push(``);
   q.push(`  select`);
   q.push(`    'functions',`);
-  q.push(`    procedure_row.proname,`);
+  q.push(`    procedure_row.proname::text,`);
   q.push(`    md5(`);
-  q.push(`      btrim(pg_get_functiondef(procedure_row.oid))`);
-  q.push(`      || '|owner=' || owner_role.rolname`);
+  q.push(`      btrim(`);
+  q.push(`        regexp_replace(`);
+  q.push(`          pg_get_functiondef(procedure_row.oid),`);
+  q.push(`          E'\\r\\n?',`);
+  q.push(`          E'\\n',`);
+  q.push(`          'g'`);
+  q.push(`        ),`);
+  q.push(`        E' \\t\\n\\r'`);
+  q.push(`      )`);
+  q.push(`      || '|owner=' || owner_role.rolname::text`);
   q.push(`      || '|anon=' || has_function_privilege('anon', procedure_row.oid, 'EXECUTE')::text`);
   q.push(`      || '|authenticated=' || has_function_privilege('authenticated', procedure_row.oid, 'EXECUTE')::text`);
   q.push(`      || '|service_role=' || has_function_privilege('service_role', procedure_row.oid, 'EXECUTE')::text`);
@@ -376,7 +388,7 @@ function buildVerificationQuery() {
   q.push(``);
   q.push(`  select`);
   q.push(`    'triggers',`);
-  q.push(`    table_row.relname || '.' || trigger_row.tgname,`);
+  q.push(`    table_row.relname::text || '.' || trigger_row.tgname::text,`);
   q.push(`    md5(btrim(pg_get_triggerdef(trigger_row.oid, true)) || '|' || trigger_row.tgenabled::text)`);
   q.push(`  from pg_trigger as trigger_row`);
   q.push(`  join pg_class as table_row on table_row.oid = trigger_row.tgrelid`);
@@ -388,7 +400,7 @@ function buildVerificationQuery() {
   q.push(``);
   q.push(`  select`);
   q.push(`    'rls',`);
-  q.push(`    table_row.relname,`);
+  q.push(`    table_row.relname::text,`);
   q.push(`    md5(concat_ws('|', table_row.relname, table_row.relrowsecurity::text, table_row.relforcerowsecurity::text))`);
   q.push(`  from pg_class as table_row`);
   q.push(`  join pg_namespace as namespace on namespace.oid = table_row.relnamespace`);
@@ -399,7 +411,7 @@ function buildVerificationQuery() {
   q.push(``);
   q.push(`  select`);
   q.push(`    'policies',`);
-  q.push(`    policy.tablename || '.' || policy.policyname,`);
+  q.push(`    policy.tablename::text || '.' || policy.policyname::text,`);
   q.push(`    md5(concat_ws(`);
   q.push(`      '|', policy.tablename, policy.policyname, policy.permissive,`);
   q.push(`      array_to_string(policy.roles, ','), policy.cmd,`);
