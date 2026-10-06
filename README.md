@@ -183,6 +183,8 @@ O *Row Level Security* está habilitado em todas as tabelas do schema `public`. 
 - Mensagens de commit seguem o padrão *Conventional Commits*, em inglês
 - A integração à `main` ocorre exclusivamente via *Pull Request*, após validação manual dos critérios de aceitação
 - Alterações estruturais no banco são versionadas como *migrations* no repositório
+- Nenhum objeto do banco é criado ou alterado diretamente no painel do Supabase
+- Toda mudança de schema deve passar por uma *migration* versionada
 
 ---
 

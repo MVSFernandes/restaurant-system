@@ -1,0 +1,83 @@
+select
+  indexes.tablename as table_name,
+  indexes.indexname as index_name,
+  case constraint_row.contype
+    when 'p' then 'PRIMARY_KEY_CONSTRAINT'
+    when 'u' then 'UNIQUE_CONSTRAINT'
+    when 'x' then 'EXCLUDE_CONSTRAINT'
+    else 'STANDALONE_INDEX'
+  end as index_origin,
+  index_row.indisunique as is_unique,
+  index_row.indisvalid as is_valid,
+  indexes.indexdef
+from pg_indexes as indexes
+join pg_class as index_class
+  on index_class.relname = indexes.indexname
+join pg_namespace as index_namespace
+  on index_namespace.oid = index_class.relnamespace
+ and index_namespace.nspname = indexes.schemaname
+join pg_index as index_row
+  on index_row.indexrelid = index_class.oid
+left join pg_constraint as constraint_row
+  on constraint_row.conindid = index_class.oid
+ and constraint_row.contype in ('p', 'u', 'x')
+where indexes.schemaname = 'public'
+    and indexes.tablename >= 'orders'
+order by indexes.tablename, indexes.indexname;
+
+| table_name           | index_name                             | index_origin           | is_unique | is_valid | indexdef                                                                                                                                   |
+| -------------------- | -------------------------------------- | ---------------------- | --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| orders               | idx_orders_cash_session_id             | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_cash_session_id ON public.orders USING btree (cash_register_session_id)                                            |
+| orders               | idx_orders_created_at                  | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_created_at ON public.orders USING btree (created_at DESC)                                                          |
+| orders               | idx_orders_customer_id                 | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_customer_id ON public.orders USING btree (customer_id)                                                             |
+| orders               | idx_orders_customer_name_trgm          | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_customer_name_trgm ON public.orders USING gin (customer_name gin_trgm_ops)                                         |
+| orders               | idx_orders_session_status              | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_session_status ON public.orders USING btree (cash_register_session_id, status)                                     |
+| orders               | idx_orders_status                      | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_status ON public.orders USING btree (status)                                                                       |
+| orders               | idx_orders_table_id                    | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_table_id ON public.orders USING btree (table_id)                                                                   |
+| orders               | idx_orders_type                        | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_type ON public.orders USING btree (type)                                                                           |
+| orders               | idx_orders_user_id                     | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_user_id ON public.orders USING btree (user_id)                                                                     |
+| orders               | idx_orders_waiter_id                   | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_orders_waiter_id ON public.orders USING btree (waiter_id)                                                                 |
+| orders               | orders_idempotency_key_idx             | STANDALONE_INDEX       | true      | true     | CREATE UNIQUE INDEX orders_idempotency_key_idx ON public.orders USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL)          |
+| orders               | orders_pkey                            | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id)                                                                          |
+| orders               | orders_table_tab_id_idx                | STANDALONE_INDEX       | false     | true     | CREATE INDEX orders_table_tab_id_idx ON public.orders USING btree (table_tab_id)                                                           |
+| payable_accounts     | idx_payable_accounts_due_date          | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_payable_accounts_due_date ON public.payable_accounts USING btree (due_date)                                               |
+| payable_accounts     | idx_payable_accounts_paid              | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_payable_accounts_paid ON public.payable_accounts USING btree (paid)                                                       |
+| payable_accounts     | idx_payable_accounts_paid_at           | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_payable_accounts_paid_at ON public.payable_accounts USING btree (paid_at) WHERE (paid = true)                             |
+| payable_accounts     | idx_payable_accounts_supplier_id       | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_payable_accounts_supplier_id ON public.payable_accounts USING btree (supplier_id)                                         |
+| payable_accounts     | payable_accounts_pkey                  | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX payable_accounts_pkey ON public.payable_accounts USING btree (id)                                                      |
+| payments             | idx_payments_created_at                | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_payments_created_at ON public.payments USING btree (created_at DESC)                                                      |
+| payments             | idx_payments_method                    | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_payments_method ON public.payments USING btree (method)                                                                   |
+| payments             | idx_payments_status                    | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_payments_status ON public.payments USING btree (status)                                                                   |
+| payments             | payments_order_unique                  | UNIQUE_CONSTRAINT      | true      | true     | CREATE UNIQUE INDEX payments_order_unique ON public.payments USING btree (order_id)                                                        |
+| payments             | payments_pkey                          | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX payments_pkey ON public.payments USING btree (id)                                                                      |
+| product_stock_items  | idx_product_stock_items_product_id     | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_product_stock_items_product_id ON public.product_stock_items USING btree (product_id)                                     |
+| product_stock_items  | idx_product_stock_items_stock_item_id  | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_product_stock_items_stock_item_id ON public.product_stock_items USING btree (stock_item_id)                               |
+| product_stock_items  | product_stock_items_pkey               | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX product_stock_items_pkey ON public.product_stock_items USING btree (id)                                                |
+| product_stock_items  | product_stock_items_unique             | UNIQUE_CONSTRAINT      | true      | true     | CREATE UNIQUE INDEX product_stock_items_unique ON public.product_stock_items USING btree (product_id, stock_item_id)                       |
+| products             | idx_products_category_id               | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_products_category_id ON public.products USING btree (category_id)                                                         |
+| products             | idx_products_name                      | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_products_name ON public.products USING btree (name)                                                                       |
+| products             | products_pkey                          | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX products_pkey ON public.products USING btree (id)                                                                      |
+| restaurant_config    | idx_restaurant_config_singleton        | STANDALONE_INDEX       | true      | true     | CREATE UNIQUE INDEX idx_restaurant_config_singleton ON public.restaurant_config USING btree ((true))                                       |
+| restaurant_config    | restaurant_config_pkey                 | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX restaurant_config_pkey ON public.restaurant_config USING btree (id)                                                    |
+| stock_items          | idx_stock_items_low                    | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_stock_items_low ON public.stock_items USING btree (id) WHERE (quantity <= min_quantity)                                   |
+| stock_items          | idx_stock_items_name                   | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_stock_items_name ON public.stock_items USING btree (name)                                                                 |
+| stock_items          | stock_items_name_unique                | UNIQUE_CONSTRAINT      | true      | true     | CREATE UNIQUE INDEX stock_items_name_unique ON public.stock_items USING btree (name)                                                       |
+| stock_items          | stock_items_pkey                       | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX stock_items_pkey ON public.stock_items USING btree (id)                                                                |
+| supplier_stock_items | idx_supplier_stock_items_stock_item_id | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_supplier_stock_items_stock_item_id ON public.supplier_stock_items USING btree (stock_item_id)                             |
+| supplier_stock_items | idx_supplier_stock_items_supplier_id   | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_supplier_stock_items_supplier_id ON public.supplier_stock_items USING btree (supplier_id)                                 |
+| supplier_stock_items | supplier_stock_items_pkey              | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX supplier_stock_items_pkey ON public.supplier_stock_items USING btree (id)                                              |
+| supplier_stock_items | supplier_stock_items_unique            | UNIQUE_CONSTRAINT      | true      | true     | CREATE UNIQUE INDEX supplier_stock_items_unique ON public.supplier_stock_items USING btree (supplier_id, stock_item_id)                    |
+| suppliers            | idx_suppliers_name                     | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_suppliers_name ON public.suppliers USING btree (name)                                                                     |
+| suppliers            | suppliers_email_unique                 | UNIQUE_CONSTRAINT      | true      | true     | CREATE UNIQUE INDEX suppliers_email_unique ON public.suppliers USING btree (email)                                                         |
+| suppliers            | suppliers_pkey                         | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX suppliers_pkey ON public.suppliers USING btree (id)                                                                    |
+| table_tabs           | table_tabs_cash_session_status_idx     | STANDALONE_INDEX       | false     | true     | CREATE INDEX table_tabs_cash_session_status_idx ON public.table_tabs USING btree (cash_register_session_id, status)                        |
+| table_tabs           | table_tabs_id_table_id_key             | UNIQUE_CONSTRAINT      | true      | true     | CREATE UNIQUE INDEX table_tabs_id_table_id_key ON public.table_tabs USING btree (id, table_id)                                             |
+| table_tabs           | table_tabs_open_name_idx               | STANDALONE_INDEX       | true      | true     | CREATE UNIQUE INDEX table_tabs_open_name_idx ON public.table_tabs USING btree (table_id, lower(btrim(name))) WHERE (status = 'OPEN'::text) |
+| table_tabs           | table_tabs_open_overview_idx           | STANDALONE_INDEX       | false     | true     | CREATE INDEX table_tabs_open_overview_idx ON public.table_tabs USING btree (opened_at, table_id) WHERE (status = 'OPEN'::text)             |
+| table_tabs           | table_tabs_pkey                        | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX table_tabs_pkey ON public.table_tabs USING btree (id)                                                                  |
+| table_tabs           | table_tabs_table_status_idx            | STANDALONE_INDEX       | false     | true     | CREATE INDEX table_tabs_table_status_idx ON public.table_tabs USING btree (table_id, status)                                               |
+| tables               | tables_number_unique                   | UNIQUE_CONSTRAINT      | true      | true     | CREATE UNIQUE INDEX tables_number_unique ON public.tables USING btree (number)                                                             |
+| tables               | tables_pkey                            | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX tables_pkey ON public.tables USING btree (id)                                                                          |
+| users                | idx_users_role                         | STANDALONE_INDEX       | false     | true     | CREATE INDEX idx_users_role ON public.users USING btree (role)                                                                             |
+| users                | users_email_unique                     | UNIQUE_CONSTRAINT      | true      | true     | CREATE UNIQUE INDEX users_email_unique ON public.users USING btree (email)                                                                 |
+| users                | users_pkey                             | PRIMARY_KEY_CONSTRAINT | true      | true     | CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)                                                                            |
