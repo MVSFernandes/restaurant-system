@@ -5,25 +5,37 @@ const assert = require('node:assert/strict');
 process.env.JWT_SECRET = 'test-only-jwt-secret';
 process.env.SUPABASE_URL = 'https://database.example.invalid';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-service-key';
+process.env.FOCUS_NFE_WEBHOOK_SECRET = 'test-only-webhook-secret';
 
 const jwt = require('jsonwebtoken');
 const { cashRegisterService } = require('../src/services/cashRegister.service');
+const { invoiceService } = require('../src/services/invoice.service');
 const app = require('../src/app').default;
 
-const originalGetCurrentSession = cashRegisterService.getCurrentSession;
+// Quantas vezes o webhook chegou a mexer numa nota.
+const webhookCalls = [];
+
+const stubs = [
+  [cashRegisterService, 'getCurrentSession', async () => null],
+  [invoiceService, 'applyFocusWebhook', async (payload) => {
+    webhookCalls.push(payload);
+    return { id: 'invoice-1' };
+  }],
+];
+const originals = stubs.map(([target, key]) => [target, key, target[key]]);
 
 let server;
 let baseUrl;
 
 before(async () => {
-  cashRegisterService.getCurrentSession = async () => null;
+  for (const [target, key, stub] of stubs) target[key] = stub;
   server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
 after(async () => {
-  cashRegisterService.getCurrentSession = originalGetCurrentSession;
+  for (const [target, key, original] of originals) target[key] = original;
   await new Promise((resolve) => server.close(resolve));
 });
 
@@ -94,3 +106,47 @@ for (const value of ['production', 'homologation']) {
     withFocusEnvironment(value, () => assert.equal(focusNfeService.getEnvironment(), value));
   });
 }
+
+// Webhook fiscal: a Focus manda no Authorization o segredo cadastrado no gatilho.
+const focusWebhook = (headers = {}) =>
+  fetch(`${baseUrl}/api/webhooks/focus-nfe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ ref: 'focus-ref-1', status: 'cancelado' }),
+  });
+
+for (const [label, headers] of [
+  ['without the secret', {}],
+  ['with a wrong secret', { Authorization: 'wrong-secret' }],
+  ['with the secret as a Bearer token', { Authorization: 'Bearer test-only-webhook-secret' }],
+  ['with the secret in another header', { 'X-Webhook-Secret': 'test-only-webhook-secret' }],
+]) {
+  test(`the Focus webhook is refused ${label} and touches no invoice`, async () => {
+    webhookCalls.length = 0;
+    const response = await focusWebhook(headers);
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { message: 'Webhook não autorizado' });
+    assert.equal(webhookCalls.length, 0);
+  });
+}
+
+test('the Focus webhook works with the secret', async () => {
+  webhookCalls.length = 0;
+  const response = await focusWebhook({ Authorization: 'test-only-webhook-secret' });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true, updated: true });
+  assert.deepEqual(webhookCalls, [{ ref: 'focus-ref-1', status: 'cancelado' }]);
+});
+
+test('the Focus webhook is refused if its secret goes missing', async () => {
+  const secret = process.env.FOCUS_NFE_WEBHOOK_SECRET;
+  delete process.env.FOCUS_NFE_WEBHOOK_SECRET;
+  webhookCalls.length = 0;
+  try {
+    const response = await focusWebhook({ Authorization: 'test-only-webhook-secret' });
+    assert.equal(response.status, 401);
+    assert.equal(webhookCalls.length, 0);
+  } finally {
+    process.env.FOCUS_NFE_WEBHOOK_SECRET = secret;
+  }
+});
