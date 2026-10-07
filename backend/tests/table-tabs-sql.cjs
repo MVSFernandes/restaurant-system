@@ -98,19 +98,19 @@ async function main() {
     `);
 
     const migration = fs.readFileSync(
-      path.join(__dirname, '../supabase/migrations/20260929180000_add_table_tabs.sql'),
+      path.join(__dirname, '../supabase/migrations/history/20260929180000_add_table_tabs.sql'),
       'utf8'
     );
     await db.exec(migration);
     await db.exec(fs.readFileSync(
-      path.join(__dirname, '../supabase/migrations/20260930190000_open_table_tab_atomically.sql'),
+      path.join(__dirname, '../supabase/migrations/history/20260930190000_open_table_tab_atomically.sql'),
       'utf8'
     ));
 
     // Reproduces the state left by the former UI after the earlier migrations.
     await db.exec("update tables set status='OCCUPIED' where id='legacy-empty'");
     await db.exec(fs.readFileSync(
-      path.join(__dirname, '../supabase/migrations/20261001120000_require_open_tab_for_occupied_table.sql'),
+      path.join(__dirname, '../supabase/migrations/history/20261001120000_require_open_tab_for_occupied_table.sql'),
       'utf8'
     ));
 

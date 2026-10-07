@@ -48,10 +48,10 @@ async function main() {
       insert into product_stock_items(id,product_id,stock_item_id,quantity) values ('link','drink','coca',1);
       insert into tables(id,status) values ('table','AVAILABLE');
     `);
-    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260914200000_atomic_order_creation.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/history/20260914200000_atomic_order_creation.sql'), 'utf8'));
     await db.exec("insert into orders(id,status) values (repeat('a',64),'NEW')");
-    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260915150000_separate_order_idempotency_key.sql'), 'utf8'));
-    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261002120000_pause_products.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/history/20260915150000_separate_order_idempotency_key.sql'), 'utf8'));
+    await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/history/20261002120000_pause_products.sql'), 'utf8'));
     assert.equal((await db.query("select idempotency_key from orders where id=repeat('a',64)")).rows[0].idempotency_key, 'a'.repeat(64));
     await db.exec("delete from orders where id=repeat('a',64)");
     const order = id => ({ id, type: 'DINE_IN', status: 'NEW', total: 10, delivery_fee: 0, table_id: 'table', user_id: 'operator' });
