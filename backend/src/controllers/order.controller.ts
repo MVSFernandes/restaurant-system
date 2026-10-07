@@ -95,13 +95,13 @@ const runIdempotent = async (
     idempotencyStore.set(scopedKey, { createdAt: Date.now(), result });
     sendIdempotencyResult(res, result);
   } catch (error) {
-    const result = toErrorResult(error, fallback);
-    if (scopedKey && result.status >= 500) {
-      idempotencyStore.set(scopedKey, { createdAt: Date.now(), result });
-    } else if (scopedKey) {
-      idempotencyStore.delete(scopedKey);
-    }
-    sendIdempotencyResult(res, result);
+    // Nenhum erro fica guardado, nem recusa nem falha do servidor: a próxima
+    // tentativa com a mesma chave roda de verdade. Quem impede a venda
+    // duplicada é a chave gravada no pedido (orderService e
+    // create_order_with_stock), não este cache. Depois de um 5xx em que o
+    // pedido chegou a ser salvo, a nova tentativa devolve o pedido existente.
+    if (scopedKey) idempotencyStore.delete(scopedKey);
+    sendIdempotencyResult(res, toErrorResult(error, fallback));
   }
 };
 
