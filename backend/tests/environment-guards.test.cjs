@@ -6,6 +6,7 @@ process.env.JWT_SECRET = 'test-only-jwt-secret';
 process.env.SUPABASE_URL = 'https://database.example.invalid';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-service-key';
 process.env.FOCUS_NFE_WEBHOOK_SECRET = 'test-only-webhook-secret';
+process.env.FRONTEND_URL = 'http://localhost:5173, https://restaurante.example.test/';
 
 const jwt = require('jsonwebtoken');
 const { cashRegisterService } = require('../src/services/cashRegister.service');
@@ -148,5 +149,43 @@ test('the Focus webhook is refused if its secret goes missing', async () => {
     assert.equal(webhookCalls.length, 0);
   } finally {
     process.env.FOCUS_NFE_WEBHOOK_SECRET = secret;
+  }
+});
+
+// CORS: o navegador só libera a resposta para a origem que o servidor devolve
+// em Access-Control-Allow-Origin. Sem o cabeçalho, a origem está recusada.
+const preflight = (origin) =>
+  fetch(`${baseUrl}/api/cash-register/current`, {
+    method: 'OPTIONS',
+    headers: { Origin: origin, 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization' },
+  });
+
+for (const origin of ['http://localhost:5173', 'https://restaurante.example.test']) {
+  test(`CORS allows ${origin} from FRONTEND_URL`, async () => {
+    const response = await preflight(origin);
+    assert.equal(response.headers.get('access-control-allow-origin'), origin);
+    assert.equal(response.headers.get('access-control-allow-credentials'), 'true');
+  });
+}
+
+for (const origin of [
+  'https://4000-i8m1vcfofrs090wfzygp3-3e064326.us1.manus.computer',
+  'http://localhost:3000',
+  'https://intruso.example.test',
+]) {
+  test(`CORS refuses ${origin}`, async () => {
+    const response = await preflight(origin);
+    assert.equal(response.headers.get('access-control-allow-origin'), null);
+  });
+}
+
+test('CORS refuses every origin if FRONTEND_URL goes missing', async () => {
+  const frontendUrl = process.env.FRONTEND_URL;
+  delete process.env.FRONTEND_URL;
+  try {
+    const response = await preflight('http://localhost:5173');
+    assert.equal(response.headers.get('access-control-allow-origin'), null);
+  } finally {
+    process.env.FRONTEND_URL = frontendUrl;
   }
 });
