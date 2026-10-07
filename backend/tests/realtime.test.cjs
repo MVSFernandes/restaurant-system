@@ -192,12 +192,18 @@ test('replays a created order when response enrichment fails after persistence',
   assert.equal(replay.headers['X-Idempotent-Replay'], 'true');
 });
 
-test('does not execute an ambiguous server failure twice for the same idempotency key', async () => {
-  let creations = 0;
-  orderService.createOrder = async () => {
-    creations += 1;
+test('retries an ambiguous server failure with the same idempotency key and keeps one order', async () => {
+  // O serviço faz o papel do banco: a primeira chamada grava o pedido e a
+  // resposta se perde (500); a segunda acha a chave e devolve o existente.
+  const savedByKey = new Map();
+  let executions = 0;
+  orderService.createOrder = async (_input, _user, key) => {
+    executions += 1;
+    if (savedByKey.has(key)) return savedByKey.get(key);
+    savedByKey.set(key, { id: 'persisted-before-failure', status: 'NEW' });
     throw new Error('connection lost after insert');
   };
+  orderRepository.findItems = async () => [];
   const req = {
     body: { idempotencyKey: 'ambiguous-failure-key' },
     user: { id: 'operator', role: 'ADMIN' },
@@ -205,20 +211,22 @@ test('does not execute an ambiguous server failure twice for the same idempotenc
   };
 
   const first = response();
-  const replay = response();
+  const retry = response();
   const originalConsoleError = console.error;
   console.error = () => {};
   try {
     await orderController.createOrder(req, first);
-    await orderController.createOrder(req, replay);
+    await orderController.createOrder(req, retry);
   } finally {
     console.error = originalConsoleError;
   }
 
-  assert.equal(creations, 1);
   assert.equal(first.code, 500);
-  assert.equal(replay.code, 500);
-  assert.equal(replay.headers['X-Idempotent-Replay'], 'true');
+  assert.equal(executions, 2, 'a segunda tentativa precisa chegar ao serviço');
+  assert.equal(retry.code, 201);
+  assert.equal(retry.body.id, 'persisted-before-failure');
+  assert.equal(retry.headers['X-Idempotent-Replay'], undefined, 'não é repetição do cache, é execução de verdade');
+  assert.equal(savedByKey.size, 1, 'um pedido só');
 });
 
 
