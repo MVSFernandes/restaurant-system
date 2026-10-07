@@ -24,6 +24,8 @@ const stubs = [
   [customerService, 'getTransactions', async () => []],
   [customerService, 'chargeCredit', async () => undefined],
   [customerService, 'payCredit', async () => undefined],
+  [customerService, 'listAll', async () => [{ id: 'customer-1', name: 'Maria' }]],
+  [creditService, 'listCustomerCredits', async () => []],
   [creditService, 'getCustomerCredit', async (id) => ({ id, creditUsed: 0 })],
   [orderService, 'processPayment', async (orderId) => ({ id: 'payment-1', orderId, status: 'PAID' })],
   [orderRepository, 'findById', async () => null],
@@ -59,6 +61,9 @@ const call = (role, method, path, body) =>
   });
 
 const actions = {
+  'listar clientes': ['GET', '/customers'],
+  'ver fiado de todos': ['GET', '/customers/credit'],
+  'ver fiado de um cliente': ['GET', '/customers/customer-1/credit'],
   'lançar fiado': ['POST', '/customers/customer-1/charge-credit', { amount: 70, description: 'Almoço' }],
   'dar baixa em fiado': ['POST', '/customers/customer-1/pay-credit', { amount: 20 }],
   'registrar pagamento de fiado': ['POST', '/customers/customer-1/payments', { amount: 20 }],
@@ -81,9 +86,9 @@ for (const action of Object.keys(actions)) {
   test(`WAITER is refused: ${action}`, () => expectStatus('WAITER', action, 403));
 }
 
-// Fiado: ADMIN, FINANCE e CASHIER.
+// Fiado, leitura e escrita: ADMIN, FINANCE e CASHIER.
 for (const role of ['ADMIN', 'FINANCE', 'CASHIER']) {
-  for (const action of ['lançar fiado', 'dar baixa em fiado', 'registrar pagamento de fiado', 'mudar limite de crédito', 'criar cliente']) {
+  for (const action of ['listar clientes', 'ver fiado de todos', 'ver fiado de um cliente', 'lançar fiado', 'dar baixa em fiado', 'registrar pagamento de fiado', 'mudar limite de crédito', 'criar cliente']) {
     test(`${role} is accepted: ${action}`, () => expectStatus(role, action, action === 'criar cliente' ? 201 : 200));
   }
 }
