@@ -252,7 +252,7 @@ test('cash-close migration adds payment cancellation and excludes canceled order
   const fs = require('node:fs');
   const path = require('node:path');
   const sql = fs.readFileSync(
-    path.join(__dirname, '../supabase/migrations/20260922120000_cancel_pending_payments_with_orders.sql'),
+    path.join(__dirname, '../supabase/migrations/history/20260922120000_cancel_pending_payments_with_orders.sql'),
     'utf8'
   );
 
@@ -266,7 +266,7 @@ test('product-name migration backfills current names and marks missing products 
   const fs = require('node:fs');
   const path = require('node:path');
   const sql = fs.readFileSync(
-    path.join(__dirname, '../supabase/migrations/20260921150000_add_order_item_product_name.sql'),
+    path.join(__dirname, '../supabase/migrations/history/20260921150000_add_order_item_product_name.sql'),
     'utf8'
   );
 

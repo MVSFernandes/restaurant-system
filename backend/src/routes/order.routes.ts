@@ -19,7 +19,8 @@ router.get('/:id', getOrderById);
 router.post('/', createOrder);
 router.patch('/:id', updateOrder);
 router.patch('/:id/status', updateOrderStatus);
-router.post('/:id/payment', processPayment);
+// Quem fecha a conta é o caixa: o garçom lança o pedido, não recebe o dinheiro.
+router.post('/:id/payment', authorize('ADMIN', 'CASHIER'), processPayment);
 router.delete('/:id', authorize('ADMIN', 'CASHIER'), deleteOrder);
 
 router.get('/:id/receipt', getOrderReceipt);

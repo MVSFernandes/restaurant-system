@@ -13,16 +13,22 @@ import {
 
 const router = Router();
 
+// Fiado é dinheiro de cliente: ver a lista e o saldo, lançar dívida, dar baixa,
+// mudar limite e criar cliente ficam com quem recebe no balcão ou cuida do
+// financeiro. O garçom fica de fora (docs/etapas/etapa-papeis-dinheiro.md).
+// A leitura vai inteira: o painel fiscal do PDV precisa do endereço e do documento.
+const creditRoles = authorize('ADMIN', 'FINANCE', 'CASHIER');
+
 router.use(authenticate);
 
-router.get('/credit', getCustomerCredits);
-router.get('/', getCustomers);
-router.get('/:id/credit', getCustomerCredit);
-router.post('/', createCustomer);
-router.put('/:id', updateCustomer);
+router.get('/credit', creditRoles, getCustomerCredits);
+router.get('/', creditRoles, getCustomers);
+router.get('/:id/credit', creditRoles, getCustomerCredit);
+router.post('/', creditRoles, createCustomer);
+router.put('/:id', creditRoles, updateCustomer);
 router.delete('/:id', authorize('ADMIN'), deleteCustomer);
-router.post('/:id/payments', payCredit);
-router.post('/:id/pay-credit', payCredit);
-router.post('/:id/charge-credit', addCreditCharge);
+router.post('/:id/payments', creditRoles, payCredit);
+router.post('/:id/pay-credit', creditRoles, payCredit);
+router.post('/:id/charge-credit', creditRoles, addCreditCharge);
 
 export default router;
