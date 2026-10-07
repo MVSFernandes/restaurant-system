@@ -61,3 +61,36 @@ test('the rate limiter does not trust a token signed with "secret"', async () =>
   const response = await withToken(forged());
   assert.equal(response.headers.get('x-ratelimit-scope'), 'public');
 });
+
+// Ambiente fiscal: sem valor presumido, nem produção nem homologação.
+const { focusNfeService } = require('../src/services/focusNfe.service');
+
+const withFocusEnvironment = (value, run) => {
+  const original = process.env.FOCUS_NFE_ENVIRONMENT;
+  if (value === undefined) delete process.env.FOCUS_NFE_ENVIRONMENT;
+  else process.env.FOCUS_NFE_ENVIRONMENT = value;
+  try {
+    return run();
+  } finally {
+    if (original === undefined) delete process.env.FOCUS_NFE_ENVIRONMENT;
+    else process.env.FOCUS_NFE_ENVIRONMENT = original;
+  }
+};
+
+for (const value of [undefined, '', 'test-only-focus-token', 'homologacao']) {
+  test(`the fiscal service refuses FOCUS_NFE_ENVIRONMENT=${JSON.stringify(value)} instead of assuming homologation`, () => {
+    withFocusEnvironment(value, () => {
+      assert.throws(() => focusNfeService.getEnvironment(), (error) => {
+        assert.equal(error.code, 'FOCUS_NFE_NOT_CONFIGURED');
+        assert.equal(error.message, 'FOCUS_NFE_ENVIRONMENT must be production or homologation.');
+        return true;
+      });
+    });
+  });
+}
+
+for (const value of ['production', 'homologation']) {
+  test(`the fiscal service accepts FOCUS_NFE_ENVIRONMENT=${value}`, () => {
+    withFocusEnvironment(value, () => assert.equal(focusNfeService.getEnvironment(), value));
+  });
+}

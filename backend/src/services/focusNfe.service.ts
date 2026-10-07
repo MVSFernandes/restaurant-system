@@ -1,3 +1,4 @@
+import { isFocusNfeEnvironment } from '../config/env';
 import { DomainError } from '../types/errors';
 import { InvoiceEnvironment, InvoiceModel, InvoiceStatus } from '../types/domain';
 
@@ -49,9 +50,15 @@ const firstPresent = (payload: FocusResponse, keys: string[]) => {
 const nullableString = (value: unknown) =>
   value === null || value === undefined || value === '' ? null : String(value);
 
+// Sem valor presumido: nota em homologação por engano não tem valor fiscal e
+// ninguém fica sabendo. O valor lido nunca entra na mensagem.
 const getEnvironment = (): InvoiceEnvironment => {
   const value = process.env.FOCUS_NFE_ENVIRONMENT;
-  return value === 'production' ? 'production' : 'homologation';
+  if (isFocusNfeEnvironment(value)) return value;
+  throw new DomainError('FOCUS_NFE_ENVIRONMENT must be production or homologation.', {
+    code: 'FOCUS_NFE_NOT_CONFIGURED',
+    status: 500,
+  });
 };
 
 const getBaseUrl = () => {
