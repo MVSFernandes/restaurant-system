@@ -2,6 +2,9 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 const jwt = require('jsonwebtoken');
+
+process.env.JWT_SECRET = 'test-only-jwt-secret';
+
 const { createApiRateLimiter } = require('../src/middlewares/rateLimit.middleware');
 
 test('read budgets are isolated by verified user/resource and reset without a restart', async () => {
@@ -11,7 +14,7 @@ test('read budgets are isolated by verified user/resource and reset without a re
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
-  const token = id => jwt.sign({ id, role: 'CASHIER' }, process.env.JWT_SECRET || 'secret');
+  const token = id => jwt.sign({ id, role: 'CASHIER' }, process.env.JWT_SECRET);
   const request = (path, id = 'operator', method = 'GET') => fetch(base + '/api/' + path, { method, headers: { Authorization: 'Bearer ' + token(id) } });
   try {
     assert.equal((await request('invoices/a')).status, 200);

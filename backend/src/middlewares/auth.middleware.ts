@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { requireEnv } from '../config/env';
 
 export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
@@ -12,7 +13,8 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as { id: string; role: string };
+    // Sem segredo configurado não há token válido: requireEnv falha e cai no 401.
+    const decoded = jwt.verify(token, requireEnv('JWT_SECRET')) as { id: string; role: string };
     (req as any).user = decoded;
     next();
   } catch (error) {
