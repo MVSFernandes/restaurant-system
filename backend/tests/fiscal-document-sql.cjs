@@ -7,7 +7,7 @@ const { PGlite } = require(path.resolve(process.argv[2]));
 (async () => {
   const db = new PGlite();
   await db.exec("create table public.invoices(id text primary key, order_id text, model text, status text); create unique index invoices_active_nfce_order_idx on public.invoices(order_id) where model = '65' and status in ('pending','processing','authorized');");
-  await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260915120000_exclusive_order_fiscal_document.sql'), 'utf8'));
+  await db.exec(fs.readFileSync(path.join(__dirname, '../supabase/migrations/history/20260915120000_exclusive_order_fiscal_document.sql'), 'utf8'));
   await db.exec("insert into invoices values ('a','sale','65','pending')");
   await assert.rejects(db.exec("insert into invoices values ('b','sale','55','pending')"), error => error.code === '23505');
   await db.exec("update invoices set status='authorized' where id='a'");

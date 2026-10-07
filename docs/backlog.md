@@ -536,10 +536,17 @@ pública; não usar `select('*')`. `GET /api/config/branding` continua público 
 limitado a `name`, `logoUrl`, `bannerUrl`, `openingHours`, `openingDays`,
 `deliveryFee` e `enabledPayments`.
 
+> **Guard de frontend resolvido** na branch `feat/admin-only-settings`
+> (2026-10-06, etapa `docs/etapas/etapa-admin-configuracoes.md`). As páginas
+> `/settings/restaurant`, `/settings/fiscal` e `/design-system` passaram para
+> um grupo `ADMIN`; quem não é vê "Área do administrador" com o caminho de
+> volta. A escrita pela API já exigia `ADMIN`, e
+> `backend/tests/config-write-access.test.cjs` prova a recusa (`403`) para
+> `WAITER`, `CASHIER` e `FINANCE`.
+
 As páginas `/settings/restaurant`, `/settings/fiscal` e `/design-system` ainda
-precisam de guard de frontend para `ADMIN`. O backend já impede escrita por
-outros papéis e a projeção operacional impede a leitura de identidade fiscal;
-a correção da navegação pertence à etapa das telas do garçom.
+precisavam de guard de frontend para `ADMIN`. O backend já impedia escrita por
+outros papéis e a projeção operacional impede a leitura de identidade fiscal.
 
 ---
 

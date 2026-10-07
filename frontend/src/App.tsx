@@ -66,6 +66,14 @@ const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: insideShell([
           { path: '/dashboard', element: <DashboardPage /> },
+        ]),
+      },
+      {
+        // Configurações e vitrine interna: só ADMIN. Quem não é vê que a área
+        // é do administrador, em vez de uma tela que falharia ao salvar. O
+        // portão de verdade é a API (PUT /api/config já exige ADMIN).
+        element: <ProtectedRoute allowedRoles={['ADMIN']} explainDenial />,
+        children: insideShell([
           { path: '/settings', element: <Navigate to="/settings/restaurant" replace /> },
           { path: '/settings/restaurant', element: <RestaurantSettingsPage /> },
           { path: '/settings/fiscal', element: <FiscalSettingsPage /> },

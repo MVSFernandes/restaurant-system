@@ -25,7 +25,7 @@
     "test:queries": "node --test -r ts-node/register/transpile-only tests/query-fanout-tables.test.cjs tests/query-fanout-orders.test.cjs tests/query-fanout-credit.test.cjs",
     "test:table-tabs": "node --test -r ts-node/register/transpile-only tests/table-tabs.test.cjs && node tests/table-tabs-sql.cjs",
     "test:waiter-api": "node --test -r ts-node/register/transpile-only tests/waiter-api.test.cjs",
-    "test:config": "node --test -r ts-node/register/transpile-only tests/config-access.test.cjs tests/branding.test.cjs",
+    "test:config": "node --test -r ts-node/register/transpile-only tests/config-access.test.cjs tests/config-write-access.test.cjs tests/branding.test.cjs",
     "test:roles": "node --test -r ts-node/register/transpile-only tests/money-route-roles.test.cjs"
   },
   "keywords": [],
