@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 process.env.SUPABASE_URL = 'https://database.example.invalid';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-service-key';
 process.env.FOCUS_NFE_TOKEN = 'test-only-focus-token';
+process.env.FOCUS_NFE_ENVIRONMENT = 'homologation';
 process.env.FOCUS_NFE_BASE_URL = 'https://focus.example.test/v2';
 
 const { invoiceRepository } = require('../src/repositories/invoice.repository');

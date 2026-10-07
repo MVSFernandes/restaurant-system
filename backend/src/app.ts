@@ -9,15 +9,17 @@ dotenv.config();
 
 const app = express();
 
+// Origens aceitas vêm do FRONTEND_URL (separadas por vírgula). Sem a
+// variável nenhuma origem passa; a partida já exige que ela exista.
+const allowedOrigins = () =>
+  (process.env.FRONTEND_URL ?? '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
 // Middlewares
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:4173',
-    'http://localhost:4000',
-    'https://4000-i8m1vcfofrs090wfzygp3-3e064326.us1.manus.computer',
-  ],
+  origin: (origin, callback) => callback(null, !!origin && allowedOrigins().includes(origin)),
   credentials: true,
   exposedHeaders: ['Retry-After', 'RateLimit-Reset', 'X-RateLimit-Scope'],
 }));

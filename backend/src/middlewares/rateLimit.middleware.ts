@@ -1,6 +1,7 @@
 import { RequestHandler } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
+import { requireEnv } from '../config/env';
 
 export const createApiRateLimiter = (options: { windowMs?: number; readLimit?: number; writeLimit?: number; publicLimit?: number } = {}): RequestHandler => {
   const common = { windowMs: options.windowMs ?? 60_000, standardHeaders: true, legacyHeaders: false,
@@ -15,7 +16,7 @@ export const createApiRateLimiter = (options: { windowMs?: number; readLimit?: n
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+        const decoded = jwt.verify(token, requireEnv('JWT_SECRET'));
         if (typeof decoded === 'object' && typeof decoded.id === 'string') userId = decoded.id;
       } catch { /* Unverified requests retain the public IP limit. */ }
     }
