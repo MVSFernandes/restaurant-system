@@ -42,7 +42,7 @@ async function main() {
     `);
 
     const migration = fs.readFileSync(
-      path.join(__dirname, '../supabase/migrations/20260922120000_cancel_pending_payments_with_orders.sql'),
+      path.join(__dirname, '../supabase/migrations/history/20260922120000_cancel_pending_payments_with_orders.sql'),
       'utf8'
     );
     await db.exec(migration);
