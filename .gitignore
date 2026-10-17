@@ -39,8 +39,6 @@ coverage/
 .turbo/
 
 # Supabase (tipos gerados localmente — cada dev gera o seu)
-**/database.ts
-backend/src/types/database.ts
 
 # Backup de migrations Prisma (após migração)
 backend/prisma_backup/
@@ -53,4 +51,4 @@ backend/supabase/*
 !backend/supabase/checks/
 !backend/supabase/checks/*.sql
 !backend/supabase/checks/**
-.claude/settings.local.json
+.claude/settings.local.jsonbackend/.env.docker

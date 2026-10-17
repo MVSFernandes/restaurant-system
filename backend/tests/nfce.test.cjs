@@ -626,7 +626,7 @@ test('rejects missing recipient, PF, incomplete fiscal data, unpaid and unfinish
   for (const [change, recipient, message] of [
     [() => {}, '', /Selecione um cliente PJ/],
     [() => { customerRepository.findById = async () => fiscalCustomer({ personType: 'PF' }); }, 'pj-1', /cliente PJ/],
-    [() => { customerRepository.findById = async () => fiscalCustomer({ fiscalCityIbgeCode: null }); }, 'pj-1', /fiscalCityIbgeCode/],
+    [() => { customerRepository.findById = async () => fiscalCustomer({ fiscalCityIbgeCode: null }); }, 'pj-1', (error) => error.details?.field === 'fiscalCityIbgeCode'],
     [() => { paymentRepository.findByOrder = async () => []; }, 'pj-1', /pedido pago/],
     [() => { orderRepository.findById = async () => order({ status: 'NEW' }); }, 'pj-1', /pedido finalizado/],
   ]) {

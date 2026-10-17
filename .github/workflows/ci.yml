@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  testes:
+    name: Testes (docker-compose.test.yml)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Testes do backend
+        run: docker compose -f docker-compose.test.yml run --rm backend-tests
+
+      - name: Testes do frontend
+        run: docker compose -f docker-compose.test.yml run --rm frontend-tests
+
+  build-e-smoke:
+    name: Build das imagens e teste do compose
+    runs-on: ubuntu-latest
+    needs: testes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Criar o .env.docker com valores de teste
+        run: cp backend/.env.docker.example backend/.env.docker
+
+      - name: Subir o compose e esperar ficar saudável
+        run: docker compose up -d --build --wait
+
+      - name: Conferir que o frontend responde e fala com o backend
+        run: |
+          curl -fsS http://localhost:8080/ > /dev/null
+          curl -fsS http://localhost:8080/health
+
+      - name: Mostrar logs se algo falhar
+        if: failure()
+        run: docker compose logs
+
+      - name: Derrubar o compose
+        if: always()
+        run: docker compose down

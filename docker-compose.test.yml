@@ -1,0 +1,48 @@
+# Compose só para os testes automáticos (usado no CI do GitHub Actions).
+# Roda os testes do backend e do frontend em containers, sem depender do que
+# está instalado na máquina.
+#
+# Como rodar:
+#   docker compose -f docker-compose.test.yml run --rm backend-tests
+#   docker compose -f docker-compose.test.yml run --rm frontend-tests
+
+name: restaurant-system-tests
+
+services:
+  backend-tests:
+    # Imagem completa do Node (não a alpine) porque ela já tem python e g++,
+    # que o bcrypt pode precisar pra instalar.
+    image: node:22
+    working_dir: /app
+    network_mode: host
+    volumes:
+      - ./backend:/app
+      # node_modules fica num volume, separado da pasta do projeto.
+      # Na segunda vez que rodo, o npm ci aproveita o cache e fica mais rápido.
+      - backend-node-modules:/app/node_modules
+      - npm-cache:/root/.npm
+    environment:
+      NODE_ENV: test
+    # Os testes do backend usam mocks, não precisam do Supabase de verdade.
+    command: >
+      sh -c "npm ci --no-audit --no-fund &&
+             node --test -r ts-node/register/transpile-only tests/*.test.cjs"
+
+  frontend-tests:
+    image: node:22
+    working_dir: /app
+    network_mode: host
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+      - npm-cache:/root/.npm
+    environment:
+      CI: "true"
+    command: >
+      sh -c "npm ci --no-audit --no-fund &&
+             npx vitest run"
+
+volumes:
+  backend-node-modules:
+  frontend-node-modules:
+  npm-cache:

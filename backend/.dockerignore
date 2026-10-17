@@ -1,0 +1,17 @@
+# Não mando pro build o que não é usado na imagem.
+# Deixa o build mais rápido e evita vazar segredo (.env) pra dentro da imagem.
+node_modules
+dist
+.env
+.env.*
+!.env.example
+tests
+scripts
+supabase
+prisma
+docker-compose.yml
+pnpm-lock.yaml
+Dockerfile
+.dockerignore
+*.log
+.git

@@ -1,0 +1,66 @@
+# Docker Compose do Restaurant System
+# Sobe o backend (a imagem da atividade 06) e o frontend (React servido pelo Nginx).
+#
+# Banco de dados: não coloquei um serviço de banco aqui porque o sistema usa o
+# Supabase, que já é um banco gerenciado na nuvem. O backend acessa ele pela
+# internet usando SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.
+#
+# Como rodar:
+#   cp backend/.env.docker.example backend/.env.docker
+#   docker compose up -d --build
+
+name: restaurant-system
+
+services:
+  backend:
+    # Mesma imagem da atividade 06, construída a partir do Dockerfile do backend
+    build:
+      context: ./backend
+    image: restaurant-backend:latest
+    container_name: restaurant-backend
+    # As variáveis ficam num arquivo separado, fora do Git (está no .gitignore)
+    env_file:
+      - ./backend/.env.docker
+    # Sem "ports": o backend não fica exposto pra fora.
+    # Só o frontend (Nginx) fala com ele, pela rede interna.
+    expose:
+      - "3001"
+    networks:
+      - rede-interna
+    # Se o processo cair, o Docker sobe de novo. Só não reinicia se eu parar na mão.
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 15s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # O React chama a API em /api e o Nginx repassa pro backend.
+        # Assim fica tudo no mesmo endereço e não precisa mexer com CORS.
+        VITE_API_URL: /api
+    image: restaurant-frontend:latest
+    container_name: restaurant-frontend
+    ports:
+      - "8080:80"
+    networks:
+      - rede-interna
+    # O frontend só sobe depois que o backend estiver saudável
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+# Rede própria: os containers se acham pelo nome do serviço (ex.: http://backend:3001)
+networks:
+  rede-interna:
+    driver: bridge
