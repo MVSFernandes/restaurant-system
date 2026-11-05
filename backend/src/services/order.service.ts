@@ -10,7 +10,6 @@ import { tableRepository } from '../repositories/table.repository';
 import { tableTabRepository } from '../repositories/tableTab.repository';
 import { customerRepository } from '../repositories/customer.repository';
 import { creditTransactionRepository } from '../repositories/creditTransaction.repository';
-import { userRepository } from '../repositories/user.repository';
 import {
   Order,
   OrderItem,
@@ -76,8 +75,129 @@ export interface UpdateOrderInput {
   items?: CreateOrderItemInput[];
 }
 
-// Formato que a RPC consume_order_stock/restore_order_stock espera
-type StockRpcItem = { product_id: string; quantity: number; weight: number | null };
+// ---------------------------------------------------------------------------
+// Contrato do checkout público (POST /orders/public)
+// ---------------------------------------------------------------------------
+//
+// O cliente do cardápio só declara o que é dele: contato, tipo de pedido
+// (retirada ou entrega), endereço de entrega, forma de pagamento e itens com
+// quantidade. Mesa, comanda, operador, garçom, cliente cadastrado, origem,
+// status, preços e totais são decididos pelo servidor. Qualquer outro campo
+// é recusado explicitamente, em vez de ser ignorado em silêncio.
+
+export const PUBLIC_ORDER_TYPES = ['TAKE_AWAY', 'DELIVERY'] as const;
+export type PublicOrderType = (typeof PUBLIC_ORDER_TYPES)[number];
+
+const PUBLIC_ORDER_STRING_FIELDS = [
+  'customerName',
+  'customerPhone',
+  'paymentMethod',
+  'deliveryStreet',
+  'deliveryNumber',
+  'deliveryNeighborhood',
+  'deliveryReference',
+  'deliveryPhone',
+  'deliveryNotes',
+] as const;
+
+// idempotencyKey é lido pelo controller. deliveryFee é aceito porque o
+// cardápio o envia para exibição, mas é ignorado: vale a taxa configurada.
+const PUBLIC_ORDER_FIELDS = new Set<string>([
+  ...PUBLIC_ORDER_STRING_FIELDS,
+  'idempotencyKey',
+  'type',
+  'deliveryFee',
+  'items',
+]);
+const PUBLIC_ORDER_ITEM_FIELDS = new Set<string>(['productId', 'quantity', 'notes']);
+
+export interface PublicOrderItemInput {
+  productId: string;
+  quantity: number;
+  notes: string | null;
+}
+
+export interface PublicOrderInput {
+  type: PublicOrderType;
+  customerName: string | null;
+  customerPhone: string | null;
+  paymentMethod: string | null;
+  deliveryStreet: string | null;
+  deliveryNumber: string | null;
+  deliveryNeighborhood: string | null;
+  deliveryReference: string | null;
+  deliveryPhone: string | null;
+  deliveryNotes: string | null;
+  items: PublicOrderItemInput[];
+}
+
+const NOT_ACCEPTED_IN_PUBLIC_ORDER = 'Este campo não é aceito no pedido do cardápio';
+
+function optionalPublicString(source: Record<string, unknown>, field: string): string | null {
+  const value = source[field];
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') {
+    throw new ValidationError(field, 'Informe um texto válido');
+  }
+  return value.trim() || null;
+}
+
+/**
+ * Valida o corpo do checkout público contra uma lista fechada de campos.
+ * Campos internos (tableId, tableTabId, waiterId, userId, customerId, source,
+ * status, total, preços de item...) são recusados com 400.
+ */
+export function parsePublicOrderInput(body: unknown): PublicOrderInput {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new ValidationError('body', 'Envie os dados do pedido');
+  }
+  const source = body as Record<string, unknown>;
+
+  for (const field of Object.keys(source)) {
+    if (!PUBLIC_ORDER_FIELDS.has(field)) {
+      throw new ValidationError(field, NOT_ACCEPTED_IN_PUBLIC_ORDER);
+    }
+  }
+
+  const type = source.type ?? 'TAKE_AWAY';
+  if (!PUBLIC_ORDER_TYPES.includes(type as PublicOrderType)) {
+    throw new ValidationError('type', 'O cardápio aceita apenas pedidos para retirada ou entrega');
+  }
+
+  if (!Array.isArray(source.items) || source.items.length === 0) {
+    throw new ValidationError('items', 'Adicione itens ao pedido');
+  }
+  const items = source.items.map((rawItem, index): PublicOrderItemInput => {
+    const prefix = `items[${index}]`;
+    if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) {
+      throw new ValidationError(prefix, 'Item inválido');
+    }
+    const item = rawItem as Record<string, unknown>;
+    for (const field of Object.keys(item)) {
+      if (!PUBLIC_ORDER_ITEM_FIELDS.has(field)) {
+        throw new ValidationError(`${prefix}.${field}`, NOT_ACCEPTED_IN_PUBLIC_ORDER);
+      }
+    }
+    if (typeof item.productId !== 'string' || !item.productId.trim()) {
+      throw new ValidationError(`${prefix}.productId`, 'Selecione um produto');
+    }
+    const quantity = item.quantity ?? 1;
+    if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity <= 0) {
+      throw new ValidationError(`${prefix}.quantity`, 'Informe uma quantidade inteira maior que zero');
+    }
+    return {
+      productId: item.productId,
+      quantity,
+      notes: optionalPublicString(item, 'notes'),
+    };
+  });
+
+  const strings = Object.fromEntries(
+    PUBLIC_ORDER_STRING_FIELDS.map((field) => [field, optionalPublicString(source, field)])
+  ) as Record<(typeof PUBLIC_ORDER_STRING_FIELDS)[number], string | null>;
+
+  return { type: type as PublicOrderType, ...strings, items };
+}
 
 // Resultado de pricing de um item
 interface ResolvedItemPricing {
@@ -177,16 +297,43 @@ function normalizeOrderItemWeight(
   return numericWeight;
 }
 
-async function resolveItemPricing(item: CreateOrderItemInput): Promise<ResolvedItemPricing> {
+export const BY_WEIGHT_NOT_AVAILABLE_ONLINE =
+  'Produtos vendidos por peso não podem ser pedidos pelo cardápio online: a pesagem é feita no restaurante';
+
+async function resolveItemPricing(
+  item: CreateOrderItemInput,
+  options: { publicCheckout?: boolean } = {}
+): Promise<ResolvedItemPricing> {
   const product = await productRepository.findById(item.productId);
   if (!product) throw new NotFoundError('Product', item.productId);
   if (product.isPaused) {
     throw new ValidationError('productId', `O produto "${product.name}" está pausado`);
   }
 
+  // O cardápio público não tem como informar peso: o produto por peso não é
+  // vendido por ali, em vez de sair por R$ 0 (peso ausente vira preço zero).
+  if (options.publicCheckout && product.isByWeight) {
+    throw new ValidationError('productId', `${BY_WEIGHT_NOT_AVAILABLE_ONLINE} ("${product.name}")`);
+  }
+
+  // Peso informado precisa ser um número de gramas maior que zero.
+  if (item.weight !== undefined && item.weight !== null) {
+    const informedWeight = Number(item.weight);
+    if (!Number.isFinite(informedWeight) || informedWeight <= 0) {
+      throw new ValidationError('weight', `Informe um peso válido, em gramas, para "${product.name}"`);
+    }
+  }
+
   const category = await categoryRepository.findById(product.categoryId);
   const saleType: SaleType = (item.saleType as SaleType) ?? (product.isByWeight ? 'WEIGHT' : 'UNIT');
   const normalizedWeight = normalizeOrderItemWeight(saleType, item.weight);
+
+  // Produto por peso sem peso só é aceito com preço ajustado pelo operador
+  // (manualPrice, fluxo autenticado do PDV). Sem os dois, sairia por R$ 0.
+  const hasManualPrice = item.manualPrice !== undefined && item.manualPrice !== null;
+  if (product.isByWeight && normalizedWeight === null && !hasManualPrice) {
+    throw new ValidationError('weight', `Informe o peso de "${product.name}"`);
+  }
 
   let unitPrice =
     item.unitPrice !== undefined && item.unitPrice !== null && item.unitPrice !== 0
@@ -231,17 +378,6 @@ async function resolveItemPricing(item: CreateOrderItemInput): Promise<ResolvedI
   };
 }
 
-/**
- * Converte itens resolvidos no formato que a RPC espera.
- * A RPC recebe product_id + quantity + weight e faz o cálculo internamente.
- */
-function toStockRpcItems(items: ResolvedItemPricing[]): StockRpcItem[] {
-  return items.map((i) => ({
-    product_id: i.productId,
-    quantity: i.quantity,
-    weight: i.weight,
-  }));
-}
 
 function normalizedNullableName(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
@@ -377,13 +513,21 @@ export const orderService = {
     return orderRepository.createWithStock(order, creationItems(orderId, resolvedItems), undefined, storedKey);
   },
 
-  async createPublicOrder(
-    input: Omit<CreateOrderInput, 'waiterId'> & {
-      customerPhone?: string | null;
-      paymentMethod?: string | null;
-    },
-    idempotencyKey?: string
-  ): Promise<Order> {
+  /**
+   * Checkout público do cardápio.
+   *
+   * - Só retirada (TAKE_AWAY) e entrega (DELIVERY); mesa e comanda ficam nas
+   *   rotas autenticadas do PDV e do garçom.
+   * - O contato informado (nome e telefone) é um dado declarado deste pedido e
+   *   fica em orders.customer_name / orders.delivery_phone. Ele não identifica
+   *   um cliente cadastrado: o pedido não é ligado a um cadastro existente nem
+   *   cria um cadastro novo só porque alguém digitou um telefone.
+   * - Ninguém da equipe registrou o pedido: user_id fica null e a origem é
+   *   PUBLIC_MENU (ver migration 20261104220000).
+   */
+  async createPublicOrder(body: unknown, idempotencyKey?: string): Promise<Order> {
+    const input = parsePublicOrderInput(body);
+
     const storedKey = normalizedIdempotencyKey(idempotencyKey);
     if (storedKey) {
       const existing = await orderRepository.findByIdempotencyKey(storedKey);
@@ -392,54 +536,19 @@ export const orderService = {
     const session = await cashRegisterRepository.findOpenSession();
     if (!session) throw new CashRegisterClosedError();
 
-    const tableTab = await validateOrderTableContext(input);
-
-    const type = input.type ?? 'TAKE_AWAY';
-    const customerName = normalizedNullableName(tableTab?.name ?? input.customerName);
+    const type = input.type;
+    const customerName = normalizedNullableName(input.customerName);
     const config = await restaurantConfigRepository.get();
     const paymentMethod = validatePublicPaymentMethod(input.paymentMethod, config.enabledPayments);
 
-    if (type !== 'DINE_IN' && !customerName) {
+    if (!customerName) {
       throw new ValidationError('customerName', 'Informe o nome do cliente.');
     }
-
-    let customerId: string | null = null;
-    if (input.customerPhone) {
-      let customer = await customerRepository.findByPhone(input.customerPhone);
-      if (!customer && customerName) {
-        customer = await customerRepository.create({
-          id: createId(),
-          name: customerName,
-          phone: input.customerPhone,
-          email: null,
-          address: null,
-          creditLimit: 0,
-          creditUsed: 0,
-          personType: 'PF',
-          document: null,
-          legalName: null,
-          stateRegistration: null,
-          fiscalZipCode: null,
-          fiscalStreet: null,
-          fiscalNumber: null,
-          fiscalNeighborhood: null,
-          fiscalCity: null,
-          fiscalCityIbgeCode: null,
-          fiscalState: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-      }
-      customerId = customer?.id ?? null;
-    }
-
-    const admin = await userRepository.findAdminUser();
-    if (!admin) throw new NotFoundError('User', 'admin');
 
     let total = 0;
     const resolvedItems: ResolvedItemPricing[] = [];
     for (const item of input.items) {
-      const pricing = await resolveItemPricing(item);
+      const pricing = await resolveItemPricing(item, { publicCheckout: true });
       total += pricing.price;
       resolvedItems.push(pricing);
     }
@@ -460,13 +569,13 @@ export const orderService = {
       total,
       deliveryFee,
       customerName,
-      customerId,
-      tableId: tableTab?.tableId ?? null,
-      tableTabId: tableTab?.id ?? null,
-      userId: admin.id,
+      customerId: null,
+      tableId: null,
+      tableTabId: null,
+      userId: null,
       waiterId: null,
       cashRegisterSessionId: session.id,
-      deliveryType: (input.deliveryType as any) ?? null,
+      deliveryType: null,
       deliveryStreet: input.deliveryStreet ?? null,
       deliveryNumber: input.deliveryNumber ?? null,
       deliveryNeighborhood: input.deliveryNeighborhood ?? null,
@@ -493,7 +602,7 @@ export const orderService = {
     orderId: string,
     newStatus: OrderStatus,
     actingUser: { id: string; role: UserRole }
-  ): Promise<Order> {
+  ): Promise<Order & { stockReviewRequired?: boolean }> {
     const order = await orderRepository.findById(orderId);
     if (!order) throw new NotFoundError('Order', orderId);
 
@@ -513,26 +622,29 @@ export const orderService = {
       throw new InvalidStatusTransitionError(order.status, newStatus);
     }
 
-    // Cancelar → restaurar estoque via RPC
-    if (order.status !== 'CANCELED' && newStatus === 'CANCELED') {
-      const items = await orderRepository.findItems(orderId);
-      const stockPayload: StockRpcItem[] = items.map((i) => ({
-        product_id: i.productId,
-        quantity: i.quantity,
-        weight: i.weight,
-      }));
-      if (stockPayload.length > 0) {
-        await orderRepository.restoreStock(stockPayload);
-      }
+    // Cancelar: status, estorno de estoque (pelo livro do pedido) e
+    // cancelamento dos pagamentos pendentes (trigger) numa única transação,
+    // com lock da linha do pedido. Repetir o cancelamento não devolve de novo.
+    // Os estados canceláveis continuam os mesmos de antes; para o garçom, o
+    // banco reconfere dentro do lock que o pedido ainda é dele e está NEW.
+    if (newStatus === 'CANCELED') {
+      const { order: canceled, stockReviewRequired } = await orderRepository.cancelWithStock(
+        orderId,
+        actingUser.role === 'WAITER'
+          ? { requiredStatus: 'NEW', requiredWaiterId: actingUser.id }
+          : {}
+      );
+      await releaseTableIfEmpty(order.tableId);
+      // Campo adicional na resposta: o cancelamento já foi concluído; para
+      // pedido anterior ao livro, avisa que o estoque precisa de conferência
+      // (nada foi devolvido automaticamente). Repetir o cancelamento mantém o
+      // aviso enquanto a conferência estiver pendente.
+      return { ...canceled, stockReviewRequired };
     }
 
     const updated = await orderRepository.update(orderId, { status: newStatus });
 
-    if (newStatus === 'CANCELED') {
-      await paymentRepository.cancelPendingByOrder(orderId);
-    }
-
-    if (newStatus === 'FINISHED' || newStatus === 'CANCELED') {
+    if (newStatus === 'FINISHED') {
       await releaseTableIfEmpty(order.tableId);
     }
 
@@ -638,38 +750,18 @@ export const orderService = {
         resolvedItems.push(pricing);
       }
 
-      const oldItems = await orderRepository.findItems(orderId);
-      const oldStockPayload: StockRpcItem[] = oldItems.map((i) => ({
-        product_id: i.productId,
-        quantity: i.quantity,
-        weight: i.weight,
-      }));
-      if (oldStockPayload.length > 0) await orderRepository.restoreStock(oldStockPayload);
-
-      for (const item of oldItems) {
-        await orderRepository.removeItem(item.id);
-      }
-
       patch.total = newTotal + effectiveDeliveryFee;
 
-      for (const item of resolvedItems) {
-        await orderRepository.addItem({
-          id: createId(),
-          orderId,
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          weight: item.weight,
-          price: item.price,
-          unitPrice: item.unitPrice,
-          manualPrice: item.manualPrice,
-          saleType: item.saleType,
-          notes: item.notes,
-        });
-      }
-
-      const newStockPayload = toStockRpcItems(resolvedItems);
-      if (newStockPayload.length > 0) await orderRepository.consumeStock(newStockPayload);
+      // Itens, estoque, livro do pedido e patch numa única transação. O banco
+      // reconfere, com o pedido travado, que ele ainda está NEW (e, para o
+      // garçom, que ainda é dele): uma falha ou um cancelamento concorrente
+      // não deixa baixa ou devolução pela metade.
+      return orderRepository.updateItemsWithStock(
+        orderId,
+        creationItems(orderId, resolvedItems),
+        patch,
+        { requiredWaiterId: actingUser.role === 'WAITER' ? actingUser.id : null }
+      );
     } else if (input.deliveryFee !== undefined || removesDeliveryFee) {
       const currentItems = await orderRepository.findItems(orderId);
       const itemsTotal = currentItems.reduce((sum, item) => sum + Number(item.price), 0);
@@ -683,24 +775,10 @@ export const orderService = {
     const order = await orderRepository.findById(orderId);
     if (!order) throw new NotFoundError('Order', orderId);
 
-    const activeStatuses: OrderStatus[] = ['NEW', 'IN_PROGRESS', 'READY', 'DELIVERED'];
-    if (activeStatuses.includes(order.status)) {
-      const items = await orderRepository.findItems(orderId);
-      const stockPayload: StockRpcItem[] = items.map((i) => ({
-        product_id: i.productId,
-        quantity: i.quantity,
-        weight: i.weight,
-      }));
-      if (stockPayload.length > 0) await orderRepository.restoreStock(stockPayload);
-    }
-
-    const items = await orderRepository.findItems(orderId);
-    for (const item of items) await orderRepository.removeItem(item.id);
-
-    const payments = await paymentRepository.findByOrder(orderId);
-    for (const p of payments) await paymentRepository.delete(p.id);
-
-    await orderRepository.delete(orderId);
+    // Uma transação: devolução (só pedidos ativos, como antes, conforme o
+    // livro), pagamentos, itens e pedido. Se algo impedir a exclusão (ex.:
+    // nota fiscal vinculada), nada muda.
+    await orderRepository.deleteWithStock(orderId);
     await releaseTableIfEmpty(order.tableId);
   },
 };

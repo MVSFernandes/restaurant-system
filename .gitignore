@@ -51,5 +51,7 @@ backend/supabase/*
 !backend/supabase/checks/
 !backend/supabase/checks/*.sql
 !backend/supabase/checks/**
+!backend/supabase/rollbacks/
+!backend/supabase/rollbacks/*.sql
 .claude/settings.local.json
 backend/.env.docker

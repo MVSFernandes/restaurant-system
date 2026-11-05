@@ -167,8 +167,11 @@ export interface Order {
   tableId?: string;
   table?: Table;
 
-  userId: string;
-  user?: User;
+  // Null em pedidos do cardápio público: nenhum operador registrou o pedido.
+  userId: string | null;
+  // Só na resposta do cancelamento: pedido antigo cujo estoque precisa de conferência.
+  stockReviewRequired?: boolean;
+  user?: User | null;
 
   waiterId?: string;
   waiter?: User;

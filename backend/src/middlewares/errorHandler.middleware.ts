@@ -107,6 +107,41 @@ export function mapSupabaseError(
         code: 'TABLE_TAB_ALREADY_CLOSED', status: 409,
       });
     }
+    if (message.includes('ORDER_CANCEL_PRECONDITION_FAILED')) {
+      return new DomainError(
+        'O pedido mudou de situação e não pode mais ser cancelado por aqui. Atualize a tela.',
+        { code: 'ORDER_CANCEL_PRECONDITION_FAILED', status: 409, details: { currentStatus: details } }
+      );
+    }
+    if (message.includes('ORDER_EDIT_PRECONDITION_FAILED')) {
+      return new DomainError(
+        'O pedido mudou de situação e não pode mais ser editado. Atualize a tela.',
+        { code: 'ORDER_EDIT_PRECONDITION_FAILED', status: 409, details: { currentStatus: details } }
+      );
+    }
+    if (message.includes('LEGACY_ORDER_ITEMS_LOCKED')) {
+      return new DomainError(
+        'Os itens deste pedido antigo não podem ser alterados, porque não há registro do estoque que ele já baixou. Cancele o pedido e lance um novo.',
+        { code: 'LEGACY_ORDER_ITEMS_LOCKED', status: 409 }
+      );
+    }
+    if (message.includes('LEGACY_ORDER_STOCK_REVIEW_REQUIRED')) {
+      return new DomainError(
+        'Este pedido é anterior ao controle de estoque por pedido. Peça a conferência do estoque antes de excluí-lo.',
+        { code: 'LEGACY_ORDER_STOCK_REVIEW_REQUIRED', status: 409 }
+      );
+    }
+    if (message.includes('ORDER_STOCK_OPERATION_REQUIRED')) {
+      return new DomainError(
+        'Operação de pedido recusada pelo banco: use o fluxo de cancelamento, edição ou exclusão.',
+        { code: 'ORDER_STOCK_OPERATION_REQUIRED', status: 409, details: { operation: details } }
+      );
+    }
+    if (message.includes('ORDER_ALREADY_CANCELED')) {
+      return new DomainError('O pedido já foi cancelado.', {
+        code: 'ORDER_ALREADY_CANCELED', status: 409,
+      });
+    }
     if (message.includes('CASH_REGISTER_PENDING_ORDERS')) {
       try {
         return new PendingCashRegisterOrdersError(JSON.parse(details ?? '[]'));

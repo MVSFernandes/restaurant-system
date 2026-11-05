@@ -359,7 +359,8 @@ export interface Order {
   customerId: string | null;
   tableId: string | null;
   tableTabId: string | null;
-  userId: string;
+  /** Operador que registrou o pedido. Null apenas em pedidos do cardápio público (source PUBLIC_MENU). */
+  userId: string | null;
   waiterId: string | null;
   cashRegisterSessionId: string | null;
   // Delivery

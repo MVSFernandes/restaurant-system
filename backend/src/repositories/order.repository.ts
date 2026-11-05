@@ -244,16 +244,6 @@ export const orderRepository = {
     return toOrderDomain(data);
   },
 
-  async delete(id: string): Promise<void> {
-    const { error, count } = await supabase
-      .from(TABLE)
-      .delete({ count: 'exact' })
-      .eq('id', id);
-
-    if (error) throw mapSupabaseError(error, { entity: 'Order' });
-    if (count === 0) throw new NotFoundError('Order', id);
-  },
-
   // ---- ORDER ITEMS ----
 
   async findItems(orderId: string): Promise<OrderItem[]> {
@@ -266,52 +256,65 @@ export const orderRepository = {
     return (data ?? []).map(toOrderItemDomain);
   },
 
-  async addItem(item: OrderItem): Promise<OrderItem> {
-    const payload = toOrderItemInsert({
-      ...item,
-      weight: normalizeOrderItemWeight(item),
-    });
-    const { data, error } = await supabase
-      .from(ITEMS_TABLE)
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) throw mapSupabaseError(error, { entity: 'OrderItem' });
-    return toOrderItemDomain(data);
-  },
-
-  async removeItem(itemId: string): Promise<void> {
-    const { error, count } = await supabase
-      .from(ITEMS_TABLE)
-      .delete({ count: 'exact' })
-      .eq('id', itemId);
-
-    if (error) throw mapSupabaseError(error, { entity: 'OrderItem' });
-    if (count === 0) throw new NotFoundError('OrderItem', itemId);
-  },
+  // ---- STOCK-AFFECTING OPERATIONS (one database transaction each) ----
+  // Itens, estoque e livro do pedido (order_stock_movements) só mudam por
+  // estas RPCs; o banco recusa cancelar, excluir ou alterar itens por fora.
 
   /**
-   * Dá baixa no estoque dos insumos do pedido via RPC atômica.
-   * items = [{ stock_item_id: string, quantity: number }]
-   * Chamada ao confirmar/iniciar produção do pedido.
+   * Cancela o pedido e devolve o estoque registrado no livro, com lock da
+   * linha do pedido. As condições opcionais são conferidas de novo dentro do
+   * lock (ex.: garçom só cancela o próprio pedido NEW). Pedido anterior ao
+   * livro não devolve nada automaticamente: stockReviewRequired = true.
    */
-  async consumeStock(items: { product_id: string; quantity: number; weight?: number | null }[]): Promise<void> {
-    const { error } = await supabase.rpc('consume_order_stock', {
-      p_items: items,
+  async cancelWithStock(
+    orderId: string,
+    conditions: { requiredStatus?: OrderStatus | null; requiredWaiterId?: string | null } = {}
+  ): Promise<{ order: Order; alreadyCanceled: boolean; stockReviewRequired: boolean }> {
+    const { data, error } = await supabase.rpc('cancel_order_with_stock', {
+      p_order_id: orderId,
+      p_required_status: conditions.requiredStatus ?? null,
+      p_required_waiter_id: conditions.requiredWaiterId ?? null,
     });
     if (error) throw mapSupabaseError(error, { entity: 'Order' });
+    const result = data as unknown as {
+      order: Database['public']['Tables']['orders']['Row'];
+      already_canceled: boolean;
+      stock_review_required?: boolean;
+    };
+    return {
+      order: toOrderDomain(result.order),
+      alreadyCanceled: Boolean(result.already_canceled),
+      stockReviewRequired: Boolean(result.stock_review_required),
+    };
   },
 
   /**
-   * Devolve o estoque consumido pelo pedido via RPC atômica.
-   * items = [{ stock_item_id: string, quantity: number }]
-   * Chamada ao cancelar o pedido.
+   * Troca os itens de um pedido NEW numa única transação: devolve o saldo do
+   * livro, substitui os itens, baixa o estoque dos novos e aplica o patch
+   * (total, taxa e dados de entrega). Qualquer falha não altera nada.
    */
-  async restoreStock(items: { product_id: string; quantity: number; weight?: number | null }[]): Promise<void> {
-    const { error } = await supabase.rpc('restore_order_stock', {
-      p_items: items,
+  async updateItemsWithStock(
+    orderId: string,
+    items: OrderItem[],
+    patch: Partial<Order>,
+    conditions: { requiredWaiterId?: string | null } = {}
+  ): Promise<Order> {
+    const { data, error } = await supabase.rpc('update_order_items_with_stock', {
+      p_order_id: orderId,
+      p_items: items.map((item) => toOrderItemInsert({ ...item, weight: normalizeOrderItemWeight(item) })) as Json,
+      p_order_patch: toOrderUpdate(patch) as Json,
+      p_required_waiter_id: conditions.requiredWaiterId ?? null,
     });
+    if (error) throw mapSupabaseError(error, { entity: 'Order' });
+    return toOrderDomain(data as unknown as Database['public']['Tables']['orders']['Row']);
+  },
+
+  /**
+   * Exclui o pedido numa única transação. Como antes, só pedidos ativos
+   * devolvem estoque; a devolução segue o livro e não se repete.
+   */
+  async deleteWithStock(orderId: string): Promise<void> {
+    const { error } = await supabase.rpc('delete_order_with_stock', { p_order_id: orderId });
     if (error) throw mapSupabaseError(error, { entity: 'Order' });
   },
 };

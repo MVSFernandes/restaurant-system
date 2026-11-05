@@ -16,7 +16,6 @@ const { categoryRepository } = require('../src/repositories/category.repository'
 const { orderRepository } = require('../src/repositories/order.repository');
 const { paymentRepository } = require('../src/repositories/payment.repository');
 const { invoiceRepository } = require('../src/repositories/invoice.repository');
-const { userRepository } = require('../src/repositories/user.repository');
 const { auditLogRepository } = require('../src/repositories/auditLog.repository');
 const { restaurantConfigRepository } = require('../src/repositories/restaurantConfig.repository');
 
@@ -221,7 +220,6 @@ test('counter pickup and delivery orders remain tabless', async () => {
   });
   categoryRepository.findById = async () => ({ id: 'category', isMealCategory: false });
   restaurantConfigRepository.get = async () => ({ enabledPayments: 'PIX', deliveryFee: 5 });
-  userRepository.findAdminUser = async () => ({ id: 'admin' });
   let captured = [];
   orderRepository.createWithStock = async (order) => { captured.push(order); return order; };
 

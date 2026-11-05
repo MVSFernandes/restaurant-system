@@ -53,7 +53,9 @@ const PublicMenuPage: React.FC = () => {
     (categories.flatMap((category) => category.products ?? []).find((current) => current.id === product.id) ?? product).available !== false;
 
   const addToCart = (product: Product) => {
-    if (!productAvailable(product)) return;
+    // Produto por peso não é vendido pelo cardápio online: a pesagem é feita
+    // no restaurante (o servidor também recusa).
+    if (product.isByWeight || !productAvailable(product)) return;
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
       if (existing) return prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
@@ -208,10 +210,17 @@ const PublicMenuPage: React.FC = () => {
                     <div>
                       <p className="font-semibold text-gray-900 leading-tight">{product.name}</p>
                       <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
+                      {product.isByWeight && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Vendido por peso: a pesagem é feita no restaurante, por isso não dá para pedir pelo cardápio online.
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-primary-600 font-bold">{formatCurrencyBRL(product.price)}{product.isByWeight ? '/kg' : ''}</span>
-                      {!productAvailable(product) ? (
+                      {product.isByWeight ? (
+                        <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">Só no restaurante</span>
+                      ) : !productAvailable(product) ? (
                         <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">Esgotado</span>
                       ) : cartItem ? (
                         <div className="flex items-center gap-2">

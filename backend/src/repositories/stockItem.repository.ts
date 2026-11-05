@@ -6,9 +6,12 @@ import {
   toStockItemInsert,
   toStockItemUpdate,
 } from '../mappers/stockItem.mapper';
-import { NotFoundError } from '../types/errors';
+import { DomainError, NotFoundError } from '../types/errors';
 
 const TABLE = 'stock_items';
+
+export const STOCK_ITEM_HAS_ORDER_HISTORY_MESSAGE =
+  'Este insumo já tem movimentações de pedidos registradas e não pode ser excluído, para preservar o histórico. Mantenha o cadastro e ajuste a quantidade, se necessário.';
 
 export const stockItemRepository = {
   async findAll(): Promise<StockItem[]> {
@@ -93,6 +96,19 @@ async findLowStock(): Promise<StockItem[]> {
       .delete({ count: 'exact' })
       .eq('id', id);
 
+    // order_stock_movements.stock_item_id is ON DELETE RESTRICT: the database
+    // refuses deleting a stock item that already has order history
+    // (PostgreSQL answers 23001 restrict_violation; 23503 is kept for safety).
+    if (
+      (error?.code === '23001' || error?.code === '23503')
+      && `${error.message} ${error.details ?? ''}`.includes('order_stock_movements')
+    ) {
+      throw new DomainError(STOCK_ITEM_HAS_ORDER_HISTORY_MESSAGE, {
+        code: 'STOCK_ITEM_HAS_ORDER_HISTORY',
+        status: 409,
+        details: { stockItemId: id },
+      });
+    }
     if (error) throw mapSupabaseError(error, { entity: 'StockItem' });
     if (count === 0) throw new NotFoundError('StockItem', id);
   },
