@@ -30,8 +30,10 @@ jobs:
       - name: Criar o .env.docker com valores de teste
         run: cp backend/.env.docker.example backend/.env.docker
 
+      # docker-compose.ci.yml troca o banco por um stub de teste que responde só
+      # a identidade da instalação (o backend confere antes de aceitar requisições).
       - name: Subir o compose e esperar ficar saudável
-        run: docker compose up -d --build --wait
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build --wait
 
       - name: Conferir que o frontend responde e fala com o backend
         run: |
@@ -40,8 +42,8 @@ jobs:
 
       - name: Mostrar logs se algo falhar
         if: failure()
-        run: docker compose logs
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs
 
       - name: Derrubar o compose
         if: always()
-        run: docker compose down
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down

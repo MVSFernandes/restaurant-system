@@ -456,7 +456,8 @@ const createInvoiceAttempt = (input: {
 }): Invoice => ({
   id: createId(),
   ...input,
-  environment: focusNfeService.getEnvironment(),
+  // Reserva só com emissão autorizada e destino fiscal permitido (Etapa 1B.1).
+  environment: focusNfeService.getIssuanceEnvironment(),
   status: 'pending',
   sefazStatus: null,
   sefazMessage: null,
@@ -488,7 +489,9 @@ const submitInvoice = async (invoice: Invoice, submit: () => Promise<Record<stri
   } catch (error) {
     // A timeout/5xx may follow acceptance by Focus. Keep the reservation and reconcile by ref.
     if (error instanceof DomainError && (
-      ['FOCUS_NFE_NOT_CONFIGURED', 'FOCUS_NFE_FETCH_UNAVAILABLE'].includes(error.code) ||
+      // Recusas locais: a requisição nunca saiu, então não há o que reconciliar.
+      ['FOCUS_NFE_NOT_CONFIGURED', 'FOCUS_NFE_FETCH_UNAVAILABLE', 'FOCUS_NFE_DISABLED',
+        'FOCUS_NFE_ENVIRONMENT_FORBIDDEN'].includes(error.code) ||
       (error.status >= 400 && error.status < 500 && ![408, 409, 429].includes(error.status) &&
         !['EM_PROCESSAMENTO', 'NFE_AUTORIZADA'].includes(error.code))
     )) {
