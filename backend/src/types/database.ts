@@ -10,10 +10,31 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
+      app_installation: {
+        Row: {
+          configured_at: string
+          environment: string
+          installation_id: string
+          singleton: boolean
+        }
+        Insert: {
+          configured_at?: string
+          environment: string
+          installation_id: string
+          singleton?: boolean
+        }
+        Update: {
+          configured_at?: string
+          environment?: string
+          installation_id?: string
+          singleton?: boolean
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -515,6 +536,137 @@ export type Database = {
           },
         ]
       }
+      order_stock_ledger_rollout: {
+        Row: {
+          id: boolean
+          legacy_orders_listed: number
+          started_at: string
+        }
+        Insert: {
+          id?: boolean
+          legacy_orders_listed: number
+          started_at?: string
+        }
+        Update: {
+          id?: boolean
+          legacy_orders_listed?: number
+          started_at?: string
+        }
+        Relationships: []
+      }
+      order_stock_legacy_reviews: {
+        Row: {
+          applied_return: Json | null
+          estimate_basis: string
+          estimated_return: Json
+          items_snapshot: Json
+          items_without_current_recipe: number
+          listed_at: string
+          order_created_at: string
+          order_event: string | null
+          order_event_at: string | null
+          order_id: string | null
+          order_ref: string
+          resolution: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status_at_migration: string
+        }
+        Insert: {
+          applied_return?: Json | null
+          estimate_basis?: string
+          estimated_return: Json
+          items_snapshot: Json
+          items_without_current_recipe?: number
+          listed_at?: string
+          order_created_at: string
+          order_event?: string | null
+          order_event_at?: string | null
+          order_id?: string | null
+          order_ref: string
+          resolution?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status_at_migration: string
+        }
+        Update: {
+          applied_return?: Json | null
+          estimate_basis?: string
+          estimated_return?: Json
+          items_snapshot?: Json
+          items_without_current_recipe?: number
+          listed_at?: string
+          order_created_at?: string
+          order_event?: string | null
+          order_event_at?: string | null
+          order_id?: string | null
+          order_ref?: string
+          resolution?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status_at_migration?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_stock_legacy_reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_stock_movements: {
+        Row: {
+          created_at: string
+          direction: string
+          id: number
+          order_id: string | null
+          order_ref: string
+          quantity: number
+          reason: string
+          stock_item_id: string
+        }
+        Insert: {
+          created_at?: string
+          direction: string
+          id?: number
+          order_id?: string | null
+          order_ref: string
+          quantity: number
+          reason: string
+          stock_item_id: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          id?: number
+          order_id?: string | null
+          order_ref?: string
+          quantity?: number
+          reason?: string
+          stock_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_stock_movements_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_stock_movements_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           cash_register_session_id: string | null
@@ -534,6 +686,7 @@ export type Database = {
           source: string
           status: string
           table_id: string | null
+          table_tab_id: string | null
           total: number
           type: string
           updated_at: string
@@ -558,6 +711,7 @@ export type Database = {
           source?: string
           status?: string
           table_id?: string | null
+          table_tab_id?: string | null
           total: number
           type: string
           updated_at?: string
@@ -582,6 +736,7 @@ export type Database = {
           source?: string
           status?: string
           table_id?: string | null
+          table_tab_id?: string | null
           total?: number
           type?: string
           updated_at?: string
@@ -609,6 +764,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tables"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_table_tab_table_fkey"
+            columns: ["table_tab_id", "table_id"]
+            isOneToOne: false
+            referencedRelation: "table_tabs"
+            referencedColumns: ["id", "table_id"]
           },
           {
             foreignKeyName: "orders_user_fkey"
@@ -754,10 +916,10 @@ export type Database = {
           image_url: string | null
           is_by_weight: boolean
           is_paused: boolean
-          paused_at: string | null
           name: string
           ncm: string | null
           origin: string | null
+          paused_at: string | null
           price: number
           tax_code: string | null
           updated_at: string
@@ -771,10 +933,10 @@ export type Database = {
           image_url?: string | null
           is_by_weight?: boolean
           is_paused?: boolean
-          paused_at?: string | null
           name: string
           ncm?: string | null
           origin?: string | null
+          paused_at?: string | null
           price: number
           tax_code?: string | null
           updated_at?: string
@@ -788,10 +950,10 @@ export type Database = {
           image_url?: string | null
           is_by_weight?: boolean
           is_paused?: boolean
-          paused_at?: string | null
           name?: string
           ncm?: string | null
           origin?: string | null
+          paused_at?: string | null
           price?: number
           tax_code?: string | null
           updated_at?: string
@@ -1140,21 +1302,25 @@ export type Database = {
       cancel_order_with_stock: {
         Args: {
           p_order_id: string
-          p_required_status?: string | null
-          p_required_waiter_id?: string | null
+          p_required_status?: string
+          p_required_waiter_id?: string
         }
         Returns: Json
       }
       close_table_tab: {
         Args: {
           p_closed_by_id: string
-          p_customer_id: string | null
-          p_payment_method: string | null
+          p_customer_id: string
+          p_payment_method: string
           p_table_tab_id: string
         }
         Returns: Json
       }
       consume_order_stock: { Args: { p_items: Json }; Returns: Json }
+      consume_stock_for_order: {
+        Args: { p_items: Json; p_order_id: string; p_reason: string }
+        Returns: Json
+      }
       create_order_with_stock: {
         Args: { p_items: Json; p_order: Json; p_payment?: Json }
         Returns: Json
@@ -1163,6 +1329,24 @@ export type Database = {
       finance_report: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: Json
+      }
+      open_table_tab: {
+        Args: {
+          p_cash_register_session_id: string
+          p_id: string
+          p_name: string
+          p_opened_by_id: string
+          p_table_id: string
+        }
+        Returns: Json
+      }
+      order_has_pending_legacy_stock_review: {
+        Args: { p_order_id: string }
+        Returns: boolean
+      }
+      order_is_legacy_stock_order: {
+        Args: { p_order_id: string }
+        Returns: boolean
       }
       pay_customer_credit: {
         Args: {
@@ -1189,18 +1373,32 @@ export type Database = {
         Args: { p_links: Json; p_product_id: string }
         Returns: Json
       }
+      resolve_legacy_order_stock: {
+        Args: {
+          p_decision: string
+          p_items?: Json
+          p_note: string
+          p_order_ref: string
+          p_resolved_by: string
+        }
+        Returns: Json
+      }
       restore_order_stock: { Args: { p_items: Json }; Returns: Json }
+      restore_stock_for_order: {
+        Args: { p_order_id: string; p_reason: string }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       update_order_items_with_stock: {
         Args: {
           p_items: Json
           p_order_id: string
           p_order_patch?: Json
-          p_required_waiter_id?: string | null
+          p_required_waiter_id?: string
         }
         Returns: Json
       }
-      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       [_ in never]: never
