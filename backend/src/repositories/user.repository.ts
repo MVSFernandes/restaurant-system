@@ -47,17 +47,6 @@ export const userRepository = {
     return data ? toUserDomain(data) : null;
   },
 
-  async findAdminUser(): Promise<User | null> {
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select('*')
-      .eq('role', 'ADMIN')
-      .maybeSingle();
-
-    if (error) throw mapSupabaseError(error, { entity: 'User' });
-    return data ? toUserDomain(data) : null;
-  },
-
   async create(user: User): Promise<User> {
     const payload = toUserInsert(user);
     const { data, error } = await supabase

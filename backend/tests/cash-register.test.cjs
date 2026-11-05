@@ -169,15 +169,16 @@ test('canceling a public pending order cancels its payment and allows cash close
 
   orderRepository.findById = async () => order;
   orderRepository.findItems = async () => [];
-  orderRepository.update = async (_id, patch) => {
-    order = { ...order, ...patch };
-    return order;
-  };
   orderRepository.findBySession = async () => [order];
-  paymentRepository.cancelPendingByOrder = async (orderId) => {
+  // O cancelamento é uma única transação no banco: status CANCELED e, pelo
+  // trigger trg_cancel_pending_payments_with_order, o pagamento pendente
+  // também (comprovado em tests/order-cancel-sql.cjs).
+  orderRepository.cancelWithStock = async (orderId) => {
+    order = { ...order, status: 'CANCELED' };
     if (payment.orderId === orderId && payment.status === 'PENDING') {
       payment = { ...payment, status: 'CANCELED' };
     }
+    return { order, alreadyCanceled: false };
   };
   paymentRepository.findBySession = async () => [payment];
   cashRegisterRepository.findWithdrawalsBySession = async () => [];

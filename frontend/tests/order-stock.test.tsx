@@ -69,6 +69,28 @@ describe('stock availability at order entry', () => {
   });
 });
 
+describe('public menu and by-weight products', () => {
+  it('shows by-weight products as unavailable online, with the reason, and keeps unit products', async () => {
+    mocks.get.mockImplementation(async (url: string) => ({
+      data: url.startsWith('/categories') ? [{
+        id: 'meals',
+        name: 'Refeições',
+        products: [
+          { ...product('Salada por kg', true), isByWeight: true },
+          product('Suco', true),
+        ],
+      }] : [],
+    }));
+    render(<PublicMenuPage />);
+    const byWeightName = await screen.findByText('Salada por kg');
+    const card = byWeightName.parentElement!.parentElement!;
+    expect(card.textContent).toContain('Só no restaurante');
+    expect(card.textContent).toContain('a pesagem é feita no restaurante');
+    expect(card.querySelector('button')).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Adicionar' })).toHaveLength(1);
+  });
+});
+
 describe('public delivery checkout', () => {
   it('sends an enabled DB payment method and includes the configured fee in the total', async () => {
     const deliveryCategories = [{

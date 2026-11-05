@@ -1,6 +1,11 @@
 import type { OrderStatus, OrderType } from '../types';
 import type { BadgeVariant } from '../components/ui/Badge';
 
+// Resposta do cancelamento com stockReviewRequired = true: pedido anterior ao
+// controle de estoque por pedido; o cancelamento foi concluído, o estoque não.
+export const STOCK_REVIEW_REQUIRED_MESSAGE =
+  'Pedido cancelado. O estoque deste pedido antigo precisa de conferência; nenhuma devolução automática foi realizada.';
+
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: 'Novo',
   IN_PROGRESS: 'Em Preparo',

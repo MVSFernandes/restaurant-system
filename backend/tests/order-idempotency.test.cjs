@@ -11,7 +11,6 @@ const { productRepository } = require('../src/repositories/product.repository');
 const { categoryRepository } = require('../src/repositories/category.repository');
 const { cashRegisterRepository } = require('../src/repositories/cashRegister.repository');
 const { restaurantConfigRepository } = require('../src/repositories/restaurantConfig.repository');
-const { userRepository } = require('../src/repositories/user.repository');
 const { stockItemRepository } = require('../src/repositories/stockItem.repository');
 const { toOrderDomain } = require('../src/mappers/order.mapper');
 const orderController = require('../src/controllers/order.controller');
@@ -65,7 +64,6 @@ beforeEach(() => {
   orderRepository.findItems = async () => [];
   cashRegisterRepository.findOpenSession = async () => ({ id: 'session' });
   restaurantConfigRepository.get = async () => ({ deliveryFee: 5, enabledPayments: 'CASH,PIX' });
-  userRepository.findAdminUser = async () => ({ id: 'admin' });
   productRepository.findById = async () => ({
     id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks', isByWeight: false, isPaused: false, pausedAt: null,
   });

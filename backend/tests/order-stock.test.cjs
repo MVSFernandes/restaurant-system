@@ -12,7 +12,6 @@ const { productRepository } = require('../src/repositories/product.repository');
 const { categoryRepository } = require('../src/repositories/category.repository');
 const { cashRegisterRepository } = require('../src/repositories/cashRegister.repository');
 const { restaurantConfigRepository } = require('../src/repositories/restaurantConfig.repository');
-const { userRepository } = require('../src/repositories/user.repository');
 const { productStockItemRepository } = require('../src/repositories/productStockItem.repository');
 const { stockItemRepository } = require('../src/repositories/stockItem.repository');
 const { productStockAvailability } = require('../src/services/productAvailability.service');
@@ -29,10 +28,8 @@ beforeEach(() => {
   });
   productRepository.findById = async () => ({ id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks', isByWeight: false, isPaused: false, pausedAt: null });
   categoryRepository.findById = async () => ({ id: 'drinks' });
-  userRepository.findAdminUser = async () => ({ id: 'admin' });
   orderRepository.create = async () => assert.fail('must not insert an order outside the transaction');
-  orderRepository.addItem = async () => assert.fail('must not insert items outside the transaction');
-  orderRepository.consumeStock = async () => assert.fail('must not consume separately');
+  orderRepository.updateItemsWithStock = async () => assert.fail('creation must not use the edit transaction');
   supabase.rpc = async (name, args) => {
     requests.push({ name, args });
     return { data: { ...args.p_order, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, error: null };
@@ -125,8 +122,7 @@ test('editing an order rejects paused products before changing existing items or
   };
   orderRepository.findById = async () => existing;
   orderRepository.findItems = async () => [{ id: 'old-item', productId: 'old', quantity: 1, weight: null }];
-  orderRepository.restoreStock = async () => assert.fail('paused validation must run before restoring stock');
-  orderRepository.removeItem = async () => assert.fail('paused validation must run before removing items');
+  orderRepository.updateItemsWithStock = async () => assert.fail('paused validation must run before touching items or stock');
   orderRepository.update = async () => assert.fail('paused validation must run before updating the order');
   productRepository.findById = async () => ({
     id: 'drink', name: 'Coca Lata', price: 5, categoryId: 'drinks',

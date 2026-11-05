@@ -38,6 +38,7 @@ import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal
 import {
   ORDER_STATUS_BADGE_CLASSES,
   ORDER_STATUS_LABELS,
+  STOCK_REVIEW_REQUIRED_MESSAGE,
 } from '../../constants/orders';
 import { formatCurrencyBRL } from '../../utils/currency';
 import { CloseIcon } from '../../components/ui/icons';
@@ -64,7 +65,7 @@ interface CartItem {
 }
 
 interface ToastState {
-  type: 'success' | 'error';
+  type: 'success' | 'error' | 'warning';
   message: string;
 }
 
@@ -268,11 +269,12 @@ const OrdersPage: React.FC = () => {
     return Number(item.product.price);
   };
 
-  const showToast = (type: 'success' | 'error', message: string) => {
+  const showToast = (type: ToastState['type'], message: string) => {
     setToast({ type, message });
+    // Avisos ficam mais tempo na tela: pedem uma ação de outra pessoa.
     setTimeout(() => {
       setToast(null);
-    }, 3000);
+    }, type === 'warning' ? 12000 : 3000);
   };
 
   const escapeHtml = (value: string | null | undefined) =>
@@ -925,10 +927,14 @@ const OrdersPage: React.FC = () => {
 
     try {
       setCancelLoading(true);
-      await api.patch(`/orders/${cancelingOrderId}/status`, { status: 'CANCELED' });
+      const { data } = await api.patch<Order>(`/orders/${cancelingOrderId}/status`, { status: 'CANCELED' });
       setCancelingOrderId(null);
       fetchData();
-      showToast('success', 'Pedido cancelado com sucesso.');
+      if (data?.stockReviewRequired) {
+        showToast('warning', STOCK_REVIEW_REQUIRED_MESSAGE);
+      } else {
+        showToast('success', 'Pedido cancelado com sucesso.');
+      }
     } catch (error) {
       console.error('Erro ao cancelar pedido:', error);
       showToast('error', 'Erro ao cancelar pedido.');
@@ -1359,8 +1365,11 @@ const OrdersPage: React.FC = () => {
               'min-w-[280px] max-w-sm rounded-2xl shadow-2xl px-4 py-3 border flex items-start gap-3',
               toast.type === 'success'
                 ? 'bg-green-50 border-green-200 text-green-800'
+                : toast.type === 'warning'
+                ? 'bg-amber-50 border-amber-200 text-amber-900'
                 : 'bg-red-50 border-red-200 text-red-800'
             )}
+            role={toast.type === 'success' ? 'status' : 'alert'}
           >
             <div className="mt-0.5">
               {toast.type === 'success' ? (

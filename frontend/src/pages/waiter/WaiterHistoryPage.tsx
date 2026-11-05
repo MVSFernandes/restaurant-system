@@ -3,7 +3,7 @@ import api from '../../services/api';
 import type { Order, Category } from '../../types';
 import { Edit, XCircle } from 'lucide-react';
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
-import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS } from '../../constants/orders';
+import { ORDER_STATUS_BADGE_CLASSES, ORDER_STATUS_LABELS, STOCK_REVIEW_REQUIRED_MESSAGE } from '../../constants/orders';
 import { formatCurrencyBRL } from '../../utils/currency';
 
 const statusLabels = ORDER_STATUS_LABELS;
@@ -40,9 +40,11 @@ const WaiterHistoryPage: React.FC = () => {
     if (!cancelingOrderId) return;
     try {
       setActionLoading(true);
-      await api.patch(`/orders/${cancelingOrderId}/status`, { status: 'CANCELED' });
+      const { data } = await api.patch<Order>(`/orders/${cancelingOrderId}/status`, { status: 'CANCELED' });
       setCancelingOrderId(null);
       await fetchOrders();
+      // Mesmo padrão de aviso desta tela (alert): o cancelamento foi concluído.
+      if (data?.stockReviewRequired) alert(STOCK_REVIEW_REQUIRED_MESSAGE);
     } catch (error) {
       console.error(error);
       alert('Erro ao cancelar pedido.');

@@ -537,7 +537,7 @@ export type Database = {
           total: number
           type: string
           updated_at: string
-          user_id: string
+          user_id: string | null
           waiter_id: string | null
         }
         Insert: {
@@ -561,7 +561,7 @@ export type Database = {
           total: number
           type: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           waiter_id?: string | null
         }
         Update: {
@@ -585,7 +585,7 @@ export type Database = {
           total?: number
           type?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           waiter_id?: string | null
         }
         Relationships: [
@@ -1137,6 +1137,14 @@ export type Database = {
         }
         Returns: Json
       }
+      cancel_order_with_stock: {
+        Args: {
+          p_order_id: string
+          p_required_status?: string | null
+          p_required_waiter_id?: string | null
+        }
+        Returns: Json
+      }
       close_table_tab: {
         Args: {
           p_closed_by_id: string
@@ -1151,6 +1159,7 @@ export type Database = {
         Args: { p_items: Json; p_order: Json; p_payment?: Json }
         Returns: Json
       }
+      delete_order_with_stock: { Args: { p_order_id: string }; Returns: Json }
       finance_report: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: Json
@@ -1182,6 +1191,15 @@ export type Database = {
       }
       restore_order_stock: { Args: { p_items: Json }; Returns: Json }
       show_limit: { Args: never; Returns: number }
+      update_order_items_with_stock: {
+        Args: {
+          p_items: Json
+          p_order_id: string
+          p_order_patch?: Json
+          p_required_waiter_id?: string | null
+        }
+        Returns: Json
+      }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
