@@ -1,0 +1,38 @@
+# Só para o CI (job build-e-smoke do .github/workflows/ci.yml), por cima do
+# docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build --wait
+#
+# O backend só aceita requisições depois de conferir a identidade da instalação
+# no banco (tabela app_installation). No CI não há banco: este arquivo sobe um
+# stub de teste que imita só essa leitura do Supabase e aponta o backend para
+# ele. Nunca use este arquivo numa instalação real.
+
+services:
+  installation-stub:
+    image: node:22-alpine
+    container_name: restaurant-installation-stub
+    working_dir: /stub
+    volumes:
+      - ./backend/scripts/postgrest-marker-stub.cjs:/stub/postgrest-marker-stub.cjs:ro
+    command: ["node", "postgrest-marker-stub.cjs"]
+    environment:
+      STUB_PORT: "54321"
+      MARKER_INSTALLATION_ID: ci-smoke
+      MARKER_ENVIRONMENT: test
+    networks:
+      - rede-interna
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:54321/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  backend:
+    # environment tem precedência sobre o env_file (.env.docker).
+    environment:
+      SUPABASE_URL: http://installation-stub:54321
+      INSTALLATION_ID: ci-smoke
+      APP_ENV: test
+    depends_on:
+      installation-stub:
+        condition: service_healthy

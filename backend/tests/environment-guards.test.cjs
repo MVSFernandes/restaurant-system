@@ -7,6 +7,10 @@ process.env.SUPABASE_URL = 'https://database.example.invalid';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-service-key';
 process.env.FOCUS_NFE_WEBHOOK_SECRET = 'test-only-webhook-secret';
 process.env.FRONTEND_URL = 'http://localhost:5173, https://restaurante.example.test/';
+// Guardas da instalação (Etapa 1B.1) fora deste teste: sem APP_ENV, as regras
+// fiscais por ambiente não se aplicam aqui; elas têm teste próprio.
+delete process.env.APP_ENV;
+delete process.env.FOCUS_NFE_ENABLED;
 
 const jwt = require('jsonwebtoken');
 const { cashRegisterService } = require('../src/services/cashRegister.service');

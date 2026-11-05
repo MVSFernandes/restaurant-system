@@ -1,4 +1,9 @@
-import { isFocusNfeEnvironment } from '../config/env';
+import {
+  findFiscalTargetProblems,
+  focusNfeBaseUrl,
+  isFocusNfeEnabled,
+  isFocusNfeEnvironment,
+} from '../config/env';
 import { DomainError } from '../types/errors';
 import { InvoiceEnvironment, InvoiceModel, InvoiceStatus } from '../types/domain';
 
@@ -50,6 +55,11 @@ const firstPresent = (payload: FocusResponse, keys: string[]) => {
 const nullableString = (value: unknown) =>
   value === null || value === undefined || value === '' ? null : String(value);
 
+// ---------------------------------------------------------------------------
+// Configuração (só leitura): vale também com a emissão desativada, para
+// consultar documentos existentes, receber webhooks e montar links de XML/DANFE.
+// ---------------------------------------------------------------------------
+
 // Sem valor presumido: nota em homologação por engano não tem valor fiscal e
 // ninguém fica sabendo. O valor lido nunca entra na mensagem.
 const getEnvironment = (): InvoiceEnvironment => {
@@ -61,11 +71,46 @@ const getEnvironment = (): InvoiceEnvironment => {
   });
 };
 
+// Endereço efetivo: FOCUS_NFE_BASE_URL, se definida; senão, o do ambiente.
 const getBaseUrl = () => {
-  if (process.env.FOCUS_NFE_BASE_URL) return process.env.FOCUS_NFE_BASE_URL.replace(/\/$/, '');
-  return getEnvironment() === 'production'
-    ? 'https://api.focusnfe.com.br/v2'
-    : 'https://homologacao.focusnfe.com.br/v2';
+  const override = process.env.FOCUS_NFE_BASE_URL;
+  if (override?.trim()) return override.trim().replace(/\/$/, '');
+  return focusNfeBaseUrl(getEnvironment());
+};
+
+// ---------------------------------------------------------------------------
+// Guardas da instalação (Etapa 1B.1), conferidas antes de reservar a nota e
+// antes de qualquer chamada. A regra do destino é a mesma da partida do
+// servidor (findFiscalTargetProblems); aqui ela vale para o endereço efetivo.
+// ---------------------------------------------------------------------------
+
+/** Fora de APP_ENV=production, nenhuma chamada vai para o ambiente ou o endereço de produção. */
+const assertFiscalTargetAllowed = (environment: InvoiceEnvironment, baseUrl: string) => {
+  const [problem] = findFiscalTargetProblems(process.env.APP_ENV, environment, baseUrl);
+  if (problem) {
+    throw new DomainError(problem, { code: 'FOCUS_NFE_ENVIRONMENT_FORBIDDEN', status: 503 });
+  }
+};
+
+/** Novas emissões só com FOCUS_NFE_ENABLED diferente de "false". Consultas não passam por aqui. */
+const assertIssuanceEnabled = () => {
+  if (!isFocusNfeEnabled()) {
+    throw new DomainError('A emissão fiscal está desativada nesta instalação.', {
+      code: 'FOCUS_NFE_DISABLED',
+      status: 503,
+    });
+  }
+};
+
+/**
+ * Ambiente para reservar uma nova nota: confere a autorização de emissão e o
+ * destino efetivo antes de qualquer gravação.
+ */
+const getIssuanceEnvironment = (): InvoiceEnvironment => {
+  assertIssuanceEnabled();
+  const environment = getEnvironment();
+  assertFiscalTargetAllowed(environment, getBaseUrl());
+  return environment;
 };
 
 const normalizeDownloadUrl = (value: unknown) => {
@@ -107,7 +152,17 @@ const getAuthHeader = () => {
   return `Basic ${Buffer.from(`${token}:`).toString('base64')}`;
 };
 
-async function requestFocus(path: string, options: { method: string; body?: unknown }): Promise<FocusResponse> {
+async function requestFocus(
+  path: string,
+  options: { method: 'GET' | 'POST'; body?: unknown; issuance: boolean }
+): Promise<FocusResponse> {
+  // Tudo é conferido antes da chamada; nenhuma falha aqui chega à rede.
+  if (options.issuance) assertIssuanceEnabled();
+  const environment = getEnvironment();
+  const baseUrl = getBaseUrl();
+  assertFiscalTargetAllowed(environment, baseUrl);
+  const authorization = getAuthHeader();
+
   const fetchFn = (globalThis as any).fetch as Function | undefined;
   if (!fetchFn) {
     throw new DomainError('Global fetch is not available in this Node runtime.', {
@@ -116,10 +171,10 @@ async function requestFocus(path: string, options: { method: string; body?: unkn
     });
   }
 
-  const response = await fetchFn(`${getBaseUrl()}${path}`, {
+  const response = await fetchFn(`${baseUrl}${path}`, {
     method: options.method,
     headers: {
-      Authorization: getAuthHeader(),
+      Authorization: authorization,
       Accept: 'application/json',
       'Content-Type': 'application/json',
     },
@@ -167,16 +222,19 @@ const issueDocument = async (
   return requestFocus(`/${resourceByModel[model]}?${search.toString()}`, {
     method: 'POST',
     body: payload,
+    issuance: true,
   });
 };
 
 const getDocument = async (model: InvoiceModel, ref: string): Promise<FocusResponse> =>
   requestFocus(`/${resourceByModel[model]}/${encodeURIComponent(ref)}`, {
     method: 'GET',
+    issuance: false,
   });
 
 export const focusNfeService = {
   getEnvironment,
+  getIssuanceEnvironment,
   issueDocument,
   getDocument,
 
