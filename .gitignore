@@ -59,3 +59,4 @@ backend/.env.docker
 /.agents/
 /.claude/
 /skills-lock.json
+/docs/
