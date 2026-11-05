@@ -55,3 +55,6 @@ backend/supabase/*
 !backend/supabase/rollbacks/*.sql
 .claude/settings.local.json
 backend/.env.docker
+
+/.agents/
+/.claude/
