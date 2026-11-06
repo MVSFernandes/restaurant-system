@@ -115,8 +115,8 @@ From `backend/`:
    order, nothing from `history/`.
 3. `npx supabase db push --linked` → applies and records each version.
 4. `npm run db:migrations:check -- --linked` → `up_to_date`.
-5. Continue the provisioning (installation marker, configuration, first
-   administrator) as described in the installation procedure.
+5. Continue the provisioning (installation marker, configuration, storage,
+   first administrator and verification) with `../../PROVISIONING.md`.
 
 ## Existing database without CLI history (installed by hand)
 
