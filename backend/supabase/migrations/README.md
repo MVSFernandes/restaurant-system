@@ -43,13 +43,35 @@ the CLI history. It writes nothing. Verdicts:
 | 20 | `pending` | Catalog and history agree; newer migrations missing | Run the printed `db push … --dry-run`, then without `--dry-run` |
 | 30 | `ambiguous` | An unrecorded migration leaves no trace in the catalog, so the catalog cannot say whether it ran | Stop. Nothing is printed to run; see "Limits" below |
 | 1 | `divergent` | Catalog matches no expected state, or history disagrees | Stop. Investigate the listed objects; record or push nothing |
-| 2 | error | Files differ from the manifest, duplicate versions, or the check could not run | Fix the cause first |
+| 2 | error | Files differ from the manifest, duplicate versions, `--workdir` without the same migrations, or the check could not run | Fix the cause first |
 
 The printed commands always target the connection that was checked: with
 `--linked` they use `--linked` (and the same `--workdir`, as an absolute path);
 with `--db-url` they use a `<DB_URL>` placeholder for that same database
 (shown with the password masked). Credentials are never printed: fill in the
 URL yourself and never point it at another database.
+
+### `--workdir`
+
+With `--linked --workdir <dir>` the Supabase CLI reads the migrations from
+`<dir>/supabase/migrations`, not from `backend/` (`migration repair` stores
+each file's name and statements; `db push` applies them). A workdir created
+only for the link (`supabase link --workdir <dir>`) has no migrations, and
+`repair` fails there with `glob supabase\migrations\<version>_*.sql: file does
+not exist` after creating the empty history table.
+
+So, before querying the remote, the check requires `<dir>/supabase/migrations`
+to hold exactly the active migrations: the same versions, the same file names
+and the same sha256 (line endings normalized) as the manifest. A missing
+folder, a missing, renamed or altered file, a duplicate version or an
+additional migration is an error (exit 2): the remote is not queried and no
+`repair`/`push` is suggested. `history/` and files that are not
+`<digits>_<name>.sql` are ignored, as the CLI ignores them; symbolic links are
+not followed (they count as missing).
+
+Prefer linking inside `backend/` (it writes only the ignored
+`backend/supabase/.temp/`) and running without `--workdir`. `--linked` without
+`--workdir` and `--db-url` are not affected by this rule.
 
 A database is "at version N" only when its catalog is **identical** to the
 expected state after N (tables, columns, constraints, indexes, functions with
@@ -118,7 +140,7 @@ finds nothing to apply.
 `npm run test:migrations` rehearses all of the above on a disposable local
 PostgreSQL (see the header of `../../tests/migration-control-pg.cjs`).
 `npm run test:migrations:unit` covers the same rules (ambiguity, command
-destination, duplicate versions) without a database.
+destination, duplicate versions, `--workdir` contents) without a database.
 
 `../checks/verify_database_inventory.sql` remains the comparison with the
 canonical base captured on 2026-10-03 (base only, without later migrations).
