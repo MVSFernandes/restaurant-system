@@ -11,7 +11,7 @@
     "db:migrations:check": "node scripts/migrations/check-migration-state.cjs",
     "db:migrations:catalog": "node scripts/migrations/build-migration-catalog.cjs",
     "test:migrations": "node tests/migration-control-pg.cjs",
-    "test:migrations:unit": "node --test tests/migration-check.test.cjs",
+    "test:migrations:unit": "node --test tests/migration-check.test.cjs tests/migration-workdir.test.cjs",
     "smoke:supabase": "ts-node scripts/smoke-supabase.ts",
     "smoke:category": "ts-node scripts/smoke-category-repo.ts",
     "smoke:tier-a": "ts-node scripts/smoke-tier-a-repos.ts",

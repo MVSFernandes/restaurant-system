@@ -1,7 +1,8 @@
 // Read-only check of a database against the active migrations (Etapa 1B.2).
 //
 //   npm run db:migrations:check -- --linked                    (project linked with `supabase link`)
-//   npm run db:migrations:check -- --linked --workdir <dir>    (link stored in <dir>/supabase/.temp)
+//   npm run db:migrations:check -- --linked --workdir <dir>    (link stored in <dir>/supabase/.temp; <dir>/supabase/migrations
+//                                                               must hold exactly the active migrations, or the check stops)
 //   npm run db:migrations:check -- --db-url <url>              (any PostgreSQL, e.g. a local test database)
 //   add --json for a machine-readable report
 //
@@ -180,6 +181,45 @@ function checkFiles(manifest, migrations) {
   return problems;
 }
 
+// With --linked --workdir <dir>, the Supabase CLI reads the migrations from
+// <dir>/supabase/migrations (repair stores their name and statements; push
+// applies them), not from backend/. That folder must hold exactly the active
+// migrations that were verified: same versions, same file names, same
+// normalized sha256 as the manifest. Same file rule as the CLI and as
+// activeMigrations(): only <digits>_<name>.sql directly in the folder, so
+// history/ and other files are ignored. Any problem blocks the check before
+// the remote is queried, so no repair/push is suggested for that workdir.
+function checkWorkdirMigrations(manifest, workdir) {
+  const dir = path.join(workdir, 'supabase', 'migrations');
+  const where = dir;
+  let stat = null;
+  try { stat = fs.statSync(dir); } catch { /* reported below */ }
+  if (!stat || !stat.isDirectory()) {
+    return [`${where} does not exist: the workdir has no migrations (a folder with only the link cannot be used for repair or push)`];
+  }
+  const files = activeMigrations(dir);
+  const problems = [];
+  for (const { version, items } of duplicateVersions(files)) {
+    problems.push(`${version}: duplicate version in ${where} (${items.join(', ')})`);
+  }
+  if (problems.length) return problems;
+
+  const local = new Map(files.map((m) => [m.version, m]));
+  for (const expected of manifest.migrations) {
+    const expectedFile = `${expected.version}_${expected.name}.sql`;
+    const file = local.get(expected.version);
+    if (!file) problems.push(`${expected.version}: missing from ${where} (expected ${expectedFile})`);
+    else if (file.file !== expectedFile) problems.push(`${expected.version}: file name ${file.file} differs from ${expectedFile}`);
+    else if (file.sha256 !== expected.sha256) problems.push(`${expected.version}: ${file.file} in the workdir differs from the verified migration (sha256)`);
+  }
+  for (const file of files) {
+    if (!manifest.migrations.some((m) => m.version === file.version)) {
+      problems.push(`${file.version}: additional migration ${file.file} in ${where} is not an active migration of backend/`);
+    }
+  }
+  return problems;
+}
+
 const sameVersions = (a, b) => a.length === b.length && a.every((version) => b.includes(version));
 const stateName = (versions, index) => (index === 0 ? 'no migration' : versions[index - 1]);
 
@@ -347,24 +387,35 @@ function formatReport(report, { source, marker, commands }) {
   return out.join('\n');
 }
 
-async function main(argv) {
+// `deps` exists for the unit tests only: they replace the two query functions
+// (no database, no Supabase project) and capture the output.
+async function main(argv, deps = {}) {
+  const { log = console.log, error = console.error, linkedQuery = queryLinked, dbUrlQuery = queryDbUrl } = deps;
   const { json, target } = parseArgs(argv);
 
   const manifest = JSON.parse(fs.readFileSync(MANIFEST_FILE, 'utf8'));
   const fileProblems = checkFiles(manifest, activeMigrations());
   if (fileProblems.length) {
-    console.error(`Migration files do not match ${path.relative(BACKEND_DIR, MANIFEST_FILE)}:\n  - ${fileProblems.join('\n  - ')}`);
+    error(`Migration files do not match ${path.relative(BACKEND_DIR, MANIFEST_FILE)}:\n  - ${fileProblems.join('\n  - ')}`);
     return 2;
+  }
+  if (target.kind === 'linked' && target.workdir) {
+    const workdirProblems = checkWorkdirMigrations(manifest, target.workdir);
+    if (workdirProblems.length) {
+      error(`The --workdir migrations are not the verified active migrations; the remote was not queried and no repair/push is suggested:\n  - ${workdirProblems.join('\n  - ')}\n`
+        + 'Run from backend/ with --linked (link stored in backend/supabase/.temp), or use a workdir whose supabase/migrations holds exactly the active migrations.');
+      return 2;
+    }
   }
 
   const catalogQuery = fs.readFileSync(CATALOG_QUERY_FILE, 'utf8');
   let results;
   let source;
   if (target.kind === 'linked') {
-    results = queryLinked([catalogQuery, STATE_QUERY], { workdir: target.workdir });
+    results = await linkedQuery([catalogQuery, STATE_QUERY], { workdir: target.workdir });
     source = `linked Supabase project (supabase db query --linked${target.workdir ? ` --workdir ${shellQuote(target.workdir)}` : ''})`;
   } else {
-    results = await queryDbUrl(target.url, [catalogQuery, STATE_QUERY]);
+    results = await dbUrlQuery(target.url, [catalogQuery, STATE_QUERY]);
     source = redactUrl(target.url);
   }
   const [catalogRows, [state]] = results;
@@ -373,8 +424,8 @@ async function main(argv) {
   const report = analyse({ manifest, catalogRows, history, hasHistory: state.has_history === true || state.has_history === 't' });
   const commands = commandsFor(report, target);
 
-  if (json) console.log(JSON.stringify({ source, target: describeTarget(target), marker, ...report, commands }, null, 2));
-  else console.log(formatReport(report, { source, marker, commands }));
+  if (json) log(JSON.stringify({ source, target: describeTarget(target), marker, ...report, commands }, null, 2));
+  else log(formatReport(report, { source, marker, commands }));
   return EXIT[report.verdict];
 }
 
@@ -387,4 +438,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { analyse, checkFiles, commandsFor, formatReport, parseArgs, describeTarget, xmlRows, STATE_QUERY, EXIT };
+module.exports = { main, analyse, checkFiles, checkWorkdirMigrations, commandsFor, formatReport, parseArgs, describeTarget, xmlRows, STATE_QUERY, EXIT };
