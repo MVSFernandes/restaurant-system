@@ -275,7 +275,13 @@ scenario('existing database one migration behind: record what exists, then push 
   const push = cli('db', 'push', '--db-url', url, '--yes');
   assert.equal(push.status, 0, push.output);
   const ddl = await publicDdl(url);
-  assert.ok(ddl.length > 0 && ddl.every((line) => /app_installation/.test(line)), `only the missing migration ran: ${ddl.join('; ')}`);
+  // Objects the last migration creates or changes, from its manifest delta
+  // (e.g. "functions:create_first_admin(...)" -> create_first_admin).
+  const lastEntry = manifest.migrations.find((m) => m.version === last.version);
+  const touched = [...Object.keys(lastEntry.added), ...Object.keys(lastEntry.changed), ...lastEntry.removed]
+    .map((key) => key.slice(key.indexOf(':') + 1).split(/[.(@]/)[0]);
+  const touchedPattern = new RegExp(`public\\.(${[...new Set(touched)].join('|')})\\b`);
+  assert.ok(ddl.length > 0 && ddl.every((line) => touchedPattern.test(line)), `only the missing migration ran: ${ddl.join('; ')}`);
   await stopWatching(url);
   assert.deepEqual(await query(url, "select (select count(*) from public.users)::int as users, (select quantity::float from public.stock_items where id = 'bun') as bun"), [{ users: 1, bun: 10 }]);
   assert.equal(check(url).report.verdict, 'up_to_date');
@@ -287,7 +293,8 @@ scenario('divergence: a changed privilege is reported against the migration that
   const { status, report } = check(url);
   assert.equal(status, 1);
   assert.equal(report.verdict, 'divergent');
-  assert.deepEqual(report.divergence.different, [{ key: 'table_privileges:app_installation@anon', set_by: VERSIONS[VERSIONS.length - 1] }]);
+  const appInstallationVersion = MIGRATIONS.find((m) => m.name === 'app_installation').version;
+  assert.deepEqual(report.divergence.different, [{ key: 'table_privileges:app_installation@anon', set_by: appInstallationVersion }]);
   assert.deepEqual(report.toRecord, [], 'nothing is offered for recording');
 }));
 
