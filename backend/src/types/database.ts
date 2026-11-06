@@ -1321,6 +1321,15 @@ export type Database = {
         Args: { p_items: Json; p_order_id: string; p_reason: string }
         Returns: Json
       }
+      create_first_admin: {
+        Args: {
+          p_email: string
+          p_id: string
+          p_name: string
+          p_password_hash: string
+        }
+        Returns: string
+      }
       create_order_with_stock: {
         Args: { p_items: Json; p_order: Json; p_payment?: Json }
         Returns: Json
