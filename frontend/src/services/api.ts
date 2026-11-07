@@ -1,9 +1,10 @@
 import axios, { AxiosError, CanceledError } from 'axios';
 import { RATE_LIMIT_MESSAGE, blockedUntil, recordRateLimit, requestScope, waitForReadBudget } from './rateLimit';
 import { useAuthStore } from '../store/authStore';
+import { getRuntimeConfig } from '../config/runtimeConfig';
 
-// URL do backend: usa variável de ambiente em produção, ou localhost em dev
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// URL do backend: vem da configuração da instalação, sem valor padrão.
+const API_BASE_URL = getRuntimeConfig().apiUrl;
 
 const api = axios.create({
   baseURL: API_BASE_URL,

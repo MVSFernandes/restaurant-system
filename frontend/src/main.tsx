@@ -1,19 +1,13 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import '@fontsource-variable/inter';
-import './index.css';
-import { RateLimitNotice } from './components/RateLimitNotice';
-import { ToastProvider } from './components/ui';
-import App from './App.tsx';
-import { BrandingProvider } from './contexts/BrandingProvider';
+import { loadRuntimeConfig } from './config/runtimeConfig';
+import { renderStartupError } from './config/startupError';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ToastProvider>
-      <BrandingProvider>
-        <RateLimitNotice />
-        <App />
-      </BrandingProvider>
-    </ToastProvider>
-  </StrictMode>
-);
+// The application is imported only after the configuration is valid, because
+// the API and Supabase clients are created when their modules load. Nothing
+// here may import them statically.
+async function start() {
+  await loadRuntimeConfig();
+  const { renderApp } = await import('./bootstrap');
+  renderApp();
+}
+
+start().catch(renderStartupError);

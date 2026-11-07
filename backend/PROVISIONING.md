@@ -164,7 +164,8 @@ criados por esse administrador na aplicação.
    completaria variáveis ausentes com o `.env` do diretório atual (o de
    desenvolvimento, se for `backend/`). Esperado no log:
    `Instalação confirmada: <id> (<env>).`
-3. Subir o frontend da instalação apontando para esse backend.
+3. Subir o frontend da instalação apontando para esse backend, com as variáveis
+   `PUBLIC_*` de `frontend/RUNTIME_CONFIG.md`.
 4. **Login:** entrar com o administrador criado. Conferir `GET /api/auth/me`
    com papel `ADMIN`.
 5. **Configurações:** completar dados do restaurante. Enviar um logo PNG pela
