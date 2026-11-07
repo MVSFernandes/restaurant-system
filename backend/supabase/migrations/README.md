@@ -27,6 +27,11 @@ README are ignored by it (it prints "Skipping migration README.md...").
   version repeated in the manifest, make the check stop before any query.
 - Never record a version as applied (`migration repair`) without the catalog
   check below saying so.
+- The previous application version must keep working after a migration, unless
+  the release declares otherwise: see the compatibility rule in
+  `../../../RELEASES.md`, section 2.
+- Run this check from a checkout of the newest tag applied to that database. An
+  older checkout does not know the newer migrations and reports `divergent`.
 
 ## The catalog check (read-only)
 

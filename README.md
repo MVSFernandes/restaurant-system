@@ -146,7 +146,7 @@ RESTAURANT_TIMEZONE=America/Sao_Paulo
 VITE_API_URL=http://localhost:3001/api
 ```
 
-Esses arquivos do frontend valem só para `npm run dev`. Para publicar uma instalação, veja [`frontend/RUNTIME_CONFIG.md`](frontend/RUNTIME_CONFIG.md).
+Esses arquivos do frontend valem só para `npm run dev`. Para publicar uma instalação, veja [`frontend/RUNTIME_CONFIG.md`](frontend/RUNTIME_CONFIG.md). Para levar uma versão a uma instalação, veja [`RELEASES.md`](RELEASES.md).
 
 > Os arquivos `.env` não são versionados. A `SUPABASE_SERVICE_ROLE_KEY` e o token da Focus NFe são credenciais sensíveis e não devem ser expostos no frontend.
 
