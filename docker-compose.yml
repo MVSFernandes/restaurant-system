@@ -7,6 +7,7 @@
 #
 # Como rodar:
 #   cp backend/.env.docker.example backend/.env.docker
+#   cp frontend/.env.docker.example frontend/.env.docker   (e preencher)
 #   docker compose up -d --build
 
 name: restaurant-system
@@ -39,12 +40,13 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        # O React chama a API em /api e o Nginx repassa pro backend.
-        # Assim fica tudo no mesmo endereço e não precisa mexer com CORS.
-        VITE_API_URL: /api
     image: restaurant-frontend:latest
     container_name: restaurant-frontend
+    # Configuração pública da instalação, lida quando o container sobe: trocar os
+    # valores não exige outro build. Sem valores válidos, o container não sobe.
+    # Com PUBLIC_API_URL=/api, o Nginx repassa pro backend, no mesmo endereço e sem CORS.
+    env_file:
+      - ./frontend/.env.docker
     ports:
       - "8080:80"
     networks:

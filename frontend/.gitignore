@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Configuração de instalação: nunca vai para o Git nem para o build
+.env.docker
+public/runtime-config.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -28,7 +28,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Criar o .env.docker com valores de teste
-        run: cp backend/.env.docker.example backend/.env.docker
+        run: |
+          cp backend/.env.docker.example backend/.env.docker
+          cp frontend/.env.docker.example frontend/.env.docker
 
       # docker-compose.ci.yml troca o banco por um stub de teste que responde só
       # a identidade da instalação (o backend confere antes de aceitar requisições).
@@ -39,6 +41,13 @@ jobs:
         run: |
           curl -fsS http://localhost:8080/ > /dev/null
           curl -fsS http://localhost:8080/health
+
+      - name: Conferir a configuração gerada pelo frontend
+        run: curl -fsS http://localhost:8080/runtime-config.json | grep -q '"supabaseUrl":"https://ci-smoke.example.test"'
+
+      # Sem novo build: a imagem já construída pelo compose precisa servir as duas.
+      - name: Conferir a mesma imagem com duas configurações
+        run: sh frontend/scripts/verify-runtime-image.sh restaurant-frontend:latest
 
       - name: Mostrar logs se algo falhar
         if: failure()
