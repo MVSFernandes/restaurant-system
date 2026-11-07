@@ -207,8 +207,16 @@ $DC = 'compose', '--env-file', "$PRIV\release.env", '-f', "$ROOT\deploy\docker-c
 | 3 | Conferência da seção 3.1 | Tudo conforme a tabela |
 | 4 | Em `$ROOT\backend`: `npm run db:migrations:check -- --linked`, depois `npm run provision -- status @P` | Marcador do inventário e veredito previsto (tabela abaixo) |
 | 5 | Em `$ROOT\backend`: `npx supabase db push --linked --dry-run`. Depois, de qualquer pasta: `git -C $ROOT diff --name-status $BASE $TAG -- 'backend/supabase/migrations/*.sql' backend/supabase/checks/migration_catalog.json` | `M0`: `Remote database is up to date` e **nenhuma linha** no diff. `M1`/`M2`: exatamente as migrations das notas, com `A` nos `.sql` e, no máximo, `M` no manifesto |
-| 6 | `docker image inspect <imagem> --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.version"}} {{index .Config.Labels "org.opencontainers.image.revision"}}'`, para as duas imagens novas e as duas atuais, se houver | Rótulos da versão certa; IDs anotados. As imagens atuais existem localmente, pois são o caminho de volta |
+| 6 | Inspeção abaixo da tabela, para as duas imagens novas e as duas atuais, se houver | Rótulos da versão certa; IDs anotados. As imagens atuais existem localmente, pois são o caminho de volta |
 | 7 | Backup conforme a seção 7. ✎ Abrir a janela, se as notas exigirem | Horário e local anotados no inventário |
+
+Inspeção do passo 6, uma imagem por vez. Mostra só ID, versão e revisão:
+
+```powershell
+$IMG = '<imagem>'
+$i = docker image inspect $IMG | ConvertFrom-Json
+"$($i.Id) $($i.Config.Labels.'org.opencontainers.image.version') $($i.Config.Labels.'org.opencontainers.image.revision')"
+```
 
 O diff precisa usar `git -C $ROOT` ou rodar na raiz. **Dentro de `backend/`, o
 caminho não casa e o resultado vem vazio, o que parece "sem migrations".** O
