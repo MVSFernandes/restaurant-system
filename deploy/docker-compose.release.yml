@@ -1,0 +1,59 @@
+# Sobe uma instalação com as imagens de uma release, sem build.
+# Roteiro: RELEASES.md. Variáveis: deploy/release.env.example.
+#
+#   docker compose --env-file <pasta privada>/release.env -f deploy/docker-compose.release.yml up -d --no-build --wait --wait-timeout 180
+#
+# Antes de qualquer up, faça a conferência de RELEASES.md, seção 3.1.
+#
+# O nome do projeto vem da instalação, então instalações na mesma máquina não se
+# misturam. Um COMPOSE_PROJECT_NAME ou uma variável RS_* no shell vencem este
+# arranjo; não use -p. Em "config", use só --images, --services ou
+# --no-env-resolution: sem eles, o comando imprime o conteúdo dos arquivos de
+# ambiente, com os segredos.
+
+name: ${RS_INSTALLATION_ID:?defina RS_INSTALLATION_ID no release.env}
+
+services:
+  backend:
+    image: ${RS_BACKEND_IMAGE:?defina RS_BACKEND_IMAGE no release.env}
+    # A imagem precisa já estar nesta máquina e conferida. Nunca baixa sozinha.
+    pull_policy: never
+    env_file:
+      - ${RS_BACKEND_ENV_FILE:?defina RS_BACKEND_ENV_FILE no release.env}
+    # O Nginx do frontend repassa para backend:3001, seja qual for o PORT do arquivo.
+    environment:
+      PORT: "3001"
+    expose:
+      - "3001"
+    networks:
+      - interna
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 15s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  frontend:
+    image: ${RS_FRONTEND_IMAGE:?defina RS_FRONTEND_IMAGE no release.env}
+    pull_policy: never
+    env_file:
+      - ${RS_FRONTEND_ENV_FILE:?defina RS_FRONTEND_ENV_FILE no release.env}
+    ports:
+      - "${RS_HTTP_PUBLISH:?defina RS_HTTP_PUBLISH no release.env}:80"
+    networks:
+      - interna
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+networks:
+  interna:
+    driver: bridge
