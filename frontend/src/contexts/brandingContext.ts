@@ -8,6 +8,8 @@ export interface BrandingIdentity {
   openingDays: string | null;
   deliveryFee: number | null;
   enabledPayments: string | null;
+  /** Cor principal (#rrggbb) escolhida pelo ADMIN; null = laranja padrão. */
+  brandPrimaryColor: string | null;
 }
 
 export interface BrandingContextValue extends BrandingIdentity {
@@ -27,6 +29,7 @@ export const DEFAULT_BRANDING_CONTEXT: BrandingContextValue = {
   openingDays: null,
   deliveryFee: null,
   enabledPayments: null,
+  brandPrimaryColor: null,
   displayName: FALLBACK_NAME,
   loading: false,
   refresh: async () => undefined,

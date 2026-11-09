@@ -218,7 +218,7 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
         type="button"
         onClick={() => setModalOpen(true)}
         disabled={loading}
-        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-wait disabled:opacity-70"
+        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-wait disabled:opacity-70"
       >
         {loading || issuing || isAwaitingSefaz ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
         {launcherLabel}
@@ -263,7 +263,7 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-5 py-4">
               <div className="flex items-center gap-3">
-                <span className="rounded-lg bg-orange-100 p-2 text-orange-700"><ReceiptText size={20} /></span>
+                <span className="rounded-lg bg-primary-100 p-2 text-primary-700"><ReceiptText size={20} /></span>
                 <div>
                   <h2 id={`nfce-title-${orderId}`} className="font-bold text-gray-900">{model === '55' ? 'Nota fiscal (NF-e)' : 'Cupom fiscal (NFC-e)'}</h2>
                   <p className="text-xs text-gray-500">Emissão e documentos do consumidor</p>
@@ -309,7 +309,7 @@ export function OrderFiscalDocumentPanel({ orderId, phone, nfceEnabled = true }:
                         <option value="">{customersLoading ? 'Carregando clientes...' : 'Selecione um cliente PJ'}</option>
                         {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.legalName || customer.name} — {customer.document}</option>)}
                       </select>
-                      <button type="button" className="mt-2 text-sm font-semibold text-orange-700 underline" disabled={issuing} onClick={() => setCreatingCustomer(true)}>Cadastrar cliente</button>
+                      <button type="button" className="mt-2 text-sm font-semibold text-primary-700 underline" disabled={issuing} onClick={() => setCreatingCustomer(true)}>Cadastrar cliente</button>
                       {selectedCustomer && missingFields.length > 0 && <p className="mt-2 text-sm text-red-700">Dados fiscais incompletos: {missingFields.join(', ')}. Atualize o cadastro do cliente.</p>}
                       {selectedCustomer && missingFields.length === 0 && <p className="mt-2 text-xs text-gray-500">{selectedCustomer.fiscalStreet}, {selectedCustomer.fiscalNumber} · {selectedCustomer.fiscalCity}/{selectedCustomer.fiscalState} · CEP {selectedCustomer.fiscalZipCode} · IBGE {selectedCustomer.fiscalCityIbgeCode}</p>}
                     </div>

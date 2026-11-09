@@ -1507,7 +1507,7 @@ const OrdersPage: React.FC = () => {
                     {order.status === 'NEW' && (
                       <button
                         onClick={() => setEditingOrder(order)}
-                        className="p-1 text-orange-600 hover:bg-orange-50 rounded"
+                        className="p-1 text-primary-600 hover:bg-primary-50 rounded"
                         title="Editar Pedido"
                       >
                         <Edit size={14} />
@@ -1530,7 +1530,7 @@ const OrdersPage: React.FC = () => {
                 </p>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-bold tracking-wide text-orange-600 uppercase">
+                  <p className="text-xs font-bold tracking-wide text-primary-600 uppercase">
                     {order.type === 'DINE_IN' && 'MESA'}
                     {order.type === 'TAKE_AWAY' && 'RETIRADA'}
                     {order.type === 'DELIVERY' && 'ENTREGA'}

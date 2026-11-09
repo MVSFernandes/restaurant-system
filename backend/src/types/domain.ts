@@ -452,5 +452,7 @@ export interface RestaurantConfig {
   nfceEnabled: boolean;
   nfceGroupItems: boolean;
   nfceGroupedItemDescription: string;
+  /** Cor principal da marca (#rrggbb). null = paleta padrão (Etapa 1B.7). */
+  brandPrimaryColor: string | null;
   updatedAt: Date;
 }

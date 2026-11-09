@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import api from '../services/api';
+import { applyBrandTheme } from '../theme/applyBrandTheme';
 import {
   BrandingContext,
   DEFAULT_BRANDING_CONTEXT,
@@ -22,6 +23,7 @@ function requestBranding(force = false): Promise<BrandingIdentity> {
         openingDays: data.openingDays || null,
         deliveryFee: data.deliveryFee ?? null,
         enabledPayments: data.enabledPayments || null,
+        brandPrimaryColor: data.brandPrimaryColor || null,
       }))
       .catch((error) => {
         brandingRequest = null;
@@ -49,6 +51,13 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Cor principal da instalação: troca os tokens dos dois temas, ou volta ao
+  // laranja padrão quando não há cor. Sem cache nesta versão: até a resposta de
+  // /config/branding chegar, vale o padrão.
+  useEffect(() => {
+    applyBrandTheme(identity.brandPrimaryColor);
+  }, [identity.brandPrimaryColor]);
 
   useEffect(() => {
     const icon = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');

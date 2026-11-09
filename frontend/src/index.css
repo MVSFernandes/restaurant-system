@@ -20,6 +20,19 @@
     --color-primary-subtle: 255 247 237;
     --color-primary-strong: 187 70 10;
     --color-primary-fg: 255 255 255;
+    /* Escala da cor principal (classes primary-50 a primary-900). Valores
+       padrão iguais à paleta laranja anterior; uma cor configurada pelo ADMIN
+       substitui em tempo de execução (src/theme/applyBrandTheme.ts). */
+    --color-primary-50: 255 247 237;
+    --color-primary-100: 255 237 213;
+    --color-primary-200: 254 215 170;
+    --color-primary-300: 253 186 116;
+    --color-primary-400: 251 146 60;
+    --color-primary-500: 249 115 22;
+    --color-primary-600: 234 88 12;
+    --color-primary-700: 194 65 12;
+    --color-primary-800: 154 52 18;
+    --color-primary-900: 124 45 18;
     --color-danger: 220 38 38;
     --color-danger-subtle: 254 242 242;
     --color-danger-strong: 210 34 34;

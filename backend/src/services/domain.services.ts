@@ -25,6 +25,7 @@ import {
   MarmitaMenuItem,
 } from '../types/domain';
 import { NotFoundError, ValidationError } from '../types/errors';
+import { describeContrastFailures, evaluateBrandColor, normalizeBrandColor } from '../utils/brandColor';
 import { weekdayInTimeZone } from '../utils/datetime';
 
 // ============================================================================
@@ -397,6 +398,25 @@ export const marmitaMenuService = {
 // RESTAURANT CONFIG
 // ============================================================================
 
+/**
+ * Cor principal da marca (Etapa 1B.7).
+ * undefined: campo omitido, a cor salva fica como está.
+ * null: volta à paleta padrão.
+ * Texto: precisa ser #rrggbb e passar no contraste dos temas claro e escuro.
+ */
+function validatedBrandPrimaryColor(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  const color = normalizeBrandColor(value);
+  if (!color) {
+    throw new ValidationError('brandPrimaryColor', 'Informe a cor no formato #rrggbb');
+  }
+  const { failures } = evaluateBrandColor(color);
+  if (failures.length > 0) {
+    throw new ValidationError('brandPrimaryColor', describeContrastFailures(failures));
+  }
+  return color;
+}
+
 function validatedConfigDeliveryFee(
   value: number | null | undefined,
   field: 'deliveryFee' | 'urbanDeliveryFee' | 'ruralDeliveryFee'
@@ -449,7 +469,10 @@ export const configService = {
     nfceEnabled?: boolean;
     nfceGroupItems?: boolean;
     nfceGroupedItemDescription?: string;
+    brandPrimaryColor?: unknown;
   }) {
+    // Valida antes de ler o banco: uma cor recusada não chega ao repositório.
+    const brandPrimaryColor = validatedBrandPrimaryColor(input.brandPrimaryColor);
     const config = await restaurantConfigRepository.get();
     if (input.nfceGroupItems !== undefined && typeof input.nfceGroupItems !== 'boolean') {
       throw new ValidationError('nfceGroupItems', 'Informe verdadeiro ou falso');
@@ -499,6 +522,7 @@ export const configService = {
       nfceGroupItems: input.nfceGroupItems,
       nfceGroupedItemDescription:
         input.nfceGroupedItemDescription !== undefined ? groupedItemDescription : undefined,
+      brandPrimaryColor,
     });
   },
 };

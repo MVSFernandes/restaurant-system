@@ -341,6 +341,8 @@ export interface RestaurantConfig {
   nfceEnabled?: boolean;
   nfceGroupItems?: boolean;
   nfceGroupedItemDescription?: string;
+  /** Cor principal (#rrggbb). null = laranja padrão (Etapa 1B.7). */
+  brandPrimaryColor?: string | null;
 }
 
 export type MarmitaGroup = 'GUARNICAO' | 'CARNE' | 'EXTRA';

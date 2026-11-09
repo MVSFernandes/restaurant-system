@@ -1,3 +1,4 @@
+import { normalizeBrandColor } from '../theme/brandColor';
 import type { RestaurantConfig } from '../types';
 
 export const onlyDigits = (value: string) => value.replace(/\D/g, '');
@@ -16,9 +17,15 @@ export function buildSettingsPayload(config: Partial<RestaurantConfig>): Partial
     config.nfceGroupedItemDescription ?? 'REFEICAO'
   ).trim();
 
-  return {
+  const payload: Partial<RestaurantConfig> = {
     ...config,
     cnpj: config.cnpj ? onlyDigits(config.cnpj).slice(0, 14) : config.cnpj,
     nfceGroupedItemDescription: groupedItemDescription || 'REFEICAO',
   };
+  // A cor vai normalizada (#rrggbb minúsculo). Fora do formato, segue como
+  // digitada para a API recusar com a mensagem certa.
+  if (typeof config.brandPrimaryColor === 'string') {
+    payload.brandPrimaryColor = normalizeBrandColor(config.brandPrimaryColor) ?? config.brandPrimaryColor;
+  }
+  return payload;
 }
