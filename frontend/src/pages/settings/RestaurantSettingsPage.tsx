@@ -15,22 +15,30 @@ import {
 import { useBranding } from '../../contexts/brandingContext';
 import api from '../../services/api';
 import type { RestaurantConfig } from '../../types';
+import { brandColorError } from '../../theme/brandColorForm';
+import { BrandColorField } from './BrandColorField';
 import { SettingsPageLayout } from './SettingsPageLayout';
-import { useSettingsForm } from './useSettingsForm';
+import { useSettingsForm, type SettingsFieldErrors } from './useSettingsForm';
 
 type BrandingKind = 'logo' | 'banner';
+
+const validateRestaurantSettings = (config: Partial<RestaurantConfig>): SettingsFieldErrors => {
+  const colorError = brandColorError(config.brandPrimaryColor);
+  return colorError ? { brandPrimaryColor: colorError } : {};
+};
 
 const RestaurantSettingsPage = () => {
   const { refresh: refreshBranding } = useBranding();
   const {
     config,
+    fieldErrors,
     loading,
     navigation,
     saving,
     handleSave,
     updateConfigField,
     syncConfigField,
-  } = useSettingsForm(undefined, refreshBranding);
+  } = useSettingsForm(validateRestaurantSettings, refreshBranding);
   const { toast } = useToast();
   const menuUrl = window.location.origin + '/cardapio';
 
@@ -106,6 +114,23 @@ const RestaurantSettingsPage = () => {
               disabled={loading || saving}
               onUpload={(file) => uploadImage('banner', file)}
               onRemove={() => removeImage('banner')}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Cor da marca</CardTitle>
+            <CardDescription>
+              Só são aceitas cores com contraste suficiente para leitura nos temas claro e escuro.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BrandColorField
+              value={config.brandPrimaryColor}
+              error={fieldErrors.brandPrimaryColor}
+              disabled={loading || saving}
+              onChange={(value) => updateConfigField('brandPrimaryColor', value)}
             />
           </CardContent>
         </Card>

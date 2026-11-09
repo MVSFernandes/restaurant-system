@@ -33,6 +33,7 @@ export function toPublicRestaurantConfig(config: Awaited<ReturnType<typeof confi
     openingDays: config.openingDays || null,
     deliveryFee: config.deliveryFee ?? null,
     enabledPayments: config.enabledPayments || null,
+    brandPrimaryColor: config.brandPrimaryColor || null,
   };
 }
 

@@ -21,6 +21,9 @@ services:
       # Na segunda vez que rodo, o npm ci aproveita o cache e fica mais rápido.
       - backend-node-modules:/app/node_modules
       - npm-cache:/root/.npm
+      # Só leitura: tests/brand-color.test.cjs confere que a cópia do frontend
+      # das regras de cor é idêntica à do backend.
+      - ./frontend/src/theme/brandColor.ts:/frontend/src/theme/brandColor.ts:ro
     environment:
       NODE_ENV: test
     # Os testes do backend usam mocks, não precisam do Supabase de verdade.

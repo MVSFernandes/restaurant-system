@@ -18,6 +18,7 @@ export type PublicRestaurantConfig = Pick<
   | 'openingDays'
   | 'deliveryFee'
   | 'enabledPayments'
+  | 'brandPrimaryColor'
 >;
 
 export function toOperationalRestaurantConfig(row: ConfigRow): OperationalRestaurantConfig {
@@ -39,6 +40,7 @@ export function toPublicRestaurantConfig(row: ConfigRow): PublicRestaurantConfig
     openingDays: row.opening_days,
     deliveryFee: row.delivery_fee,
     enabledPayments: row.enabled_payments,
+    brandPrimaryColor: row.brand_primary_color ?? null,
   };
 }
 
@@ -74,6 +76,7 @@ export function toRestaurantConfigDomain(row: ConfigRow): RestaurantConfig {
     nfceEnabled: row.nfce_enabled ?? false,
     nfceGroupItems: row.nfce_group_items ?? false,
     nfceGroupedItemDescription: row.nfce_grouped_item_description ?? 'REFEICAO',
+    brandPrimaryColor: row.brand_primary_color ?? null,
     updatedAt: new Date(row.updated_at),
   };
 }
@@ -110,6 +113,7 @@ export function toRestaurantConfigInsert(domain: RestaurantConfig): ConfigInsert
     nfce_enabled: domain.nfceEnabled,
     nfce_group_items: domain.nfceGroupItems,
     nfce_grouped_item_description: domain.nfceGroupedItemDescription,
+    brand_primary_color: domain.brandPrimaryColor,
   };
 }
 
@@ -146,5 +150,8 @@ export function toRestaurantConfigUpdate(patch: Partial<RestaurantConfig>): Conf
   if (patch.nfceGroupedItemDescription !== undefined) {
     update.nfce_grouped_item_description = patch.nfceGroupedItemDescription;
   }
+  // undefined = campo omitido no PUT: a cor salva fica como está.
+  // null = voltar à paleta padrão.
+  if (patch.brandPrimaryColor !== undefined) update.brand_primary_color = patch.brandPrimaryColor;
   return update;
 }

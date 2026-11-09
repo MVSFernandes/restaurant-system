@@ -22,14 +22,14 @@ const FULL_CONFIG_COLUMNS = [
   'fiscal_zip_code', 'fiscal_street', 'fiscal_number', 'fiscal_neighborhood',
   'fiscal_city', 'fiscal_state', 'default_cfop', 'default_ncm',
   'default_origin', 'default_tax_code', 'nfce_enabled', 'nfce_group_items',
-  'nfce_grouped_item_description', 'updated_at',
+  'nfce_grouped_item_description', 'brand_primary_color', 'updated_at',
 ].join(',');
 const OPERATIONAL_CONFIG_COLUMNS = [
   'name', 'logo_url', 'urban_delivery_fee', 'rural_delivery_fee', 'nfce_enabled',
 ].join(',');
 const PUBLIC_CONFIG_COLUMNS = [
   'name', 'logo_url', 'banner_url', 'opening_hours', 'opening_days',
-  'delivery_fee', 'enabled_payments',
+  'delivery_fee', 'enabled_payments', 'brand_primary_color',
 ].join(',');
 
 export const restaurantConfigRepository = {

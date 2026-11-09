@@ -28,6 +28,7 @@ test('public config exposes only identity and public ordering fields', () => {
     openingDays: 'segunda a domingo',
     deliveryFee: 5,
     enabledPayments: 'CASH,PIX',
+    brandPrimaryColor: '#1d4ed8',
     cnpj: '00000000000100',
     legalName: 'Razão Social',
     stateRegistration: '123',
@@ -43,6 +44,7 @@ test('public config exposes only identity and public ordering fields', () => {
     openingDays: 'segunda a domingo',
     deliveryFee: 5,
     enabledPayments: 'CASH,PIX',
+    brandPrimaryColor: '#1d4ed8',
   });
 });
 

@@ -85,22 +85,27 @@ const LoginPage: React.FC = () => {
         <p className="pt-8 text-center text-caption text-subtle">Restaurant System</p>
       </section>
 
-      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-primary via-orange-600 to-primary-hover lg:block" aria-hidden="true">
+      {/* Com cor personalizada, o tema da marca (applyBrandTheme) troca as duas
+          variáveis abaixo: os textos menores ficam brancos sólidos e a textura e os
+          círculos passam a escurecer em vez de clarear. Assim o fundo atrás do texto
+          nunca fica mais claro que a cor principal, que já tem 4,5:1 com o branco.
+          Sem cor personalizada valem os valores de reserva: o visual de antes. */}
+      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-primary via-primary-600 to-primary-hover lg:block" aria-hidden="true">
         <div
           className="absolute inset-0 opacity-20"
           style={{
             backgroundImage:
-              'linear-gradient(30deg, rgba(255,255,255,.28) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,.28) 87.5%, rgba(255,255,255,.28)), linear-gradient(150deg, rgba(255,255,255,.18) 12%, transparent 12.5%, transparent 87%, rgba(255,255,255,.18) 87.5%, rgba(255,255,255,.18))',
+              'linear-gradient(30deg, rgb(var(--login-aside-decor, 255 255 255) / .28) 12%, transparent 12.5%, transparent 87%, rgb(var(--login-aside-decor, 255 255 255) / .28) 87.5%, rgb(var(--login-aside-decor, 255 255 255) / .28)), linear-gradient(150deg, rgb(var(--login-aside-decor, 255 255 255) / .18) 12%, transparent 12.5%, transparent 87%, rgb(var(--login-aside-decor, 255 255 255) / .18) 87.5%, rgb(var(--login-aside-decor, 255 255 255) / .18))',
             backgroundSize: '72px 126px',
           }}
         />
-        <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-white/20 bg-white/10" />
-        <div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full border border-white/20 bg-black/10" />
+        <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border border-[rgb(var(--login-aside-decor,255_255_255)/0.2)] bg-[rgb(var(--login-aside-decor,255_255_255)/0.1)]" />
+        <div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full border border-[rgb(var(--login-aside-decor,255_255_255)/0.2)] bg-black/10" />
         <div className="relative flex h-full items-center justify-center p-16">
           <div className="max-w-lg text-white">
-            <p className="text-label font-semibold uppercase tracking-[0.24em] text-white/75">Gestão integrada</p>
+            <p className="text-label font-semibold uppercase tracking-[0.24em] text-white/[var(--login-aside-text-alpha,0.75)]">Gestão integrada</p>
             <p className="mt-5 text-4xl font-bold leading-tight">Seu restaurante organizado do atendimento ao financeiro.</p>
-            <p className="mt-5 max-w-md text-body-lg text-white/80">Pedidos, estoque, caixa e documentos fiscais reunidos em um só lugar.</p>
+            <p className="mt-5 max-w-md text-body-lg text-white/[var(--login-aside-text-alpha,0.8)]">Pedidos, estoque, caixa e documentos fiscais reunidos em um só lugar.</p>
           </div>
         </div>
       </aside>

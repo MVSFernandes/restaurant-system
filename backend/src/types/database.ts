@@ -972,6 +972,7 @@ export type Database = {
         Row: {
           address: string | null
           banner_url: string | null
+          brand_primary_color: string | null
           cnpj: string | null
           default_cfop: string | null
           default_ncm: string | null
@@ -1005,6 +1006,7 @@ export type Database = {
         Insert: {
           address?: string | null
           banner_url?: string | null
+          brand_primary_color?: string | null
           cnpj?: string | null
           default_cfop?: string | null
           default_ncm?: string | null
@@ -1038,6 +1040,7 @@ export type Database = {
         Update: {
           address?: string | null
           banner_url?: string | null
+          brand_primary_color?: string | null
           cnpj?: string | null
           default_cfop?: string | null
           default_ncm?: string | null

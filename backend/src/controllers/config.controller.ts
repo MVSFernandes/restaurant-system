@@ -58,6 +58,7 @@ export const updateConfig = async (req: Request, res: Response) => {
       fiscalNeighborhood, fiscalCity, fiscalState,
       defaultCfop, defaultNcm, defaultOrigin, defaultTaxCode,
       nfceEnabled, nfceGroupItems, nfceGroupedItemDescription,
+      brandPrimaryColor,
     } = req.body;
 
     const config = await configService.update({
@@ -89,6 +90,8 @@ export const updateConfig = async (req: Request, res: Response) => {
       nfceEnabled: typeof nfceEnabled === 'boolean' ? nfceEnabled : undefined,
       nfceGroupItems,
       nfceGroupedItemDescription,
+      // Omitido fica undefined (preserva a cor salva); null volta ao padrão.
+      brandPrimaryColor,
     });
     res.json(config);
   } catch (error) {
