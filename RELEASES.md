@@ -38,9 +38,32 @@ são lidos em execução e não acompanham a release.
 - A versão final aponta para o **mesmo commit** da última candidata aprovada e
   usa as **mesmas imagens**, sem novo build.
 
-**Base de comparação (`$BASE`):** a tag da versão anterior. Ainda não existe
-nenhuma tag: no primeiro ensaio, a base é o commit `7ec3412`, citado pelo hash.
-Não crie uma tag retroativa para ele.
+**Versões aprovadas.** A última release aprovada é a `v1.2.0`.
+
+| Versão aprovada | Commit | Classe | Situação |
+| --- | --- | --- | --- |
+| `v1.2.0` | `8ab75de` | `M1` (`20261109120000`) | **Última release aprovada.** Candidata `v1.2.0-rc.1` aprovada no ensaio `M1` em homologação descartável (2026-11-09), com volta pelo caso D e falha de `db push` pelo caso F. A final usa o mesmo commit e as mesmas imagens. Versão mínima de origem: `v1.1.0-rc.2` |
+| `v1.1.0-rc.2` | `47b2f18` | `M0` | Candidata aprovada da `v1.1.0`. A `v1.1.0` final não foi marcada |
+
+O commit `7ec3412` foi a base do primeiro ensaio, antes de existir tag. Não crie
+tag retroativa para ele.
+
+**Base do diff de uma atualização (`$BASE`).** Não é a última release aprovada.
+É a tag **em execução na instalação**, lida no inventário. O destino (`$TAG`) é a
+versão que vai subir.
+
+- A origem precisa ser igual ou posterior à versão mínima de origem das notas do
+  destino. Abaixo disso, pare (seção 6, item 7).
+- O diff `$BASE..$TAG` precisa mostrar exatamente as migrations previstas nas
+  notas do destino. Quando o salto de versões for suportado (a origem está mais
+  de uma versão atrás, mas dentro da mínima de origem), o diff deve corresponder
+  às migrations previstas nas notas da versão de destino **e** nas das versões
+  intermediárias aplicáveis, isto é, as posteriores à origem, e nada além disso.
+
+Exemplo: uma instalação na `v1.1.0-rc.2` que vai para a `v1.2.0` usa
+`$BASE = 'v1.1.0-rc.2'` e `$TAG = 'v1.2.0'`. O passo 5 da seção 4 deve mostrar só
+`A backend/supabase/migrations/20261109120000_restaurant_brand_color.sql` e
+`M backend/supabase/checks/migration_catalog.json`, como em `releases/v1.2.0.md`.
 
 ### Imagens
 
@@ -193,7 +216,7 @@ Prepare em PowerShell:
 ```powershell
 $ROOT = '<clone desta instalação e versão>'; $PRIV = '<pasta privada da instalação, fora do repositório>'
 $REF = '<ref do inventário>'; $ID = '<installation_id>'; $ENVNAME = '<ambiente>'
-$TAG = '<tag>'; $BASE = '<tag anterior; no primeiro ensaio, 7ec3412>'
+$TAG = '<tag>'; $BASE = '<tag em execução na instalação, do inventário (seção 1)>'
 $P = '--target-env', "$PRIV\backend.env", '--project-ref', $REF, '--installation-id', $ID, '--environment', $ENVNAME
 $DC = 'compose', '--env-file', "$PRIV\release.env", '-f', "$ROOT\deploy\docker-compose.release.yml"
 ```
@@ -386,7 +409,93 @@ notas fiscais autorizadas continuam existindo na SEFAZ.
 | Instalação | `M0` | `M1` ou `M2` |
 | --- | --- | --- |
 | Desenvolvimento e homologação | Não exigido | Exigido só se a nota disser; registre o estado de partida |
-| Produção | Conferir no painel a data do último backup e registrar | **Bloqueado até a Etapa 1B.6** comprovar uma restauração |
+| Produção | Conferir no painel a data do último backup e registrar | **Bloqueado em cada instalação** até a liberação daquela instalação (abaixo). Depois dela, exige backup atual e conferido antes de **cada** `db push` (abaixo) |
 
-O processo de cópia e restauração é da Etapa 1B.6. Até lá, nenhuma instalação de
-produção tem recuperação comprovada por backup.
+### Evidência de homologação (Etapa 1B.6, 2026-11-08)
+
+A Etapa 1B.6 comprovou, **em homologação**, que uma instalação volta inteira a
+partir de uma cópia cifrada guardada fora do Supabase:
+
+- **Origem:** a instalação de homologação descartável do ensaio, com dados
+  fictícios (26 tabelas, 40 linhas, 2 arquivos no bucket `branding`, 1,5 MB).
+- **Backup:** cópia lógica do `public` e do bucket, cifrada com gpg (AES-256),
+  conferida por SHA-256 e por decifração.
+- **Restauração:** feita a partir do arquivo cifrado, num projeto Supabase novo e
+  descartável, com o schema pelas migrations e depois a carga dos dados.
+- **Conferido:** catálogo e schema iguais aos da origem; contagem e assinatura das
+  26 tabelas iguais; sequências iguais; os 2 arquivos com o mesmo hash, servidos
+  pelo projeto novo; login com a senha original e sessão renovada, sem nenhuma
+  escrita.
+- **Tempos medidos em homologação:** backup em 8 min 53 s; restauração em cerca de
+  49 min de trabalho assistido, ou 54 min contando o `db push`. O limite superior
+  de relógio foi 4 h 15 min, por causa de uma queda de energia durante o ensaio.
+  Esses tempos valem para aquele volume e aquele ambiente. **Não são RPO nem RTO
+  de produção:** num banco real, a carga e o upload crescem com o volume, e a
+  rede, o plano e a máquina são outros.
+- **Retenção:** o pacote cifrado, o `.sha256` e as evidências ficam guardados fora
+  do repositório como referência do estado anterior ao primeiro `M1`. O local
+  está no inventário privado.
+
+A evidência mostra que o método funciona. Ela não libera a produção.
+
+### Liberação de migration em produção, por instalação
+
+A liberação é **de cada instalação de produção**, não do sistema. Antes do
+primeiro `db push` `M1` ou `M2` de uma instalação, cumpra os itens abaixo
+**para aquela instalação**, com as evidências registradas no inventário dela.
+Uma instalação já liberada não libera outra, e o teste de uma instalação não
+vale para outra.
+
+Pré-requisito comum, uma vez para todas: o procedimento de backup e restauração
+da 1B.6 versionado no repositório. Hoje ele só existe no roteiro local do ensaio.
+
+Para cada instalação:
+
+1. Backup cifrado da instalação, feito pelo procedimento versionado e conferido
+   por SHA-256 e por decifração.
+2. **Restauração de teste desse backup** num projeto descartável, com as mesmas
+   conferências da 1B.6: schema, contagem e assinatura de cada tabela,
+   sequências, arquivos do storage e login. Meça o tempo de cada fase. Este
+   teste é **obrigatório**: nem aceite de risco, nem a evidência de homologação,
+   nem o teste de outra instalação o substituem.
+3. Frequência, retenção e recuperação pontual (PITR) dos backups do provedor,
+   conferidas no plano contratado do projeto Supabase dessa instalação.
+4. Uma cópia fora da máquina que fez o backup, com retenção definida.
+5. RPO e RTO combinados com o cliente, calculados sobre o ambiente real dessa
+   instalação e sobre o teste representativo do item 2, isto é, os tempos
+   medidos com o volume, o plano e a máquina dela. Os tempos da 1B.6 não servem
+   para isso.
+
+No inventário da instalação, registre:
+- a data e o responsável pela liberação;
+- o local e o SHA-256 do backup testado;
+- o resultado de cada conferência e os tempos da restauração de teste;
+- a versão do procedimento usado;
+- os itens 3 a 5.
+
+Sem esse registro, a instalação não tem recuperação comprovada, e a atualização
+dela com migration continua bloqueada.
+
+### Antes de cada `db push` `M1` ou `M2` em produção
+
+Depois da liberação da instalação, **cada** `db push` `M1` ou `M2` nela exige, no
+passo 7 da seção 4:
+
+1. Um backup **atual** da instalação, feito na janela da atualização pelo mesmo
+   procedimento validado no teste de restauração dessa instalação. Se o
+   procedimento mudou desde o teste, repita a restauração de teste da instalação
+   antes do push e registre o resultado no inventário dela.
+2. O backup conferido por SHA-256 e por decifração.
+3. Anotados no inventário:
+   - o **horário do ponto de recuperação**: o instante do banco que o backup
+     representa, isto é, o início da leitura consistente da cópia;
+   - o **horário de término da cópia**, anterior ao `db push`;
+   - o local do backup.
+
+   A frase-senha fica só no cofre.
+4. A cópia fora da máquina feita.
+5. O intervalo entre o horário do ponto de recuperação e o início do `db push`
+   anotado e comparado com o RPO acordado. Se for maior que o RPO, faça um backup
+   novo antes do push.
+
+Faltou um desses itens: pare antes do passo 8 (seção 6, item 6).
