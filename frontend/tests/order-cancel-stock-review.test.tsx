@@ -91,3 +91,32 @@ describe('waiter history item line', () => {
     expect(totalRow.textContent?.replace(/\s/g, ' ')).toContain('R$ 65,00');
   });
 });
+
+describe('waiter history status filter', () => {
+  it('requests finalized and canceled orders and keeps showing them without edit actions', async () => {
+    const finishedOrder = {
+      ...order, id: 'order-paid3q3y6g', status: 'FINISHED', total: 65,
+      items: [{ id: 'item-f', productId: 'p1', quantity: 2, price: 65, product: { id: 'p1', name: 'Picanha' } }],
+    };
+    const canceledOrder = {
+      ...order, id: 'order-cancel1xyz', status: 'CANCELED', total: 20,
+      items: [{ id: 'item-c', productId: 'p2', quantity: 1, price: 20, product: { id: 'p2', name: 'Suco' } }],
+    };
+    mocks.get.mockImplementation(async (url: string) => ({
+      data: url.startsWith('/orders') ? [finishedOrder, canceledOrder] : [],
+    }));
+    render(<WaiterHistoryPage />);
+
+    expect(await screen.findByText('#3Q3Y6G')).toBeTruthy();
+    expect(screen.getByText('#EL1XYZ')).toBeTruthy();
+    expect(mocks.get).toHaveBeenCalledWith('/orders', {
+      params: { myOrders: 'true', status: 'NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED' },
+    });
+    expect(screen.getByText('Finalizado')).toBeTruthy();
+    expect(screen.getByText('Cancelado')).toBeTruthy();
+    const paidLine = screen.getByText('2x Picanha').parentElement as HTMLElement;
+    expect(paidLine.textContent?.replace(/\s/g, ' ')).toContain('R$ 65,00');
+    expect(screen.queryByRole('button', { name: /Editar/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Cancelar/ })).toBeNull();
+  });
+});
