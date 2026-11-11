@@ -44,7 +44,8 @@ const navSections: NavSection[] = [
   {
     label: 'Operação',
     items: [
-      { label: 'Dashboard', path: '/dashboard', icon: DashboardIcon, roles: ['ADMIN', 'CASHIER', 'FINANCE', 'WAITER'] },
+      // O garçom não tem Dashboard: a tela inicial dele é "Minhas mesas".
+      { label: 'Dashboard', path: '/dashboard', icon: DashboardIcon, roles: ['ADMIN', 'CASHIER', 'FINANCE'] },
       {
         label: 'Pedidos', path: '/pdv/orders', icon: OrderIcon,
         roles: ['ADMIN', 'CASHIER'],

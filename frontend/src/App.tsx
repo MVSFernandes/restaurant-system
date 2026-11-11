@@ -63,7 +63,9 @@ const router = createBrowserRouter([
       { path: '/login', element: <LoginPage /> },
       { path: '/cardapio', element: <PublicMenuPage /> },
       {
-        element: <ProtectedRoute />,
+        // O garçom não tem Dashboard: quem chega aqui por endereço digitado ou
+        // link antigo vai para a tela inicial dele (/waiter/tables).
+        element: <ProtectedRoute allowedRoles={['ADMIN', 'CASHIER', 'FINANCE']} />,
         children: insideShell([
           { path: '/dashboard', element: <DashboardPage /> },
         ]),

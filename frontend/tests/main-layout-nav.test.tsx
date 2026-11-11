@@ -93,10 +93,20 @@ describe('navigation per role', () => {
     ['ADMIN', ['Dashboard', 'Pedidos', 'Mesas', 'Caixa', 'Mesas do garçom', 'Cardápio', 'Estoque', 'Financeiro', 'Configurações', 'Garçons']],
     ['CASHIER', ['Dashboard', 'Pedidos', 'Mesas', 'Caixa', 'Produtos']],
     ['FINANCE', ['Dashboard', 'Estoque', 'Financeiro']],
-    ['WAITER', ['Dashboard', 'Mesas do garçom']],
+    // O garçom não tem Dashboard: a tela inicial dele é "Minhas mesas".
+    ['WAITER', ['Mesas do garçom']],
   ])('%s sees only its entries', (role, expected) => {
     renderAt('/dashboard', role);
     expect(visibleTopLevel()).toEqual(expected);
+  });
+
+  it('keeps Minhas mesas and Histórico for the waiter', () => {
+    renderAt('/waiter/history', 'WAITER');
+    const nav = within(desktopNav());
+    expect(nav.queryByRole('link', { name: 'Dashboard' })).toBeNull();
+    expect(nav.getByRole('link', { name: 'Minhas mesas' }).getAttribute('href')).toBe('/waiter/tables');
+    expect(nav.getByRole('link', { name: 'Histórico' }).getAttribute('aria-current')).toBe('page');
+    expect(breadcrumb()).toEqual(['Mesas do garçom', 'Histórico']);
   });
 
   it('uses the role-filtered nav for breadcrumbs', () => {
