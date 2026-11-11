@@ -1,11 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { clsx } from 'clsx';
+import { useBranding } from '../contexts/brandingContext';
 import { useAuth } from '../hooks/useAuth';
 import { useMenuViewers, type MenuViewers } from '../hooks/useMenuViewers';
 import { useOrderEvents } from '../hooks/useOrderEvents';
 import api from '../services/api';
 import type { CashRegisterSession, Order, Table as RestaurantTable } from '../types';
+import { dueStatus, restaurantTodayKey } from '../utils/calendarDate';
 import { formatCurrencyBRL } from '../utils/currency';
 import {
   buttonClasses,
@@ -70,19 +72,6 @@ function useResource<T>(load: () => Promise<T>) {
 }
 
 const UNAVAILABLE = 'Não disponível';
-
-const startOfToday = () => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
-};
-
-// Mesma regra de PayablesPage (isOverdue): compara a data local do vencimento.
-const dueDay = (dueDate: string) => {
-  const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
-  return due;
-};
 
 function todayTitle() {
   const text = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -503,8 +492,17 @@ const DashboardPage: React.FC = () => {
     }
   }, [refreshLowStock, refreshTopProducts, refreshPayables, canSeeFinance]);
 
+  // "Hoje" no fuso da instalação (padrão America/Sao_Paulo), para as contas e
+  // para a virada do dia. A virada lê o fuso por ref: a chegada de
+  // /config/branding não recria os callbacks nem dispara outra busca.
+  const { timeZone } = useBranding();
+  const timeZoneRef = React.useRef(timeZone);
+  React.useEffect(() => {
+    timeZoneRef.current = timeZone;
+  }, [timeZone]);
+
   const liveDown = React.useRef(false);
-  const day = React.useRef(new Date().toDateString());
+  const day = React.useRef(restaurantTodayKey(new Date(), timeZone));
 
   const refreshLive = React.useCallback(async () => {
     const answered = await Promise.all([refreshCurrent(), refreshOrders(), refreshTables()]);
@@ -519,7 +517,7 @@ const DashboardPage: React.FC = () => {
       return;
     }
 
-    const today = new Date().toDateString();
+    const today = restaurantTodayKey(new Date(), timeZoneRef.current);
     if (liveDown.current || today !== day.current) {
       liveDown.current = false;
       day.current = today;
@@ -537,7 +535,7 @@ const DashboardPage: React.FC = () => {
       if (document.visibilityState !== 'visible') return;
       // A recarga abaixo já cobre a volta do backend e a virada do dia.
       liveDown.current = false;
-      day.current = new Date().toDateString();
+      day.current = restaurantTodayKey(new Date(), timeZoneRef.current);
       void refreshLive();
       refreshOnDemand();
     };
@@ -637,10 +635,12 @@ const DashboardPage: React.FC = () => {
     if (payables.status === 'error') {
       attention.push({ key: 'payables', label: 'Contas vencendo hoje', value: '', unavailable: true });
     } else if (payables.status === 'ready') {
-      const today = startOfToday().getTime();
+      // Mesma regra de PayablesPage: vencimento como data de calendário,
+      // comparado a hoje no fuso da instalação.
+      const today = restaurantTodayKey(new Date(), timeZone);
       const open = payables.data.filter((p) => !p.paid);
-      const dueToday = open.filter((p) => dueDay(p.dueDate).getTime() === today);
-      const overdue = open.filter((p) => dueDay(p.dueDate).getTime() < today);
+      const dueToday = open.filter((p) => dueStatus(p.dueDate, today) === 'today');
+      const overdue = open.filter((p) => dueStatus(p.dueDate, today) === 'overdue');
       if (dueToday.length > 0 || overdue.length > 0) {
         const names = dueToday.map((p) => p.description);
         const detailParts = [];

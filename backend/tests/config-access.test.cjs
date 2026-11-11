@@ -5,6 +5,8 @@ const path = require('node:path');
 
 process.env.SUPABASE_URL = 'https://database.example.invalid';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-only-service-key';
+// Fuso diferente do padrão: a resposta pública deve trazer o da instalação.
+process.env.RESTAURANT_TIMEZONE = 'America/Rio_Branco';
 
 const { configService } = require('../src/services/domain.services');
 const { brandingService } = require('../src/services/branding.service');
@@ -104,7 +106,8 @@ test('public branding stays limited to public identity and ordering fields', asy
   };
   restaurantConfigRepository.getPublic = async () => publicConfig;
   restaurantConfigRepository.get = async () => assert.fail('public branding must not load fiscal configuration');
-  assert.deepEqual(await brandingService.getPublicConfig(), publicConfig);
+  // Além da identidade, só o identificador do fuso da instalação.
+  assert.deepEqual(await brandingService.getPublicConfig(), { ...publicConfig, timeZone: 'America/Rio_Branco' });
 });
 
 test('restaurant config repository never uses wildcard selects', () => {

@@ -1,3 +1,4 @@
+import { RESTAURANT_TIMEZONE } from '../config/timezone';
 import { supabase } from '../lib/supabase';
 import { configService } from './domain.services';
 import { restaurantConfigRepository } from '../repositories/restaurantConfig.repository';
@@ -132,7 +133,10 @@ async function removeStoredFile(url: string | null): Promise<void> {
 
 export const brandingService = {
   async getPublicConfig() {
-    return restaurantConfigRepository.getPublic();
+    // O fuso não é coluna do banco: é o RESTAURANT_TIMEZONE da instalação, já
+    // validado na subida. Vai só o identificador IANA, para o frontend
+    // calcular "hoje" (vencimentos) no mesmo dia que o backend.
+    return { ...(await restaurantConfigRepository.getPublic()), timeZone: RESTAURANT_TIMEZONE };
   },
 
   async upload(kind: BrandingImageKind, file?: BrandingImageFile) {
