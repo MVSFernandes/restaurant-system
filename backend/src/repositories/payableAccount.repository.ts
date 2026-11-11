@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { PayableAccount } from '../types/domain';
+import { Database } from '../types/database';
+import { PayableAccount, PayableAccountListItem } from '../types/domain';
 import { mapSupabaseError } from '../middlewares/errorHandler.middleware';
 import {
   toPayableAccountDomain,
@@ -10,17 +11,34 @@ import { NotFoundError } from '../types/errors';
 
 const TABLE = 'payable_accounts';
 
-export const payableAccountRepository = {
-async findAll(): Promise<PayableAccount[]> {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('*')
-    .order('paid', { ascending: true })
-    .order('due_date', { ascending: true });
+type SupplierSummary = { id: string; name: string };
+type PayableListRow = Database['public']['Tables']['payable_accounts']['Row'] & {
+  supplier: SupplierSummary | SupplierSummary[] | null;
+};
 
-  if (error) throw mapSupabaseError(error, { entity: 'PayableAccount' });
-  return (data ?? []).map(toPayableAccountDomain);
-},
+const supplierFromRelation = (relation: PayableListRow['supplier']): SupplierSummary | null => {
+  const supplier = Array.isArray(relation) ? relation[0] ?? null : relation;
+  return supplier ? { id: supplier.id, name: supplier.name } : null;
+};
+
+export const payableAccountRepository = {
+  /**
+   * Lista todas as contas com o nome do fornecedor vinculado, na mesma consulta
+   * (embed pela FK payable_accounts.supplier_id -> suppliers.id).
+   */
+  async findAll(): Promise<PayableAccountListItem[]> {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*, supplier:suppliers(id,name)')
+      .order('paid', { ascending: true })
+      .order('due_date', { ascending: true });
+
+    if (error) throw mapSupabaseError(error, { entity: 'PayableAccount' });
+    return ((data ?? []) as unknown as PayableListRow[]).map((row) => ({
+      ...toPayableAccountDomain(row),
+      supplier: supplierFromRelation(row.supplier),
+    }));
+  },
 
   async findById(id: string): Promise<PayableAccount | null> {
     const { data, error } = await supabase

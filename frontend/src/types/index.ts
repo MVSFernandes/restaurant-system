@@ -305,8 +305,9 @@ export interface PayableAccount {
   dueDate: string;
   paid: boolean;
   paidAt?: string;
-  supplierId?: string;
-  supplier?: Supplier;
+  supplierId?: string | null;
+  // A listagem traz só o nome do fornecedor vinculado; null quando não há vínculo.
+  supplier?: Pick<Supplier, 'id' | 'name'> | null;
 }
 
 // --- Tipos de Configuração ---
