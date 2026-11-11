@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -9,6 +9,7 @@ import { ROLE_LABELS } from '../../constants/roles';
 import type { Role } from '../../types';
 import {
   Button,
+  CashRegisterIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
@@ -23,10 +24,13 @@ import {
   SidebarExpandIcon,
   StaffIcon,
   StockIcon,
+  TableIcon,
   WaiterIcon,
 } from '../ui';
 
 type NavChild = { label: string; path: string };
+// `path` identifica o item (chave da lista) e é o destino de um link direto.
+// Num grupo, o destaque vem dos filhos, não do prefixo do path.
 type NavItem = {
   label: string;
   path: string;
@@ -42,13 +46,19 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Dashboard', path: '/dashboard', icon: DashboardIcon, roles: ['ADMIN', 'CASHIER', 'FINANCE', 'WAITER'] },
       {
-        label: 'PDV', path: '/pdv', icon: OrderIcon,
+        label: 'Pedidos', path: '/pdv/orders', icon: OrderIcon,
+        roles: ['ADMIN', 'CASHIER'],
+        children: [
+          { label: 'Pedidos', path: '/pdv/orders' },
+          { label: 'Histórico de pedidos', path: '/pdv/orders-history' },
+        ],
+      },
+      { label: 'Mesas', path: '/pdv/tables', icon: TableIcon, roles: ['ADMIN', 'CASHIER'] },
+      {
+        label: 'Caixa', path: '/pdv/cash-register', icon: CashRegisterIcon,
         roles: ['ADMIN', 'CASHIER'],
         children: [
           { label: 'Abertura/Fechamento', path: '/pdv/cash-register' },
-          { label: 'Mesas', path: '/pdv/tables' },
-          { label: 'Pedidos', path: '/pdv/orders' },
-          { label: 'Histórico de pedidos', path: '/pdv/orders-history' },
           { label: 'Fechamentos de caixa', path: '/pdv/cash-closures' },
         ],
       },
@@ -121,16 +131,53 @@ function isInSection(pathname: string, path: string) {
   return pathname === path || pathname.startsWith(path + '/');
 }
 
-function findBreadcrumb(pathname: string): string[] {
-  for (const section of navSections) {
+function isItemActive(pathname: string, item: NavItem) {
+  return item.children
+    ? item.children.some((child) => child.path === pathname)
+    : isInSection(pathname, item.path);
+}
+
+function sectionsForRole(role: Role | undefined): NavSection[] {
+  if (!role) return [];
+  return navSections
+    .map((section) => ({ ...section, items: section.items.filter((item) => item.roles.includes(role)) }))
+    .filter((section) => section.items.length > 0);
+}
+
+// Usa a navegação já filtrada pelo papel: a mesma rota pode aparecer em
+// grupos diferentes (ex.: /menu/products é "Cardápio › Produtos" para ADMIN e
+// "Produtos" para CASHIER).
+function findBreadcrumb(sections: NavSection[], pathname: string): string[] {
+  for (const section of sections) {
     for (const item of section.items) {
       const child = item.children?.find((c) => c.path === pathname);
-      if (child) return [item.label, child.label];
+      if (child) return child.label === item.label ? [item.label] : [item.label, child.label];
       if (!item.children && isInSection(pathname, item.path)) return [item.label];
     }
   }
   return [];
 }
+
+const COLLAPSED_STORAGE_KEY = 'mainLayout.sidebarCollapsed';
+
+function readCollapsed() {
+  try {
+    return window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writeCollapsed(value: boolean) {
+  try {
+    window.localStorage.setItem(COLLAPSED_STORAGE_KEY, String(value));
+  } catch {
+    // Sem armazenamento (aba privada, bloqueio): o menu só não lembra o estado.
+  }
+}
+
+const focusableSelector =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -154,8 +201,10 @@ const NavEntry: React.FC<{
   const { pathname } = useLocation();
   const submenuId = useId();
   const Icon = item.icon;
-  const inSection = isInSection(pathname, item.path);
-  const hasActiveChild = !!item.children?.some((child) => child.path === pathname);
+  // Grupo: destacado quando um filho é a rota atual (o prefixo do path não
+  // serve, ex.: /pdv/orders-history não está "dentro" de /pdv/orders).
+  const inSection = isItemActive(pathname, item);
+  const hasActiveChild = !!item.children && inSection;
 
   const [open, setOpen] = useState(hasActiveChild);
   const [prevHasActiveChild, setPrevHasActiveChild] = useState(hasActiveChild);
@@ -299,12 +348,7 @@ const Sidebar: React.FC<{
     navigate('/login');
   };
 
-  const sections = navSections
-    .map((section) => ({
-      ...section,
-      items: section.items.filter((item) => !!user && item.roles.includes(user.role)),
-    }))
-    .filter((section) => section.items.length > 0);
+  const sections = sectionsForRole(user?.role);
 
   return (
     <>
@@ -419,14 +463,29 @@ const Sidebar: React.FC<{
   );
 };
 
-const Topbar: React.FC<{ onOpenMenu: () => void }> = ({ onOpenMenu }) => {
+const Topbar: React.FC<{
+  onOpenMenu: () => void;
+  menuButtonRef: React.Ref<HTMLButtonElement>;
+  menuOpen: boolean;
+  drawerId: string;
+}> = ({ onOpenMenu, menuButtonRef, menuOpen, drawerId }) => {
   const { pathname } = useLocation();
+  const { user } = useAuth();
   const { displayName } = useBranding();
-  const crumbs = findBreadcrumb(pathname);
+  const crumbs = findBreadcrumb(sectionsForRole(user?.role), pathname);
 
   return (
     <header className="sticky top-0 z-30 flex h-topbar shrink-0 items-center gap-3 border-b border-default bg-surface/95 px-4 backdrop-blur md:px-page">
-      <Button variant="ghost" iconOnly aria-label="Abrir menu" onClick={onOpenMenu} className="-ml-2 md:hidden">
+      <Button
+        ref={menuButtonRef}
+        variant="ghost"
+        iconOnly
+        aria-label="Abrir menu"
+        aria-expanded={menuOpen}
+        aria-controls={drawerId}
+        onClick={onOpenMenu}
+        className="-ml-2 md:hidden"
+      >
         <NavMenuIcon aria-hidden="true" />
       </Button>
 
@@ -462,10 +521,13 @@ const Topbar: React.FC<{ onOpenMenu: () => void }> = ({ onOpenMenu }) => {
 };
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
   const [prevPathname, setPrevPathname] = useState(pathname);
+  const drawerRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerId = useId();
 
   // Fecha o menu do celular a cada troca de rota.
   if (pathname !== prevPathname) {
@@ -473,19 +535,82 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setMobileOpen(false);
   }
 
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    writeCollapsed(next);
+  };
+
+  // Gaveta do celular aberta: o foco entra nela, Tab circula só dentro dela e,
+  // ao fechar (Esc, toque fora, X ou troca de rota), volta ao botão de menu.
   useEffect(() => {
     if (!mobileOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileOpen(false);
+    const menuButton = menuButtonRef.current;
+
+    const drawerEl = drawerRef.current;
+    const focusFirst = () => {
+      if (!drawerEl || drawerEl.contains(document.activeElement)) return;
+      const first = drawerEl.querySelector<HTMLElement>(focusableSelector);
+      (first ?? drawerEl).focus();
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    // No primeiro frame a gaveta ainda está em visibility:hidden (a transição
+    // começa do estado fechado) e o focus() não pega; tenta de novo quando a
+    // transição termina. Sem animação, o primeiro frame já basta.
+    const frame = window.requestAnimationFrame(focusFirst);
+    drawerEl?.addEventListener('transitionend', focusFirst);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileOpen(false);
+        return;
+      }
+      const drawer = drawerRef.current;
+      if (event.key !== 'Tab' || !drawer) return;
+      const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        drawer.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (!drawer.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    // A gaveta só existe abaixo de md: se a janela crescer com ela aberta,
+    // fecha, para o Tab não ficar preso num painel escondido.
+    const desktop = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 768px)') : null;
+    const onDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileOpen(false);
+    };
+    desktop?.addEventListener('change', onDesktop);
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      drawerEl?.removeEventListener('transitionend', focusFirst);
+      document.removeEventListener('keydown', onKeyDown);
+      desktop?.removeEventListener('change', onDesktop);
+      menuButton?.focus();
+    };
   }, [mobileOpen]);
 
   const closeMobile = () => setMobileOpen(false);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-canvas">
+    // h-dvh: no celular, 100vh inclui a barra do navegador e corta o fim da
+    // página; dvh acompanha a área visível. h-screen fica de reserva.
+    <div className="flex h-screen w-full overflow-hidden bg-canvas supports-[height:100dvh]:h-dvh">
       {/* SIDEBAR DESKTOP */}
       <aside
         className={clsx(
@@ -495,7 +620,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       >
         <Sidebar
           collapsed={collapsed}
-          onToggleCollapsed={() => setCollapsed(!collapsed)}
+          onToggleCollapsed={toggleCollapsed}
           onNavigate={closeMobile}
         />
       </aside>
@@ -507,7 +632,13 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
       {/* SIDEBAR MOBILE */}
       <aside
+        ref={drawerRef}
+        id={drawerId}
+        role={mobileOpen ? 'dialog' : undefined}
+        aria-modal={mobileOpen ? true : undefined}
+        aria-label="Menu"
         aria-hidden={!mobileOpen}
+        tabIndex={-1}
         className={clsx(
           'fixed inset-y-0 left-0 z-50 flex w-sidebar max-w-[85vw] flex-col bg-sidebar-bg transition-[transform,visibility] duration-200 md:hidden',
           mobileOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'
@@ -518,7 +649,12 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
       {/* ÁREA DE CONTEÚDO PRINCIPAL COM BARRA DE ROLAGEM PRÓPRIA */}
       <main className="h-full flex-1 overflow-y-auto">
-        <Topbar onOpenMenu={() => setMobileOpen(true)} />
+        <Topbar
+          onOpenMenu={() => setMobileOpen(true)}
+          menuButtonRef={menuButtonRef}
+          menuOpen={mobileOpen}
+          drawerId={drawerId}
+        />
 
         {/* O padding precisa continuar 16px/24px: CreditPage e DesignSystemPage
             usam margem negativa (-m-4 md:-m-6) para sangrar até a borda. */}
