@@ -173,6 +173,12 @@ const NumberRibbon: React.FC<{
         const state = cell.state ?? ribbonState;
         const attention = state === 'ready' && cell.attention;
         const { symbol, amount } = cell.money ? splitCurrency(cell.value) : { symbol: '', amount: cell.value };
+        // Abaixo de lg a linha da legenda só existe onde alguma célula da
+        // mesma linha tem legenda; a célula principal ocupa a linha sozinha.
+        // Do lg em diante a fita é uma linha só e a legenda fica reservada.
+        const rowMates = isLead ? [cell] : lead ? cells.slice(1) : cells;
+        const captionRow = rowMates.some((mate) => mate.caption !== undefined);
+        const rows = captionRow ? 'row-span-3' : 'row-span-2 lg:row-span-3';
 
         const body = (
           <>
@@ -197,16 +203,17 @@ const NumberRibbon: React.FC<{
               </span>
             )}
 
-            <span className="-mt-1 text-caption tabular-nums text-muted">
+            <span className={clsx('-mt-1 text-caption tabular-nums text-muted', !captionRow && 'max-lg:hidden')}>
               {state === 'ready' ? cell.caption : null}
             </span>
           </>
         );
 
-        const cellClass = 'row-span-3 grid grid-rows-subgrid gap-y-3 px-card py-5 lg:px-6 lg:py-6';
+        // Espaçamento justo abaixo de lg, para o que vem depois subir na tela.
+        const cellClass = clsx(rows, 'grid grid-rows-subgrid gap-y-1 px-card py-3 lg:gap-y-3 lg:px-6 lg:py-6');
 
         return (
-          <li key={cell.label} className={clsx('row-span-3 grid grid-rows-subgrid', cellBorder(cells.length, index, lead))}>
+          <li key={cell.label} className={clsx(rows, 'grid grid-rows-subgrid', cellBorder(cells.length, index, lead))}>
             {cell.link ? (
               <Link
                 to={cell.link}
@@ -429,12 +436,19 @@ const TopProducts: React.FC<{ resource: Resource<TopProduct[]> }> = ({ resource 
 
 // O ponto verde afirma "ao vivo": só aparece com o canal conectado e a
 // presença sincronizada. Sem Realtime configurado, o selo não existe.
-const LiveViewers: React.FC<{ viewers: MenuViewers }> = ({ viewers }) =>
+// Abaixo de 390px o selo não cabe ao lado da ação principal e ocupava uma
+// linha só dele: lá a contagem aparece como texto (inline), junto da situação
+// do turno. Só uma das duas formas fica visível em cada largura.
+const LiveViewers: React.FC<{ viewers: MenuViewers; inline?: boolean }> = ({ viewers, inline = false }) =>
   viewers.available ? (
     <span
       role="status"
       aria-live="polite"
-      className="inline-flex h-10 items-center gap-2.5 rounded-full border border-default bg-surface px-4 text-body text-muted"
+      className={
+        inline
+          ? 'flex items-center gap-2 min-[390px]:hidden'
+          : 'inline-flex h-10 items-center gap-2.5 rounded-full border border-default bg-surface px-4 text-body text-muted max-[389px]:hidden'
+      }
     >
       {viewers.count === null ? (
         <span>No cardápio digital: {UNAVAILABLE.toLocaleLowerCase('pt-BR')}</span>
@@ -559,7 +573,9 @@ const DashboardPage: React.FC = () => {
     {
       label: 'Mesas ocupadas',
       value: tables.status === 'ready' ? `${count(occupied)} de ${count(tables.data.length)}` : '',
-      caption: tables.status === 'ready' ? `${formatCurrencyBRL(openOnTables)} em aberto` : undefined,
+      // '' enquanto não há resposta: a linha da legenda fica reservada e a
+      // fita não muda de altura quando o valor chega.
+      caption: tables.status === 'ready' ? `${formatCurrencyBRL(openOnTables)} em aberto` : '',
       link: canOperate ? '/pdv/tables' : undefined,
       state: tables.status,
     },
@@ -679,11 +695,18 @@ const DashboardPage: React.FC = () => {
     <div>
       {/* Empilhado até lg: com a sidebar aberta, data, selo e botão não cabem
           lado a lado e a data quebrava em quatro linhas. !: o sm:flex-row do
-          PageHeader é gerado depois e venceria. */}
+          PageHeader é gerado depois e venceria. No celular o cabeçalho é mais
+          justo (16px abaixo, 8px entre o texto e a ação), para "Precisa de
+          atenção" aparecer sem rolar. */}
       <PageHeader
-        className="max-lg:!flex-col max-lg:!items-stretch"
+        className="max-lg:!flex-col max-lg:!items-stretch max-sm:mb-4 max-sm:gap-2"
         title={todayTitle()}
-        description={description}
+        description={
+          <>
+            {description}
+            <LiveViewers inline viewers={viewers} />
+          </>
+        }
         actions={
           <>
             <LiveViewers viewers={viewers} />
@@ -700,7 +723,7 @@ const DashboardPage: React.FC = () => {
 
       {!shiftClosed && (
         <section className="mt-section" aria-labelledby="dashboard-now">
-          <SectionTitle id="dashboard-now" className="mb-3">Agora</SectionTitle>
+          <SectionTitle id="dashboard-now" className="mb-2 lg:mb-3">Agora</SectionTitle>
           <NumberRibbon state={orders.status} cells={flowCells} />
         </section>
       )}
