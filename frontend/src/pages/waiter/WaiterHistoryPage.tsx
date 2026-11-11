@@ -9,6 +9,10 @@ import { formatCurrencyBRL } from '../../utils/currency';
 const statusLabels = ORDER_STATUS_LABELS;
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
 
+// Sem `status`, a API omite FINISHED e CANCELED; o histórico precisa deles
+// para que o pedido continue visível depois de pago ou cancelado.
+const WAITER_HISTORY_STATUSES = 'NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED';
+
 const WaiterHistoryPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -20,7 +24,7 @@ const WaiterHistoryPage: React.FC = () => {
   const fetchOrders = async () => {
     try {
       const [ordersRes, categoriesRes] = await Promise.all([
-        api.get('/orders?myOrders=true'),
+        api.get('/orders', { params: { myOrders: 'true', status: WAITER_HISTORY_STATUSES } }),
         api.get('/categories?includeProducts=true'),
       ]);
       setOrders(ordersRes.data);
