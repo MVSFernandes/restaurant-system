@@ -15,12 +15,19 @@ import {
   Trash2,
   Filter,
 } from 'lucide-react';
+import { useBranding } from '../../contexts/brandingContext';
+import { calendarDateKey, dueStatus, formatCalendarDate, restaurantTodayKey } from '../../utils/calendarDate';
 import { formatCurrencyBRL } from '../../utils/currency';
 
 type FilterStatus = 'ALL' | 'PENDING' | 'PAID' | 'OVERDUE';
 
 const serverMessage = (error: unknown) =>
   (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+
+// Vencimento como data de calendário, comparado a `today` (AAAA-MM-DD no fuso
+// da instalação). Conta paga nunca está vencida.
+const isOverdue = (today: string, dueDate: string, paid?: boolean) =>
+  !paid && dueStatus(dueDate, today) === 'overdue';
 
 const emptyForm = {
   description: '',
@@ -77,17 +84,9 @@ const PayablesPage: React.FC = () => {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
 
-  const isOverdue = (dueDate: string, paid?: boolean) => {
-    if (paid) return false;
-
-    const today = new Date();
-    const due = new Date(dueDate);
-
-    today.setHours(0, 0, 0, 0);
-    due.setHours(0, 0, 0, 0);
-
-    return due < today;
-  };
+  // "Hoje" no fuso da instalação, padrão America/Sao_Paulo (mesma regra do Dashboard).
+  const { timeZone } = useBranding();
+  const today = restaurantTodayKey(new Date(), timeZone);
 
   const handleOpenModal = (payable?: PayableAccount) => {
     if (payable) {
@@ -95,7 +94,7 @@ const PayablesPage: React.FC = () => {
       setForm({
         description: payable.description || '',
         amount: String(payable.amount ?? ''),
-        dueDate: payable.dueDate ? new Date(payable.dueDate).toISOString().split('T')[0] : '',
+        dueDate: payable.dueDate ? calendarDateKey(payable.dueDate) : '',
         supplierId: payable.supplierId || '',
       });
     } else {
@@ -204,7 +203,7 @@ const PayablesPage: React.FC = () => {
 
   const pending = payables.filter((p) => !p.paid);
   const paid = payables.filter((p) => p.paid);
-  const overdue = payables.filter((p) => isOverdue(p.dueDate, p.paid));
+  const overdue = payables.filter((p) => isOverdue(today, p.dueDate, p.paid));
 
   const totalPending = pending.reduce((acc, item) => acc + Number(item.amount || 0), 0);
   const totalPaid = paid.reduce((acc, item) => acc + Number(item.amount || 0), 0);
@@ -217,7 +216,7 @@ const PayablesPage: React.FC = () => {
       .filter((item) => {
         if (statusFilter === 'PENDING') return !item.paid;
         if (statusFilter === 'PAID') return !!item.paid;
-        if (statusFilter === 'OVERDUE') return isOverdue(item.dueDate, item.paid);
+        if (statusFilter === 'OVERDUE') return isOverdue(today, item.dueDate, item.paid);
         return true;
       })
       .filter((item) => {
@@ -232,11 +231,9 @@ const PayablesPage: React.FC = () => {
         );
       })
       .sort((a, b) => {
-        const dateA = new Date(a.dueDate).getTime();
-        const dateB = new Date(b.dueDate).getTime();
-        return dateA - dateB;
+        return calendarDateKey(a.dueDate).localeCompare(calendarDateKey(b.dueDate));
       });
-  }, [payables, search, statusFilter]);
+  }, [payables, search, statusFilter, today]);
 
   if (loading) {
     return (
@@ -437,7 +434,7 @@ const PayablesPage: React.FC = () => {
               )}
 
               {filteredPayables.map((p) => {
-                const overdueItem = isOverdue(p.dueDate, p.paid);
+                const overdueItem = isOverdue(today, p.dueDate, p.paid);
 
                 return (
                   <tr
@@ -488,7 +485,7 @@ const PayablesPage: React.FC = () => {
                     <td className="px-5 py-4 text-gray-600">
                       <span className="inline-flex items-center gap-1.5">
                         <CalendarDays size={14} />
-                        {new Date(p.dueDate).toLocaleDateString('pt-BR')}
+                        {formatCalendarDate(p.dueDate)}
                       </span>
                     </td>
 

@@ -24,6 +24,7 @@ function requestBranding(force = false): Promise<BrandingIdentity> {
         deliveryFee: data.deliveryFee ?? null,
         enabledPayments: data.enabledPayments || null,
         brandPrimaryColor: data.brandPrimaryColor || null,
+        timeZone: data.timeZone || null,
       }))
       .catch((error) => {
         brandingRequest = null;

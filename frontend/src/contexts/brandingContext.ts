@@ -10,6 +10,8 @@ export interface BrandingIdentity {
   enabledPayments: string | null;
   /** Cor principal (#rrggbb) escolhida pelo ADMIN; null = laranja padrão. */
   brandPrimaryColor: string | null;
+  /** Fuso IANA da instalação (RESTAURANT_TIMEZONE); null = America/Sao_Paulo. */
+  timeZone: string | null;
 }
 
 export interface BrandingContextValue extends BrandingIdentity {
@@ -30,6 +32,7 @@ export const DEFAULT_BRANDING_CONTEXT: BrandingContextValue = {
   deliveryFee: null,
   enabledPayments: null,
   brandPrimaryColor: null,
+  timeZone: null,
   displayName: FALLBACK_NAME,
   loading: false,
   refresh: async () => undefined,
