@@ -19,10 +19,20 @@ const handleError = (res: Response, error: unknown, fallback: string) => {
   return res.status(500).json({ message: fallback });
 };
 
-export const getCurrentCashRegister = async (_req: Request, res: Response) => {
+// O garçom precisa saber se o caixa está aberto para abrir comanda e lançar
+// pedido, e só isso. Lista do que ele recebe (e não do que se esconde): um
+// campo novo no resumo do turno não chega a ele por descuido. Ficam de fora
+// fundo de troco, gaveta, sangrias, faturamento, pagamentos por forma, fiado,
+// contagem de pedidos e notas fiscais.
+export function cashSessionForWaiter(session: { id: string; status: string; openedAt: Date | string }) {
+  return { id: session.id, status: session.status, openedAt: session.openedAt };
+}
+
+export const getCurrentCashRegister = async (req: Request, res: Response) => {
   try {
     const session = await cashRegisterService.getCurrentSession();
-    res.json(session);
+    const isWaiter = (req as any).user?.role === 'WAITER';
+    res.json(session && isWaiter ? cashSessionForWaiter(session) : session);
   } catch (error) {
     handleError(res, error, 'Erro ao buscar caixa atual');
   }

@@ -3,6 +3,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import MainLayout from './MainLayout';
 import AccessDenied from './AccessDenied';
+import { getHomePath } from '../../constants/roles';
 import type { Role } from '../../types';
 
 interface ProtectedRouteProps {
@@ -21,17 +22,20 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, bare = fa
 
   // O Dashboard é o destino de quem volta pelo menu. Com o código já baixado,
   // ele abre mesmo se a conexão cair, mostrando "Não disponível" nos blocos em
-  // vez da tela de erro.
+  // vez da tela de erro. O garçom não tem Dashboard: nada a baixar.
+  const usesDashboard = isAuthenticated && user?.role !== 'WAITER';
   React.useEffect(() => {
-    if (isAuthenticated) void import('../../pages/DashboardPage').catch(() => {});
-  }, [isAuthenticated]);
+    if (usesDashboard) void import('../../pages/DashboardPage').catch(() => {});
+  }, [usesDashboard]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    if (!explainDenial) return <Navigate to="/dashboard" replace />;
+    // Tela inicial do papel, sempre permitida a ele (sem loop): /waiter/tables
+    // para o garçom, /dashboard para os demais.
+    if (!explainDenial) return <Navigate to={getHomePath(user.role)} replace />;
     return (
       <MainLayout>
         <AccessDenied role={user.role} />
