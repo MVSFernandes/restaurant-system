@@ -657,6 +657,14 @@ const DashboardPage: React.FC = () => {
     }
   }
 
+  // Para o financeiro a pendência é o assunto da tela: a lista abre a página
+  // e as contas a pagar abrem a lista. Os outros perfis mantêm a ordem acima.
+  const attentionFirst = role === 'FINANCE';
+  const attentionItems = attentionFirst
+    ? [...attention.filter((item) => item.key === 'payables'), ...attention.filter((item) => item.key !== 'payables')]
+    : attention;
+  const attentionList = <AttentionList items={attentionItems} sources={attentionSources} />;
+
   const description =
     current.status === 'ready' ? (
       session ? (
@@ -715,6 +723,8 @@ const DashboardPage: React.FC = () => {
         }
       />
 
+      {attentionFirst && <div className="mb-section">{attentionList}</div>}
+
       {shiftClosed ? (
         <ShiftClosed />
       ) : (
@@ -731,12 +741,23 @@ const DashboardPage: React.FC = () => {
       {/* "Precisa de atenção" vem antes no código para ficar acima no celular
           (ordem de urgência); no desktop vai para a coluna da direita.
           grid-cols-1: sem coluna declarada, um texto sem quebra alargava os
-          cartões além da tela no celular. */}
-      <div className="mt-section grid grid-cols-1 items-start gap-section lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="lg:col-start-2 lg:row-start-1">
-          <AttentionList items={attention} sources={attentionSources} />
-        </div>
-        <div className="space-y-section lg:col-start-1 lg:row-start-1">
+          cartões além da tela no celular.
+          Para o financeiro a lista já abriu a página (acima): aqui sobram os
+          cartões do turno, lado a lado no desktop quando há os dois. */}
+      <div
+        className={clsx(
+          'mt-section grid grid-cols-1 items-start gap-section',
+          !attentionFirst && 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'
+        )}
+      >
+        {!attentionFirst && <div className="lg:col-start-2 lg:row-start-1">{attentionList}</div>}
+        <div
+          className={
+            attentionFirst
+              ? clsx('grid grid-cols-1 items-start gap-section', !shiftClosed && 'lg:grid-cols-2')
+              : 'space-y-section lg:col-start-1 lg:row-start-1'
+          }
+        >
           {!shiftClosed &&
             (current.status === 'loading' ? (
               <Card>
