@@ -248,6 +248,11 @@ export interface PayableAccount {
   updatedAt: Date;
 }
 
+/** Item da listagem de contas a pagar: a conta e só o nome do fornecedor vinculado. */
+export interface PayableAccountListItem extends PayableAccount {
+  supplier: { id: string; name: string } | null;
+}
+
 // ============================================================================
 // TABLES (mesas do restaurante)
 // ============================================================================

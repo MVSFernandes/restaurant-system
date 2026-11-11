@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { payableAccountRepository } from '../repositories/payableAccount.repository';
-import { PayableAccount } from '../types/domain';
+import { PayableAccount, PayableAccountListItem } from '../types/domain';
 import { NotFoundError } from '../types/errors';
 import { dayRangeUtc, subtractCalendarPeriodUtc } from '../utils/datetime';
 
@@ -53,7 +53,7 @@ export function periodToDates(
 export const financeService = {
   // ---- PAYABLE ACCOUNTS ----
 
-  async listPayables(): Promise<PayableAccount[]> {
+  async listPayables(): Promise<PayableAccountListItem[]> {
     return payableAccountRepository.findAll();
   },
 
