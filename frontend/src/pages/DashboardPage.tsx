@@ -11,6 +11,7 @@ import {
   buttonClasses,
   Card,
   CashClosedIcon,
+  CashRegisterIcon,
   ChevronRightIcon,
   OrderIcon,
   PageHeader,
@@ -88,13 +89,28 @@ function todayTitle() {
   return text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1);
 }
 
-function shiftDescription(session: CashRegisterSession) {
+/** Complemento de "Turno aberto": quando e por quem. */
+function shiftOpening(session: CashRegisterSession) {
   const opened = new Date(session.openedAt);
   const time = opened.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const sameDay = opened.toDateString() === new Date().toDateString();
   const when = sameDay ? `às ${time}` : `em ${opened.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${time}`;
-  return `Turno aberto ${when} por ${session.openedBy?.name || 'responsável não registrado'}.`;
+  return `${when} por ${session.openedBy?.name || 'responsável não registrado'}.`;
 }
+
+// Estado do caixa no cabeçalho. O ponto colorido só reforça o texto, que já
+// diz o estado. Sem resposta de /cash-register/current não há ponto nem
+// afirmação: o estado fica indeterminado.
+const ShiftStatus: React.FC<{ open: boolean; children: React.ReactNode; detail?: string }> = ({ open, children, detail }) => (
+  <>
+    <span
+      aria-hidden="true"
+      className={clsx('mr-2 inline-block h-2 w-2 rounded-full align-middle', open ? 'bg-success' : 'bg-fill-neutral ring-1 ring-inset ring-[rgb(var(--color-border-strong))]')}
+    />
+    <span className="font-semibold text-default">{children}</span>
+    {detail && ` ${detail}`}
+  </>
+);
 
 function splitCurrency(formatted: string) {
   const match = formatted.match(/^(R\$)\s(.+)$/);
@@ -218,22 +234,16 @@ const SectionTitle: React.FC<{ children: React.ReactNode; className?: string; id
 
 const Unavailable: React.FC = () => <p className="text-body text-muted">{UNAVAILABLE}</p>;
 
-const ShiftClosed: React.FC<{ canOpen: boolean }> = ({ canOpen }) => (
-  <Card className="flex flex-col gap-4 sm:flex-row sm:items-center">
+// O estado ("Nenhum turno aberto") e a ação ("Abrir caixa") ficam no cabeçalho;
+// aqui só se explica o que vai ocupar este espaço.
+const ShiftClosed: React.FC = () => (
+  <Card className="flex items-center gap-4">
     <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-token-lg bg-surface-sunken text-muted">
       <CashClosedIcon size={22} strokeWidth={1.75} aria-hidden="true" />
     </span>
-    <div className="flex-1">
-      <SectionTitle>Nenhum turno aberto</SectionTitle>
-      <p className="mt-1 text-body text-muted">
-        Faturamento, pedidos em andamento e pagamentos aparecem aqui quando o caixa for aberto.
-      </p>
-    </div>
-    {canOpen && (
-      <Link to="/pdv/cash-register" className={buttonClasses({ variant: 'secondary' })}>
-        Abrir caixa
-      </Link>
-    )}
+    <p className="min-w-0 flex-1 text-body text-muted">
+      Faturamento, pedidos em andamento e pagamentos aparecem aqui quando o caixa for aberto.
+    </p>
   </Card>
 );
 
@@ -334,18 +344,21 @@ const AttentionList: React.FC<{ items: AttentionItem[]; sources: AttentionSource
       <ul className="mt-2 divide-y divide-default">
         {items.map((item) => (
           <li key={item.key} className="py-3.5">
+            {/* O rótulo quebra de linha; o valor nunca encolhe nem quebra. */}
             <div className="flex items-baseline justify-between gap-4">
-              <span className="text-body text-default">{item.label}</span>
+              <span className="min-w-0 text-body text-default">{item.label}</span>
               {item.unavailable ? (
-                <span className="text-body text-muted">{UNAVAILABLE}</span>
+                <span className="shrink-0 whitespace-nowrap text-body text-muted">{UNAVAILABLE}</span>
               ) : (
-                <span className="flex items-center gap-2 text-body font-semibold tabular-nums text-warning-strong">
+                <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-body font-semibold tabular-nums text-warning-strong">
                   <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-warning" />
                   {item.value}
                 </span>
               )}
             </div>
-            {item.detail && <p className="mt-1 truncate text-caption text-muted">{item.detail}</p>}
+            {/* Duas linhas antes das reticências: a contagem de contas atrasadas
+                vem no fim do texto e sumia com uma linha só. */}
+            {item.detail && <p className="mt-1 line-clamp-2 text-caption text-muted">{item.detail}</p>}
             {item.link && (
               <Link
                 to={item.link.to}
@@ -361,6 +374,9 @@ const AttentionList: React.FC<{ items: AttentionItem[]; sources: AttentionSource
     )}
   </Card>
 );
+
+// !: o px-4 das células da Table é gerado depois e venceria.
+const TOP_PRODUCTS_CELL = 'max-sm:!px-2.5';
 
 const TopProducts: React.FC<{ resource: Resource<TopProduct[]> }> = ({ resource }) => (
   <Card>
@@ -378,21 +394,30 @@ const TopProducts: React.FC<{ resource: Resource<TopProduct[]> }> = ({ resource 
       ) : (
         <Table>
           <TableHeader>
+            {/* No celular as células ficam mais justas e "Quantidade" abrevia,
+                para a Receita caber inteira; o nome do produto quebra de linha. */}
             <TableRow>
-              <TableHead>Produto</TableHead>
-              <TableHead numeric>Quantidade</TableHead>
-              <TableHead numeric>Receita</TableHead>
+              <TableHead className={TOP_PRODUCTS_CELL}>Produto</TableHead>
+              <TableHead numeric className={TOP_PRODUCTS_CELL}>
+                <span aria-hidden="true" className="sm:hidden">Qtd.</span>
+                <span className="max-sm:sr-only">Quantidade</span>
+              </TableHead>
+              <TableHead numeric className={TOP_PRODUCTS_CELL}>Receita</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {resource.data.slice(0, 5).map((product, index) => (
               <TableRow key={`${product.name}-${index}`}>
-                <TableCell>
-                  <span className="mr-3 inline-block w-4 tabular-nums text-muted">{index + 1}</span>
-                  {product.name}
+                <TableCell className={TOP_PRODUCTS_CELL}>
+                  <span className="flex gap-3 max-sm:gap-2">
+                    <span className="w-4 shrink-0 tabular-nums text-muted">{index + 1}</span>
+                    <span className="min-w-0">{product.name}</span>
+                  </span>
                 </TableCell>
-                <TableCell numeric>{count(Number(product.quantity || 0))}</TableCell>
-                <TableCell numeric>{formatCurrencyBRL(Number(product.revenue || 0))}</TableCell>
+                <TableCell numeric className={TOP_PRODUCTS_CELL}>{count(Number(product.quantity || 0))}</TableCell>
+                <TableCell numeric className={clsx(TOP_PRODUCTS_CELL, 'whitespace-nowrap')}>
+                  {formatCurrencyBRL(Number(product.revenue || 0))}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -617,34 +642,58 @@ const DashboardPage: React.FC = () => {
   }
 
   const description =
-    current.status === 'ready'
-      ? session
-        ? shiftDescription(session)
-        : 'Nenhum turno aberto.'
-      : current.status === 'error'
-        ? 'Situação do turno não disponível.'
-        : 'Resumo do turno.';
+    current.status === 'ready' ? (
+      session ? (
+        <ShiftStatus open detail={shiftOpening(session)}>Turno aberto</ShiftStatus>
+      ) : (
+        <ShiftStatus open={false}>Nenhum turno aberto.</ShiftStatus>
+      )
+    ) : current.status === 'error' ? (
+      'Situação do turno não disponível.'
+    ) : (
+      'Resumo do turno.'
+    );
+
+  // Ação principal de quem opera o caixa, conforme o estado confirmado.
+  // Com o caixa fechado, "Novo pedido" levaria a uma tela que pede para abrir
+  // o caixa: a ação é abrir. Sem resposta, nenhuma ação é afirmada; durante o
+  // carregamento o espaço fica reservado, para o selo não pular.
+  // No celular e no tablet (cabeçalho empilhado) a ação vem antes do selo; no
+  // desktop ela fecha a linha, à direita.
+  const actionClass = 'order-first lg:order-none';
+  const primaryAction = !canOperate ? null : current.status === 'loading' ? (
+    <Skeleton className={clsx('h-10 w-36', actionClass)} />
+  ) : session ? (
+    <Link to="/pdv/orders" className={buttonClasses({ className: actionClass })}>
+      <OrderIcon aria-hidden="true" />
+      Novo pedido
+    </Link>
+  ) : shiftClosed ? (
+    <Link to="/pdv/cash-register" className={buttonClasses({ className: actionClass })}>
+      <CashRegisterIcon aria-hidden="true" />
+      Abrir caixa
+    </Link>
+  ) : null;
 
   return (
     <div>
+      {/* Empilhado até lg: com a sidebar aberta, data, selo e botão não cabem
+          lado a lado e a data quebrava em quatro linhas. !: o sm:flex-row do
+          PageHeader é gerado depois e venceria. */}
       <PageHeader
+        className="max-lg:!flex-col max-lg:!items-stretch"
         title={todayTitle()}
         description={description}
         actions={
           <>
             <LiveViewers viewers={viewers} />
-            {canOperate && (
-              <Link to="/pdv/orders" className={buttonClasses()}>
-                <OrderIcon aria-hidden="true" />
-                Novo pedido
-              </Link>
-            )}
+            {primaryAction}
           </>
         }
       />
 
       {shiftClosed ? (
-        <ShiftClosed canOpen={canOperate} />
+        <ShiftClosed />
       ) : (
         <NumberRibbon lead state={current.status} cells={shiftCells} />
       )}
@@ -657,8 +706,10 @@ const DashboardPage: React.FC = () => {
       )}
 
       {/* "Precisa de atenção" vem antes no código para ficar acima no celular
-          (ordem de urgência); no desktop vai para a coluna da direita. */}
-      <div className="mt-section grid items-start gap-section lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          (ordem de urgência); no desktop vai para a coluna da direita.
+          grid-cols-1: sem coluna declarada, um texto sem quebra alargava os
+          cartões além da tela no celular. */}
+      <div className="mt-section grid grid-cols-1 items-start gap-section lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="lg:col-start-2 lg:row-start-1">
           <AttentionList items={attention} sources={attentionSources} />
         </div>
