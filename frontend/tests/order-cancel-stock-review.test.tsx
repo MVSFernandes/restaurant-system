@@ -74,3 +74,20 @@ describe('waiter cancel of an order that needs a stock review', () => {
     await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(STOCK_REVIEW_REQUIRED_MESSAGE));
   });
 });
+
+describe('waiter history item line', () => {
+  it('shows item.price as the line total without multiplying by the quantity', async () => {
+    const lineOrder = {
+      ...order, id: 'line-order', total: 65,
+      items: [{ id: 'item-1', productId: 'p1', quantity: 2, price: 65, product: { id: 'p1', name: 'Picanha' } }],
+    };
+    mocks.get.mockImplementation(async (url: string) => ({ data: url.startsWith('/orders') ? [lineOrder] : [] }));
+    render(<WaiterHistoryPage />);
+    const line = (await screen.findByText('2x Picanha')).parentElement as HTMLElement;
+    expect(line.textContent).toContain('2x Picanha');
+    expect(line.textContent?.replace(/\s/g, ' ')).toContain('R$ 65,00');
+    expect(line.textContent?.replace(/\s/g, ' ')).not.toContain('R$ 130,00');
+    const totalRow = screen.getByText('Total').parentElement as HTMLElement;
+    expect(totalRow.textContent?.replace(/\s/g, ' ')).toContain('R$ 65,00');
+  });
+});
