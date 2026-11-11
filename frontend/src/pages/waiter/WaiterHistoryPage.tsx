@@ -94,7 +94,7 @@ const WaiterHistoryPage: React.FC = () => {
               {order.items.map((item) => (
                 <div key={item.id} className="flex justify-between text-sm text-gray-600">
                   <span>{item.quantity}x {item.product?.name}</span>
-                  <span>{formatCurrencyBRL(item.price * item.quantity)}</span>
+                  <span>{formatCurrencyBRL(item.price)}</span>
                 </div>
               ))}
             </div>
