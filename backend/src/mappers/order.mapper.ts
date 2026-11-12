@@ -34,6 +34,9 @@ export function toOrderDomain(row: OrderRow): Order {
     deliveryPhone: row.delivery_phone,
     deliveryNotes: row.delivery_notes,
     promisedAt: row.promised_at ? new Date(row.promised_at) : null,
+    deliveredAt: row.delivered_at ? new Date(row.delivered_at) : null,
+    // NULL (pedido anterior à migration) ou coluna ausente viram false.
+    deliveryTracked: row.delivery_tracked === true,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -41,6 +44,8 @@ export function toOrderDomain(row: OrderRow): Order {
 
 // promised_at fica fora do insert e do update: quem grava é o banco, na
 // inserção (create_order_with_stock), e o valor não muda depois.
+// delivered_at também: só confirm_order_delivery grava, uma única vez.
+// delivery_tracked também: create_order_with_stock grava true na inserção.
 
 export function toOrderInsert(domain: Order): OrderInsert {
   return {

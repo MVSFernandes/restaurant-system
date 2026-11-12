@@ -681,6 +681,8 @@ export type Database = {
           delivery_reference: string | null
           delivery_street: string | null
           delivery_type: string | null
+          delivered_at: string | null
+          delivery_tracked: boolean | null
           id: string
           idempotency_key: string | null
           promised_at: string | null
@@ -707,6 +709,8 @@ export type Database = {
           delivery_reference?: string | null
           delivery_street?: string | null
           delivery_type?: string | null
+          delivered_at?: string | null
+          delivery_tracked?: boolean | null
           id: string
           idempotency_key?: string | null
           promised_at?: string | null
@@ -733,6 +737,8 @@ export type Database = {
           delivery_reference?: string | null
           delivery_street?: string | null
           delivery_type?: string | null
+          delivered_at?: string | null
+          delivery_tracked?: boolean | null
           id?: string
           idempotency_key?: string | null
           promised_at?: string | null
@@ -1331,6 +1337,7 @@ export type Database = {
         }
         Returns: Json
       }
+      confirm_order_delivery: { Args: { p_order_id: string }; Returns: Json }
       consume_order_stock: { Args: { p_items: Json }; Returns: Json }
       consume_stock_for_order: {
         Args: { p_items: Json; p_order_id: string; p_reason: string }

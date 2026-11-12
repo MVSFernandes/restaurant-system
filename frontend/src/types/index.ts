@@ -165,6 +165,10 @@ export interface Order {
   updatedAt: string;
   /** Prazo fixado na criação (ISO). null = sem prazo; ausente no cardápio público. */
   promisedAt?: string | null;
+  /** Primeira confirmação explícita de entrega (ISO). null = não confirmada. */
+  deliveredAt?: string | null;
+  /** true = pedido criado depois do registro de entregas; false = anterior. */
+  deliveryTracked?: boolean;
 
   tableId?: string;
   table?: Table;

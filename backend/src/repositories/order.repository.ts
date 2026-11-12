@@ -289,6 +289,27 @@ export const orderRepository = {
   },
 
   /**
+   * Registra a confirmação explícita de entrega, com o pedido travado no
+   * banco. Grava delivered_at (relógio do banco) só na primeira vez; repetir
+   * devolve o pedido como está. NEW/IN_PROGRESS/READY passam a DELIVERED;
+   * FINISHED continua FINISHED, se delivery_tracked (senão
+   * ORDER_DELIVERY_NOT_TRACKED). Pagamentos e estoque não mudam. Cancelado é
+   * recusado (ORDER_DELIVERY_CANCELED).
+   */
+  async confirmDelivery(orderId: string): Promise<{ order: Order; alreadyDelivered: boolean }> {
+    const { data, error } = await supabase.rpc('confirm_order_delivery', { p_order_id: orderId });
+    if (error) throw mapSupabaseError(error, { entity: 'Order' });
+    const result = data as unknown as {
+      order: Database['public']['Tables']['orders']['Row'];
+      already_delivered: boolean;
+    };
+    return {
+      order: toOrderDomain(result.order),
+      alreadyDelivered: Boolean(result.already_delivered),
+    };
+  },
+
+  /**
    * Troca os itens de um pedido NEW numa única transação: devolve o saldo do
    * livro, substitui os itens, baixa o estoque dos novos e aplica o patch
    * (total, taxa e dados de entrega). Qualquer falha não altera nada.
