@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { createApiRateLimiter } from './middlewares/rateLimit.middleware';
 import routes from './routes';
+import { SERVER_TIME_HEADER } from './utils/serverTime';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -21,7 +22,7 @@ const allowedOrigins = () =>
 app.use(cors({
   origin: (origin, callback) => callback(null, !!origin && allowedOrigins().includes(origin)),
   credentials: true,
-  exposedHeaders: ['Retry-After', 'RateLimit-Reset', 'X-RateLimit-Scope'],
+  exposedHeaders: ['Retry-After', 'RateLimit-Reset', 'X-RateLimit-Scope', SERVER_TIME_HEADER],
 }));
 
 app.use(express.json());

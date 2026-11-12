@@ -16,6 +16,7 @@ import { paymentRepository } from '../repositories/payment.repository';
 import { orderHistoryRepository, OrderHistoryFilters } from '../repositories/orderHistory.repository';
 import type { Order, Payment } from '../types/domain';
 import type { DetailedSessionOrder } from '../repositories/order.repository';
+import { setServerTimeHeader } from '../utils/serverTime';
 
 type IdempotencyResult = {
   status: number;
@@ -174,7 +175,10 @@ export const getOrders = async (req: Request, res: Response) => {
     const user = (req as any).user;
 
     const session = await cashRegisterRepository.findOpenSession();
-    if (!session) return res.json([]);
+    if (!session) {
+      setServerTimeHeader(res);
+      return res.json([]);
+    }
 
     const detailedOrders = filterDetailedOrdersForList(
       await orderRepository.findDetailedBySession(session.id, {
@@ -199,6 +203,8 @@ export const getOrders = async (req: Request, res: Response) => {
       console.error('ORDER PAYMENT ENRICHMENT ERROR:', error);
     }
 
+    // Lido depois das consultas, o mais perto possível do envio.
+    setServerTimeHeader(res);
     res.json(
       detailedOrders.map(({ order, items }) => ({
         ...order,
