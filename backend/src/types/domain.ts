@@ -376,6 +376,11 @@ export interface Order {
   deliveryReference: string | null;
   deliveryPhone: string | null;
   deliveryNotes: string | null;
+  /**
+   * Prazo prometido, gravado pelo banco na inserção (created_at + minutos
+   * configurados para o tipo naquele momento). null = sem prazo.
+   */
+  promisedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -459,5 +464,7 @@ export interface RestaurantConfig {
   nfceGroupedItemDescription: string;
   /** Cor principal da marca (#rrggbb). null = paleta padrão (Etapa 1B.7). */
   brandPrimaryColor: string | null;
+  /** Minutos prometidos por tipo de pedido. null = tipo sem prazo (padrão). */
+  orderPromiseMinutes: Record<OrderType, number | null>;
   updatedAt: Date;
 }

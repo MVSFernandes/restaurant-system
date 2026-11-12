@@ -1,8 +1,20 @@
-import { RestaurantConfig } from '../types/domain';
+import { OrderType, RestaurantConfig } from '../types/domain';
 
 type ConfigRow = Record<string, any>;
 type ConfigInsert = Record<string, any>;
 type ConfigUpdate = Record<string, any>;
+
+/** Patch da configuração: orderPromiseMinutes muda só os tipos enviados. */
+export type RestaurantConfigPatch = Omit<Partial<RestaurantConfig>, 'orderPromiseMinutes'> & {
+  orderPromiseMinutes?: Partial<Record<OrderType, number | null>>;
+};
+
+/** Coluna de restaurant_config com os minutos prometidos de cada tipo. */
+const PROMISE_MINUTES_COLUMN: Record<OrderType, string> = {
+  DINE_IN: 'dine_in_promise_minutes',
+  TAKE_AWAY: 'take_away_promise_minutes',
+  DELIVERY: 'delivery_promise_minutes',
+};
 
 export type OperationalRestaurantConfig = Pick<
   RestaurantConfig,
@@ -77,6 +89,11 @@ export function toRestaurantConfigDomain(row: ConfigRow): RestaurantConfig {
     nfceGroupItems: row.nfce_group_items ?? false,
     nfceGroupedItemDescription: row.nfce_grouped_item_description ?? 'REFEICAO',
     brandPrimaryColor: row.brand_primary_color ?? null,
+    orderPromiseMinutes: {
+      DINE_IN: row.dine_in_promise_minutes ?? null,
+      TAKE_AWAY: row.take_away_promise_minutes ?? null,
+      DELIVERY: row.delivery_promise_minutes ?? null,
+    },
     updatedAt: new Date(row.updated_at),
   };
 }
@@ -114,10 +131,13 @@ export function toRestaurantConfigInsert(domain: RestaurantConfig): ConfigInsert
     nfce_group_items: domain.nfceGroupItems,
     nfce_grouped_item_description: domain.nfceGroupedItemDescription,
     brand_primary_color: domain.brandPrimaryColor,
+    dine_in_promise_minutes: domain.orderPromiseMinutes.DINE_IN,
+    take_away_promise_minutes: domain.orderPromiseMinutes.TAKE_AWAY,
+    delivery_promise_minutes: domain.orderPromiseMinutes.DELIVERY,
   };
 }
 
-export function toRestaurantConfigUpdate(patch: Partial<RestaurantConfig>): ConfigUpdate {
+export function toRestaurantConfigUpdate(patch: RestaurantConfigPatch): ConfigUpdate {
   const update: ConfigUpdate = {};
   if (patch.name !== undefined) update.name = patch.name;
   if (patch.address !== undefined) update.address = patch.address;
@@ -153,5 +173,10 @@ export function toRestaurantConfigUpdate(patch: Partial<RestaurantConfig>): Conf
   // undefined = campo omitido no PUT: a cor salva fica como está.
   // null = voltar à paleta padrão.
   if (patch.brandPrimaryColor !== undefined) update.brand_primary_color = patch.brandPrimaryColor;
+  // Só os tipos enviados mudam; null deixa o tipo sem prazo.
+  for (const [type, column] of Object.entries(PROMISE_MINUTES_COLUMN) as [OrderType, string][]) {
+    const minutes = patch.orderPromiseMinutes?.[type];
+    if (minutes !== undefined) update[column] = minutes;
+  }
   return update;
 }

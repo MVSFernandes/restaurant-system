@@ -58,7 +58,7 @@ export const updateConfig = async (req: Request, res: Response) => {
       fiscalNeighborhood, fiscalCity, fiscalState,
       defaultCfop, defaultNcm, defaultOrigin, defaultTaxCode,
       nfceEnabled, nfceGroupItems, nfceGroupedItemDescription,
-      brandPrimaryColor,
+      brandPrimaryColor, orderPromiseMinutes,
     } = req.body;
 
     const config = await configService.update({
@@ -92,6 +92,8 @@ export const updateConfig = async (req: Request, res: Response) => {
       nfceGroupedItemDescription,
       // Omitido fica undefined (preserva a cor salva); null volta ao padrão.
       brandPrimaryColor,
+      // Omitido preserva; null limpa todos; objeto muda só os tipos enviados.
+      orderPromiseMinutes,
     });
     res.json(config);
   } catch (error) {

@@ -307,7 +307,9 @@ export const createPublicOrder = async (req: Request, res: Response) => {
     void notifyStockChanged();
     void notifyOrderChanged(ORDER_EVENTS.created, order);
     notifyTableTabForOrder(order);
-    return { status: 201, body: await getCreatedOrderBody(order) };
+    // O prazo é operacional: ainda não é anunciado ao cliente do cardápio.
+    const { promisedAt: _promisedAt, ...publicBody } = await getCreatedOrderBody(order);
+    return { status: 201, body: publicBody };
   }, 'Erro ao criar pedido público');
 };
 

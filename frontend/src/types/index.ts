@@ -163,6 +163,8 @@ export interface Order {
   total: number;
   createdAt: string;
   updatedAt: string;
+  /** Prazo fixado na criação (ISO). null = sem prazo; ausente no cardápio público. */
+  promisedAt?: string | null;
 
   tableId?: string;
   table?: Table;
@@ -344,6 +346,8 @@ export interface RestaurantConfig {
   nfceGroupedItemDescription?: string;
   /** Cor principal (#rrggbb). null = laranja padrão (Etapa 1B.7). */
   brandPrimaryColor?: string | null;
+  /** Minutos prometidos por tipo de pedido. null = tipo sem prazo. Só para ADMIN. */
+  orderPromiseMinutes?: Record<OrderType, number | null>;
 }
 
 export type MarmitaGroup = 'GUARNICAO' | 'CARNE' | 'EXTRA';

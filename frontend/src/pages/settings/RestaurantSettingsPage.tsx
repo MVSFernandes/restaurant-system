@@ -12,7 +12,14 @@ import {
   Input,
   useToast,
 } from '../../components/ui';
+import { ORDER_TYPE_LABELS } from '../../constants/orders';
 import { useBranding } from '../../contexts/brandingContext';
+import {
+  EMPTY_ORDER_PROMISE_MINUTES,
+  ORDER_PROMISE_TYPES,
+  parsePromiseMinutesInput,
+  promiseMinutesError,
+} from '../../lib/orderPromise';
 import api from '../../services/api';
 import type { RestaurantConfig } from '../../types';
 import { brandColorError } from '../../theme/brandColorForm';
@@ -23,8 +30,18 @@ import { useSettingsForm, type SettingsFieldErrors } from './useSettingsForm';
 type BrandingKind = 'logo' | 'banner';
 
 const validateRestaurantSettings = (config: Partial<RestaurantConfig>): SettingsFieldErrors => {
+  const errors: SettingsFieldErrors = {};
   const colorError = brandColorError(config.brandPrimaryColor);
-  return colorError ? { brandPrimaryColor: colorError } : {};
+  if (colorError) errors.brandPrimaryColor = colorError;
+  const invalidPromiseType = ORDER_PROMISE_TYPES.find((type) =>
+    promiseMinutesError(config.orderPromiseMinutes?.[type])
+  );
+  if (invalidPromiseType) {
+    errors.orderPromiseMinutes = `${ORDER_TYPE_LABELS[invalidPromiseType]}: ${promiseMinutesError(
+      config.orderPromiseMinutes?.[invalidPromiseType]
+    )}`;
+  }
+  return errors;
 };
 
 const RestaurantSettingsPage = () => {
@@ -174,6 +191,51 @@ const RestaurantSettingsPage = () => {
                 min={0}
               />
             </Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Prazo dos pedidos</CardTitle>
+            <CardDescription>
+              Minutos prometidos para cada tipo, contados a partir da criação do pedido. Vale só para pedidos
+              criados depois de salvar. Deixe vazio para o tipo ficar sem prazo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Foco do "Revise os campos destacados" quando algum tipo está inválido. */}
+            <fieldset id="settings-orderPromiseMinutes" tabIndex={-1} className="grid gap-4 outline-none md:grid-cols-3">
+              <legend className="sr-only">Prazo em minutos por tipo de pedido</legend>
+              {ORDER_PROMISE_TYPES.map((type) => {
+                const minutes = config.orderPromiseMinutes?.[type] ?? null;
+                return (
+                  <Field
+                    key={type}
+                    id={`settings-orderPromiseMinutes-${type}`}
+                    label={ORDER_TYPE_LABELS[type]}
+                    hint="Vazio: sem prazo."
+                    error={promiseMinutesError(minutes)}
+                  >
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      value={minutes === null ? '' : String(minutes)}
+                      disabled={loading || saving}
+                      rightAdornment={<span className="text-caption text-muted">min</span>}
+                      onChange={(event) =>
+                        updateConfigField('orderPromiseMinutes', {
+                          ...EMPTY_ORDER_PROMISE_MINUTES,
+                          ...config.orderPromiseMinutes,
+                          [type]: parsePromiseMinutesInput(event.target.value),
+                        })
+                      }
+                    />
+                  </Field>
+                );
+              })}
+            </fieldset>
           </CardContent>
         </Card>
 

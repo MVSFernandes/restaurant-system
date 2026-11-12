@@ -683,6 +683,7 @@ export type Database = {
           delivery_type: string | null
           id: string
           idempotency_key: string | null
+          promised_at: string | null
           source: string
           status: string
           table_id: string | null
@@ -708,6 +709,7 @@ export type Database = {
           delivery_type?: string | null
           id: string
           idempotency_key?: string | null
+          promised_at?: string | null
           source?: string
           status?: string
           table_id?: string | null
@@ -733,6 +735,7 @@ export type Database = {
           delivery_type?: string | null
           id?: string
           idempotency_key?: string | null
+          promised_at?: string | null
           source?: string
           status?: string
           table_id?: string | null
@@ -979,6 +982,8 @@ export type Database = {
           default_origin: string | null
           default_tax_code: string | null
           delivery_fee: number | null
+          delivery_promise_minutes: number | null
+          dine_in_promise_minutes: number | null
           enabled_payments: string | null
           fiscal_city: string | null
           fiscal_city_ibge_code: string | null
@@ -999,6 +1004,7 @@ export type Database = {
           phone: string | null
           rural_delivery_fee: number | null
           state_registration: string | null
+          take_away_promise_minutes: number | null
           tax_regime: string | null
           updated_at: string
           urban_delivery_fee: number | null
@@ -1013,6 +1019,8 @@ export type Database = {
           default_origin?: string | null
           default_tax_code?: string | null
           delivery_fee?: number | null
+          delivery_promise_minutes?: number | null
+          dine_in_promise_minutes?: number | null
           enabled_payments?: string | null
           fiscal_city?: string | null
           fiscal_city_ibge_code?: string | null
@@ -1033,6 +1041,7 @@ export type Database = {
           phone?: string | null
           rural_delivery_fee?: number | null
           state_registration?: string | null
+          take_away_promise_minutes?: number | null
           tax_regime?: string | null
           updated_at?: string
           urban_delivery_fee?: number | null
@@ -1047,6 +1056,8 @@ export type Database = {
           default_origin?: string | null
           default_tax_code?: string | null
           delivery_fee?: number | null
+          delivery_promise_minutes?: number | null
+          dine_in_promise_minutes?: number | null
           enabled_payments?: string | null
           fiscal_city?: string | null
           fiscal_city_ibge_code?: string | null
@@ -1067,6 +1078,7 @@ export type Database = {
           phone?: string | null
           rural_delivery_fee?: number | null
           state_registration?: string | null
+          take_away_promise_minutes?: number | null
           tax_regime?: string | null
           updated_at?: string
           urban_delivery_fee?: number | null
