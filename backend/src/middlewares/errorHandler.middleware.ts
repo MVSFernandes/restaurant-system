@@ -113,6 +113,18 @@ export function mapSupabaseError(
         { code: 'ORDER_CANCEL_PRECONDITION_FAILED', status: 409, details: { currentStatus: details } }
       );
     }
+    if (message.includes('ORDER_DELIVERY_CANCELED')) {
+      return new DomainError(
+        'Pedido cancelado não pode ter a entrega confirmada.',
+        { code: 'ORDER_DELIVERY_CANCELED', status: 409 }
+      );
+    }
+    if (message.includes('ORDER_DELIVERY_NOT_TRACKED')) {
+      return new DomainError(
+        'Este pedido foi finalizado antes do registro de entregas; a entrega não pode ser confirmada.',
+        { code: 'ORDER_DELIVERY_NOT_TRACKED', status: 409 }
+      );
+    }
     if (message.includes('ORDER_EDIT_PRECONDITION_FAILED')) {
       return new DomainError(
         'O pedido mudou de situação e não pode mais ser editado. Atualize a tela.',

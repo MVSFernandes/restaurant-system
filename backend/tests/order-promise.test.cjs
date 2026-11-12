@@ -336,6 +336,8 @@ test('public menu creation never announces the deadline to the customer', async 
   assert.equal(Object.hasOwn(rpcCalls[0].args.p_order, 'promised_at'), false);
   const body = await response.json();
   assert.equal(Object.hasOwn(body, 'promisedAt'), false);
+  assert.equal(Object.hasOwn(body, 'deliveredAt'), false);
+  assert.equal(Object.hasOwn(body, 'deliveryTracked'), false);
   assert.equal(body.type, 'DELIVERY');
   assert.ok(body.id);
 });

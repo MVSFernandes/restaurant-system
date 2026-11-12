@@ -508,6 +508,9 @@ export const orderService = {
       deliveryNotes: input.deliveryNotes ?? null,
       // O banco grava o prazo na inserção, pelo tipo; o pedido devolvido o traz.
       promisedAt: null,
+      deliveredAt: null,
+      // Não é enviado: o banco grava true na inserção.
+      deliveryTracked: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -586,6 +589,9 @@ export const orderService = {
       deliveryNotes: input.deliveryNotes ?? null,
       // O banco grava o prazo na inserção, pelo tipo; o pedido devolvido o traz.
       promisedAt: null,
+      deliveredAt: null,
+      // Não é enviado: o banco grava true na inserção.
+      deliveryTracked: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -644,6 +650,17 @@ export const orderService = {
       // (nada foi devolvido automaticamente). Repetir o cancelamento mantém o
       // aviso enquanto a conferência estiver pendente.
       return { ...canceled, stockReviewRequired };
+    }
+
+    // Entregar é a confirmação explícita de entrega, com as mesmas permissões
+    // de antes. O banco grava delivered_at uma única vez, com o pedido
+    // travado, e não toca no pagamento: entregue antes de pagar continua com
+    // o pagamento pendente; finalizado antes de entregar (FINISHED) continua
+    // FINISHED, agora com o horário da entrega, se o pedido for posterior ao
+    // registro de entregas (delivery_tracked; conferido com a linha travada).
+    if (newStatus === 'DELIVERED') {
+      const { order: delivered } = await orderRepository.confirmDelivery(orderId);
+      return delivered;
     }
 
     const updated = await orderRepository.update(orderId, { status: newStatus });

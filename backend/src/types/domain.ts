@@ -381,6 +381,18 @@ export interface Order {
    * configurados para o tipo naquele momento). null = sem prazo.
    */
   promisedAt: Date | null;
+  /**
+   * Primeira confirmação explícita de entrega, pelo relógio do banco
+   * (confirm_order_delivery). null = não confirmada, ou confirmada antes de a
+   * coluna existir. Pagamento e fechamento de comanda não a preenchem.
+   */
+  deliveredAt: Date | null;
+  /**
+   * true = criado depois de a confirmação de entrega existir (o banco grava na
+   * inserção). false/null = pedido anterior: um FINISHED sem horário não pode
+   * mais ter a entrega confirmada.
+   */
+  deliveryTracked: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

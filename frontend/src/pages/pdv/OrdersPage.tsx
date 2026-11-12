@@ -32,6 +32,7 @@ import {
   Loader2,
   Volume2,
   VolumeX,
+  PackageCheck,
 } from 'lucide-react';
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
@@ -170,6 +171,7 @@ const OrdersPage: React.FC = () => {
   const [manualPriceEditors, setManualPriceEditors] = useState<Record<number, boolean>>({});
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [paymentSubmittingKey, setPaymentSubmittingKey] = useState<string | null>(null);
+  const [deliveryConfirmingId, setDeliveryConfirmingId] = useState<string | null>(null);
   const [newOrderIdempotencyKey, setNewOrderIdempotencyKey] = useState('');
   const [selectedWaiterId, setSelectedWaiterId] = useState('');
   const [orderType, setOrderType] = useState('DINE_IN');
@@ -869,6 +871,34 @@ const OrdersPage: React.FC = () => {
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       showToast('error', 'Erro ao atualizar status do pedido.');
+    }
+  };
+
+  // Pedido finalizado (pago ou não) antes de ser entregue. Só pedidos criados
+  // depois do registro de entregas: os anteriores podem ter sido entregues há
+  // muito tempo, em horário desconhecido. O backend confere de novo.
+  const canConfirmFinishedDelivery = (order: Order) =>
+    (user?.role === 'ADMIN' || user?.role === 'CASHIER') &&
+    order.status === 'FINISHED' &&
+    order.deliveryTracked === true &&
+    !order.deliveredAt;
+
+  const handleConfirmDelivery = async (orderId: string) => {
+    if (deliveryConfirmingId) return;
+    setDeliveryConfirmingId(orderId);
+    try {
+      await api.patch(`/orders/${orderId}/status`, { status: 'DELIVERED' });
+      void fetchData({ silent: true });
+      showToast('success', 'Entrega confirmada.');
+    } catch (error) {
+      console.error('Erro ao confirmar entrega:', error);
+      showToast(
+        'error',
+        (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          || 'Não foi possível confirmar a entrega.'
+      );
+    } finally {
+      setDeliveryConfirmingId(null);
     }
   };
 
@@ -1736,6 +1766,27 @@ const OrdersPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {canConfirmFinishedDelivery(order) && (
+                  <div className="flex flex-col gap-2 pt-2 border-t border-dashed">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Entrega não confirmada
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmDelivery(order.id)}
+                      disabled={deliveryConfirmingId !== null}
+                      className="btn-primary flex items-center justify-center gap-2 py-2"
+                    >
+                      {deliveryConfirmingId === order.id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <PackageCheck size={16} />
+                      )}
+                      {deliveryConfirmingId === order.id ? 'Confirmando...' : 'Confirmar entrega'}
+                    </button>
+                  </div>
+                )}
 
                 {order.status === 'DELIVERED' && (
                   <div className="flex flex-wrap gap-2 pt-2 border-t border-dashed">
