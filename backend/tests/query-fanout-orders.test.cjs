@@ -103,8 +103,8 @@ test('GET /orders uses three queries and preserves orders without items or curre
     assert.equal(queries, 3);
     assert.equal(res.code, 200);
     assert.deepEqual(res.body, [
-      { ...order('order-1', 'NEW', 'table-1'), items: [deletedProductItem], payment },
-      { ...order('order-2', 'READY', 'table-2'), items: [], payment: null },
+      { ...order('order-1', 'NEW', 'table-1'), items: [deletedProductItem], waiter: null, user: null, payment },
+      { ...order('order-2', 'READY', 'table-2'), items: [], waiter: null, user: null, payment: null },
     ]);
   } finally {
     cashRegisterRepository.findOpenSession = originals.findOpenSession;

@@ -10,6 +10,9 @@ export interface User {
   updatedAt?: string;
 }
 
+/** Quem lançou um pedido, como a API devolve: só id e nome. */
+export type OrderPerson = Pick<User, 'id' | 'name'>;
+
 // --- Tipos de Produto e Categoria ---
 export interface Category {
   id: string;
@@ -177,10 +180,12 @@ export interface Order {
   userId: string | null;
   // Só na resposta do cancelamento: pedido antigo cujo estoque precisa de conferência.
   stockReviewRequired?: boolean;
-  user?: User | null;
+  // Listagem e histórico trazem só id e nome, sem e-mail nem papel.
+  user?: OrderPerson | null;
 
-  waiterId?: string;
-  waiter?: User;
+  // Só quando o próprio garçom lançou o pedido na comanda.
+  waiterId?: string | null;
+  waiter?: OrderPerson | null;
 
   customerId?: string;
   customer?: Customer;

@@ -78,7 +78,9 @@ test('with an open session: the header is the server time and the body keeps its
 
   assert.equal(response.status, 200);
   assertServerTime(response, before, after);
-  assert.deepEqual(await response.json(), [{ ...promisedOrder, items: [], payment: null }]);
+  assert.deepEqual(await response.json(), [
+    { ...promisedOrder, items: [], waiter: null, user: null, payment: null },
+  ]);
 });
 
 test('without an open session: still an empty array, with the header', async () => {

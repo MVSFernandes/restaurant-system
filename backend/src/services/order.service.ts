@@ -50,7 +50,6 @@ export interface CreateOrderInput {
   tableTabId?: string | null;
   customerId?: string | null;
   customerName?: string | null;
-  waiterId?: string | null;
   deliveryFee?: number;
   deliveryType?: string | null;
   deliveryStreet?: string | null;
@@ -463,7 +462,11 @@ export const orderService = {
       throw new ValidationError('customerName', 'Informe o nome do cliente para entrega.');
     }
 
-    const waiterId = actingUser.role === 'WAITER' ? actingUser.id : (input.waiterId ?? null);
+    // userId é sempre quem está autenticado. waiterId só existe quando o
+    // próprio garçom lança o pedido (app do garçom, na comanda). No PDV o
+    // corpo da requisição não escolhe garçom nem responsável: userId e
+    // waiterId enviados pelo cliente são ignorados.
+    const waiterId = actingUser.role === 'WAITER' ? actingUser.id : null;
 
     let total = 0;
     const resolvedItems: ResolvedItemPricing[] = [];

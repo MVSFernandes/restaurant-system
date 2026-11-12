@@ -6,7 +6,6 @@ import type {
   Product,
   Category,
   Table,
-  User,
   MarmitaMenuItem,
   RestaurantConfig,
   Customer,
@@ -193,7 +192,6 @@ const OrdersPage: React.FC = () => {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
-  const [waiters, setWaiters] = useState<User[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showNewOrder, setShowNewOrder] = useState(false);
@@ -203,7 +201,6 @@ const OrdersPage: React.FC = () => {
   const [paymentSubmittingKey, setPaymentSubmittingKey] = useState<string | null>(null);
   const [deliveryConfirmingId, setDeliveryConfirmingId] = useState<string | null>(null);
   const [newOrderIdempotencyKey, setNewOrderIdempotencyKey] = useState('');
-  const [selectedWaiterId, setSelectedWaiterId] = useState('');
   const [orderType, setOrderType] = useState('DINE_IN');
   const [selectedTableId, setSelectedTableId] = useState('');
   const [tableTabs, setTableTabs] = useState<WaiterTableTab[]>([]);
@@ -516,7 +513,6 @@ const OrdersPage: React.FC = () => {
         ordersRes,
         categoriesRes,
         tablesRes,
-        usersRes,
         customersRes,
         marmitaMenuRes,
         configRes,
@@ -525,7 +521,6 @@ const OrdersPage: React.FC = () => {
         fetchOperationalOrders(),
         api.get('/categories?includeProducts=true'),
         api.get('/tables'),
-        api.get('/auth/me').then(() => api.get('/users')).catch(() => ({ data: [] })),
         api.get('/customers').catch(() => ({ data: [] })),
         api.get(`/marmita-menu/day/${getCurrentWeekDay()}`).catch(() => ({ data: [] })),
         api.get('/config').catch(() => ({ data: null })),
@@ -537,7 +532,6 @@ const OrdersPage: React.FC = () => {
       applyOrderSnapshot(ordersRes);
       setCategories(categoriesRes.data);
       setTables(tablesRes.data);
-      setWaiters(usersRes.data.filter((u: User) => u.role === 'WAITER' || u.role === 'ADMIN'));
       setCustomers(customersRes.data || []);
       setMarmitaMenuItems(marmitaMenuRes.data || []);
       setConfig(configRes.data || null);
@@ -743,7 +737,6 @@ const OrdersPage: React.FC = () => {
     setNewOrderIdempotencyKey('');
     setShowNewOrder(false);
     setConfirmDiscardNewOrder(false);
-    setSelectedWaiterId('');
     setSelectedTableId('');
     setTableTabs([]);
     setSelectedTableTabId('');
@@ -832,11 +825,6 @@ const OrdersPage: React.FC = () => {
       return;
     }
 
-    if (!selectedWaiterId) {
-      showToast('error', 'Selecione o responsável pelo pedido.');
-      return;
-    }
-
     if (orderType === 'TAKE_AWAY' && !customerName.trim()) {
       showToast('error', 'Informe o nome do cliente para retirada.');
       return;
@@ -896,7 +884,6 @@ const OrdersPage: React.FC = () => {
         deliveryNotes: orderType === 'DELIVERY' ? deliveryNotes : undefined,
         tableId: orderType === 'DINE_IN' ? selectedTableId : undefined,
         tableTabId: tableTabIdForOrder,
-        waiterId: selectedWaiterId || undefined,
         deliveryFee: currentDeliveryFee,
         deliveryType: orderType === 'DELIVERY' ? deliveryType : undefined,
         items: cart.map((item) => {
@@ -919,7 +906,14 @@ const OrdersPage: React.FC = () => {
       setOrders((current) =>
         current.some((order) => order.id === createdOrder.id)
           ? current
-          : [...current, createdOrder]
+          : [
+              ...current,
+              // A resposta da criação não traz o nome; até a recarga, é quem está logado.
+              {
+                ...createdOrder,
+                user: createdOrder.user ?? (user ? { id: user.id, name: user.name } : null),
+              },
+            ]
       );
       resetOrderForm();
       void fetchData({ silent: true });
@@ -1673,9 +1667,11 @@ const OrdersPage: React.FC = () => {
                   </p>
                 )}
 
-                {order.waiter && (
+                {/* Garçom que lançou na comanda; sem garçom, quem registrou no PDV.
+                    Pedido do cardápio público não tem nenhum dos dois. */}
+                {(order.waiter ?? order.user) && (
                   <p className="text-xs text-gray-500">
-                    Responsável: {order.waiter.name}
+                    Responsável: {(order.waiter ?? order.user)?.name}
                   </p>
                 )}
               </div>
@@ -2236,18 +2232,11 @@ const OrdersPage: React.FC = () => {
                       </>
                     )}
 
-                    <select
-                      value={selectedWaiterId}
-                      onChange={(e) => setSelectedWaiterId(e.target.value)}
-                      className="input"
-                    >
-                      <option value="">Responsável pelo Pedido</option>
-                      {waiters.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name}
-                        </option>
-                      ))}
-                    </select>
+                    {/* O backend grava quem está autenticado; não há o que escolher aqui. */}
+                    <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                      Responsável:{' '}
+                      <span className="font-medium text-gray-900">{user?.name}</span>
+                    </p>
 
                     {(orderType === 'TAKE_AWAY' || orderType === 'DELIVERY') && (
                       <div className="mb-4 mt-2">

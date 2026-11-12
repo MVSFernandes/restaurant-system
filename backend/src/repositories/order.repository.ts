@@ -48,15 +48,35 @@ type ProductRow = Database['public']['Tables']['products']['Row'];
 type DetailedOrderItemRow = Database['public']['Tables']['order_items']['Row'] & {
   products: ProductRow | ProductRow[] | null;
 };
+type OrderPersonRow = { id: string; name: string };
 type DetailedOrderRow = Database['public']['Tables']['orders']['Row'] & {
   source?: string;
   order_items: DetailedOrderItemRow[];
+  waiter?: OrderPersonRow | OrderPersonRow[] | null;
+  user?: OrderPersonRow | OrderPersonRow[] | null;
 };
+
+/** Só o necessário para mostrar quem lançou o pedido: sem e-mail nem papel. */
+export interface OrderPersonSummary {
+  id: string;
+  name: string;
+}
 
 export interface DetailedSessionOrder {
   order: Order;
   items: Array<OrderItem & { product: Product | null }>;
+  /** Garçom que lançou o pedido na comanda (orders.waiter_id). */
+  waiter?: OrderPersonSummary | null;
+  /** Quem registrou o pedido (orders.user_id); null no cardápio público. */
+  user?: OrderPersonSummary | null;
 }
+
+const orderPersonSummary = (
+  relation: OrderPersonRow | OrderPersonRow[] | null | undefined
+): OrderPersonSummary | null => {
+  const person = Array.isArray(relation) ? relation[0] ?? null : relation ?? null;
+  return person ? { id: person.id, name: person.name } : null;
+};
 
 const relationOne = <T>(relation: T | T[] | null): T | null =>
   Array.isArray(relation) ? relation[0] ?? null : relation;
@@ -180,7 +200,9 @@ export const orderRepository = {
   ): Promise<DetailedSessionOrder[]> {
     let query = supabase
       .from(TABLE)
-      .select('*,order_items(*,products(*))')
+      .select(
+        '*,order_items(*,products(*)),waiter:users!orders_waiter_fkey(id,name),user:users!orders_user_fkey(id,name)'
+      )
       .eq('cash_register_session_id', sessionId);
     if (filters.tableId) query = query.eq('table_id', filters.tableId);
     if (filters.tableTabId) query = query.eq('table_tab_id', filters.tableTabId);
@@ -197,6 +219,8 @@ export const orderRepository = {
           product: product ? toProductDomain(product) : null,
         };
       }),
+      waiter: orderPersonSummary(row.waiter),
+      user: orderPersonSummary(row.user),
     }));
   },
 

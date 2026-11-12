@@ -28,7 +28,6 @@ beforeEach(() => {
       balance: 0,
     } :
     url === '/tables' ? [{ id: 'table', number: 1, status: 'OCCUPIED' }] :
-    url === '/users' ? [{ id: 'admin', name: 'Operador', role: 'ADMIN' }] :
     url === '/cash-register/current' ? { id: 'session' } :
     url === '/config' ? {
       name: 'Restaurante',
@@ -150,9 +149,6 @@ describe('PDV delivery fee selection', () => {
 
     expect((screen.getByRole('radio', { name: /Urbana/ }) as HTMLInputElement).checked).toBe(true);
     fireEvent.click(screen.getByRole('radio', { name: /Outra/ }));
-    fireEvent.change(screen.getByDisplayValue('Responsável pelo Pedido'), {
-      target: { value: 'admin' },
-    });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pedido' }));
 
     expect((await screen.findAllByText('Informe o valor da taxa personalizada.')).length).toBeGreaterThanOrEqual(1);
@@ -200,7 +196,6 @@ describe('stock race at confirmation', () => {
     fireEvent.change(await screen.findByDisplayValue('Selecione a comanda'), {
       target: { value: 'tab' },
     });
-    fireEvent.change(screen.getByDisplayValue('Responsável pelo Pedido'), { target: { value: 'admin' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pedido' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Estoque insuficiente de "Água".');
     await waitFor(() => expect((screen.getByRole('button', { name: 'Confirmar Pedido' }) as HTMLButtonElement).disabled).toBe(false));
@@ -233,6 +228,37 @@ describe('order payment visibility', () => {
     expect(screen.getByText('DINHEIRO')).toBeTruthy();
     expect(screen.getByText('A RECEBER')).toBeTruthy();
     expect(screen.getByText('Cobrar R$ 16,00')).toBeTruthy();
+  });
+});
+
+describe('order card responsible person', () => {
+  it('shows the waiter for a tab order, the creator for a PDV order and nobody for the public menu', async () => {
+    const previousGet = mocks.get.getMockImplementation()!;
+    const base = { status: 'NEW', total: 10, items: [], createdAt: new Date().toISOString() };
+    mocks.get.mockImplementation(async (url: string) => url.startsWith('/orders?') ? {
+      data: [
+        {
+          ...base, id: 'pdv-order', type: 'TAKE_AWAY', source: 'PDV', customerName: 'Cliente PDV',
+          userId: 'cashier-1', waiterId: null,
+          user: { id: 'cashier-1', name: 'Caixa Fictício' }, waiter: null,
+        },
+        {
+          ...base, id: 'waiter-order', type: 'DINE_IN', source: 'WAITER',
+          userId: 'waiter-1', waiterId: 'waiter-1',
+          user: { id: 'waiter-1', name: 'Garçom Fictício' }, waiter: { id: 'waiter-1', name: 'Garçom Fictício' },
+        },
+        {
+          ...base, id: 'public-order', type: 'TAKE_AWAY', source: 'PUBLIC_MENU', customerName: 'Cliente Online',
+          userId: null, waiterId: null, user: null, waiter: null,
+        },
+      ],
+    } : previousGet(url));
+
+    render(<OrdersPage />);
+
+    expect(await screen.findByText('Responsável: Caixa Fictício')).toBeTruthy();
+    expect(screen.getByText('Responsável: Garçom Fictício')).toBeTruthy();
+    expect(screen.getAllByText(/^Responsável:/)).toHaveLength(2);
   });
 });
 
