@@ -10,6 +10,7 @@ import {
 import type {
   OperationalRestaurantConfig,
   PublicRestaurantConfig,
+  RestaurantConfigPatch,
 } from '../mappers/restaurantConfig.mapper';
 import { NotFoundError } from '../types/errors';
 
@@ -22,7 +23,9 @@ const FULL_CONFIG_COLUMNS = [
   'fiscal_zip_code', 'fiscal_street', 'fiscal_number', 'fiscal_neighborhood',
   'fiscal_city', 'fiscal_state', 'default_cfop', 'default_ncm',
   'default_origin', 'default_tax_code', 'nfce_enabled', 'nfce_group_items',
-  'nfce_grouped_item_description', 'brand_primary_color', 'updated_at',
+  'nfce_grouped_item_description', 'brand_primary_color',
+  'dine_in_promise_minutes', 'take_away_promise_minutes', 'delivery_promise_minutes',
+  'updated_at',
 ].join(',');
 const OPERATIONAL_CONFIG_COLUMNS = [
   'name', 'logo_url', 'urban_delivery_fee', 'rural_delivery_fee', 'nfce_enabled',
@@ -79,7 +82,7 @@ export const restaurantConfigRepository = {
    * Atualiza a config (singleton).
    * Recebe o ID explicitamente para evitar updates acidentais sem WHERE.
    */
-  async update(id: string, patch: Partial<RestaurantConfig>): Promise<RestaurantConfig> {
+  async update(id: string, patch: RestaurantConfigPatch): Promise<RestaurantConfig> {
     const payload = toRestaurantConfigUpdate(patch);
 
     if (Object.keys(payload).length === 0) {

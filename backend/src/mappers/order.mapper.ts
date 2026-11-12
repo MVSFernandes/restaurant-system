@@ -33,10 +33,14 @@ export function toOrderDomain(row: OrderRow): Order {
     deliveryReference: row.delivery_reference,
     deliveryPhone: row.delivery_phone,
     deliveryNotes: row.delivery_notes,
+    promisedAt: row.promised_at ? new Date(row.promised_at) : null,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
 }
+
+// promised_at fica fora do insert e do update: quem grava é o banco, na
+// inserção (create_order_with_stock), e o valor não muda depois.
 
 export function toOrderInsert(domain: Order): OrderInsert {
   return {

@@ -27,6 +27,7 @@ import {
 import { NotFoundError, ValidationError } from '../types/errors';
 import { describeContrastFailures, evaluateBrandColor, normalizeBrandColor } from '../utils/brandColor';
 import { weekdayInTimeZone } from '../utils/datetime';
+import { validatedOrderPromiseMinutes } from '../utils/orderPromise';
 
 // ============================================================================
 // CATEGORY
@@ -470,9 +471,11 @@ export const configService = {
     nfceGroupItems?: boolean;
     nfceGroupedItemDescription?: string;
     brandPrimaryColor?: unknown;
+    orderPromiseMinutes?: unknown;
   }) {
-    // Valida antes de ler o banco: uma cor recusada não chega ao repositório.
+    // Valida antes de ler o banco: um valor recusado não chega ao repositório.
     const brandPrimaryColor = validatedBrandPrimaryColor(input.brandPrimaryColor);
+    const orderPromiseMinutes = validatedOrderPromiseMinutes(input.orderPromiseMinutes);
     const config = await restaurantConfigRepository.get();
     if (input.nfceGroupItems !== undefined && typeof input.nfceGroupItems !== 'boolean') {
       throw new ValidationError('nfceGroupItems', 'Informe verdadeiro ou falso');
@@ -523,6 +526,7 @@ export const configService = {
       nfceGroupedItemDescription:
         input.nfceGroupedItemDescription !== undefined ? groupedItemDescription : undefined,
       brandPrimaryColor,
+      orderPromiseMinutes,
     });
   },
 };

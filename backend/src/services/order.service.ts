@@ -506,6 +506,8 @@ export const orderService = {
       deliveryReference: input.deliveryReference ?? null,
       deliveryPhone: input.deliveryPhone ?? null,
       deliveryNotes: input.deliveryNotes ?? null,
+      // O banco grava o prazo na inserção, pelo tipo; o pedido devolvido o traz.
+      promisedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -582,6 +584,8 @@ export const orderService = {
       deliveryReference: input.deliveryReference ?? null,
       deliveryPhone: input.deliveryPhone ?? input.customerPhone ?? null,
       deliveryNotes: input.deliveryNotes ?? null,
+      // O banco grava o prazo na inserção, pelo tipo; o pedido devolvido o traz.
+      promisedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
