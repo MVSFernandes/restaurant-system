@@ -33,6 +33,7 @@ import {
   Volume2,
   VolumeX,
   PackageCheck,
+  Clock,
 } from 'lucide-react';
 import { EditOrderModal } from '../../components/modals/EditOrderModal';
 import { MarmitaBuilderModal } from '../../components/modals/MarmitaBuilderModal';
@@ -51,8 +52,35 @@ import { useOrderEvents, type OrderEventPayload } from '../../hooks/useOrderEven
 import { playNewOrderSound } from '../../lib/orderAlerts';
 import { getOrderPaymentSummary } from '../../lib/orderPayment';
 import { useBranding } from '../../contexts/brandingContext';
+import {
+  SERVER_TIME_HEADER,
+  deadlineLabel,
+  estimateServerNow,
+  formatDeadlineClock,
+  nextDeadlineChangeAt,
+  orderDeadlineState,
+  serverClockSample,
+  sortOrdersByOverdue,
+  type ServerClockSample,
+} from '../../lib/orderDeadline';
+import { resolveRestaurantTimeZone } from '../../utils/calendarDate';
 
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
+
+const OPERATIONAL_ORDERS_URL = '/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED';
+
+// Lista de pedidos + referência de horário do servidor, marcada no relógio
+// monotônico quando esta resposta chega (não quando o Promise.all termina).
+const fetchOperationalOrders = () =>
+  api.get<Order[]>(OPERATIONAL_ORDERS_URL).then((res) => ({
+    orders: res.data,
+    clockSample: serverClockSample(res.headers?.[SERVER_TIME_HEADER], performance.now()),
+  }));
+
+// Margem para o temporizador não acordar um instante antes da virada.
+const DEADLINE_TICK_MARGIN_MS = 25;
+// Teto do temporizador: corrige suspensão do computador.
+const DEADLINE_TICK_MAX_MS = 60_000;
 const statusLabels = ORDER_STATUS_LABELS;
 
 interface CartItem {
@@ -158,7 +186,9 @@ const parseNotesAndExtras = (originalNotes: string) => {
 
 const OrdersPage: React.FC = () => {
   const { user } = useAuth();
-  const { displayName } = useBranding();
+  const { displayName, timeZone } = useBranding();
+  // Só para exibir a hora do prazo; ausente ou inválido, o mesmo padrão das outras telas.
+  const restaurantTimeZone = resolveRestaurantTimeZone(timeZone);
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -193,6 +223,12 @@ const OrdersPage: React.FC = () => {
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const announcedOrderIdsRef = useRef<Set<string>>(new Set());
   const ordersLoadedRef = useRef(false);
+  // Última referência válida de X-Server-Time; resposta sem cabeçalho não a apaga.
+  const serverClockRef = useRef<ServerClockSample | null>(null);
+  // "Agora" estimado no relógio do servidor, usado para classificar e ordenar
+  // atrasos. null até o primeiro cabeçalho válido: a lista fica na ordem normal.
+  // Só muda quando a lista chega, quando algum texto de prazo vira ou na volta à aba.
+  const [deadlineNowMs, setDeadlineNowMs] = useState<number | null>(null);
   const requestedTableIdRef = useRef(
     typeof window === 'undefined'
       ? null
@@ -352,7 +388,12 @@ const OrdersPage: React.FC = () => {
     }
   }, [soundEnabled]);
 
-  const applyOrderSnapshot = useCallback((nextOrders: Order[]) => {
+  const applyOrderSnapshot = useCallback((
+    { orders: nextOrders, clockSample }: Awaited<ReturnType<typeof fetchOperationalOrders>>
+  ) => {
+    if (clockSample) serverClockRef.current = clockSample;
+    const clock = serverClockRef.current;
+    setDeadlineNowMs(clock ? estimateServerNow(clock, performance.now()) : null);
     if (ordersLoadedRef.current) {
       for (const order of nextOrders) {
         if (
@@ -373,11 +414,11 @@ const OrdersPage: React.FC = () => {
   const refreshOperationalData = useCallback(async () => {
     try {
       const [ordersRes, tablesRes, cashRes] = await Promise.all([
-        api.get('/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED'),
+        fetchOperationalOrders(),
         api.get('/tables'),
         api.get('/cash-register/current'),
       ]);
-      applyOrderSnapshot(ordersRes.data);
+      applyOrderSnapshot(ordersRes);
       setTables(tablesRes.data);
       setCashState(cashRes.data ? 'open' : 'closed');
     } catch (error) {
@@ -396,6 +437,36 @@ const OrdersPage: React.FC = () => {
     const clearUnseenCount = () => setUnseenOrderCount(0);
     window.addEventListener('focus', clearUnseenCount);
     return () => window.removeEventListener('focus', clearUnseenCount);
+  }, []);
+
+  // Contador dos prazos: acorda só na próxima virada de texto (promisedAt + k
+  // min) e recalcula com a lista que já está na tela, sem buscar de novo.
+  useEffect(() => {
+    if (deadlineNowMs === null) return undefined;
+    const nextChangeAt = nextDeadlineChangeAt(orders, deadlineNowMs);
+    if (nextChangeAt === null) return undefined;
+    const delay = Math.min(nextChangeAt - deadlineNowMs + DEADLINE_TICK_MARGIN_MS, DEADLINE_TICK_MAX_MS);
+    const timer = setTimeout(() => {
+      const clock = serverClockRef.current;
+      if (clock) setDeadlineNowMs(estimateServerNow(clock, performance.now()));
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [orders, deadlineNowMs]);
+
+  // Em segundo plano o navegador atrasa temporizadores; ao voltar, recalcula.
+  useEffect(() => {
+    const refreshDeadlineNow = () => {
+      const clock = serverClockRef.current;
+      if (clock && document.visibilityState === 'visible') {
+        setDeadlineNowMs(estimateServerNow(clock, performance.now()));
+      }
+    };
+    document.addEventListener('visibilitychange', refreshDeadlineNow);
+    window.addEventListener('focus', refreshDeadlineNow);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshDeadlineNow);
+      window.removeEventListener('focus', refreshDeadlineNow);
+    };
   }, []);
 
   useEffect(() => {
@@ -451,7 +522,7 @@ const OrdersPage: React.FC = () => {
         configRes,
         nextCashState,
       ] = await Promise.all([
-        api.get('/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED'),
+        fetchOperationalOrders(),
         api.get('/categories?includeProducts=true'),
         api.get('/tables'),
         api.get('/auth/me').then(() => api.get('/users')).catch(() => ({ data: [] })),
@@ -463,7 +534,7 @@ const OrdersPage: React.FC = () => {
           .catch((): CashState => 'unknown'),
       ]);
 
-      applyOrderSnapshot(ordersRes.data);
+      applyOrderSnapshot(ordersRes);
       setCategories(categoriesRes.data);
       setTables(tablesRes.data);
       setWaiters(usersRes.data.filter((u: User) => u.role === 'WAITER' || u.role === 'ADMIN'));
@@ -1371,10 +1442,20 @@ const OrdersPage: React.FC = () => {
   const filteredOrders = useMemo(() => {
     const term = searchCustomer.trim().toLowerCase();
 
-    if (!term) return orders;
+    const matching = term
+      ? orders.filter((order) => (order.customerName || '').toLowerCase().includes(term))
+      : orders;
 
-    return orders.filter((order) => (order.customerName || '').toLowerCase().includes(term));
-  }, [orders, searchCustomer]);
+    // Sem referência do servidor ainda: ordem normal, sem classificar.
+    return deadlineNowMs === null ? matching : sortOrdersByOverdue(matching, deadlineNowMs);
+  }, [orders, searchCustomer, deadlineNowMs]);
+
+  const deadlineStates = useMemo(
+    () => deadlineNowMs === null
+      ? new Map<string, ReturnType<typeof orderDeadlineState>>()
+      : new Map(filteredOrders.map((order) => [order.id, orderDeadlineState(order, deadlineNowMs)])),
+    [filteredOrders, deadlineNowMs]
+  );
 
   const isCashOpen = cashState === 'open';
 
@@ -1523,9 +1604,11 @@ const OrdersPage: React.FC = () => {
             key={order.id}
             className={clsx(
               'card transition-all',
-              highlightedOrderIds.has(order.id) &&
-                'ring-2 ring-primary-500 bg-primary-50/60 shadow-lg'
+              highlightedOrderIds.has(order.id)
+                ? 'ring-2 ring-primary-500 bg-primary-50/60 shadow-lg'
+                : deadlineStates.get(order.id)?.kind === 'overdue' && 'ring-2 ring-red-300'
             )}
+            data-deadline={deadlineStates.get(order.id)?.kind ?? 'none'}
             onClickCapture={() => clearNewOrderHighlight(order.id)}
           >
             <div className="flex items-center justify-between mb-2">
@@ -1601,6 +1684,27 @@ const OrdersPage: React.FC = () => {
                 {statusLabels[order.status]}
               </span>
             </div>
+
+            {(() => {
+              const deadline = deadlineStates.get(order.id);
+              if (!deadline || deadline.kind === 'none') return null;
+              const overdue = deadline.kind === 'overdue';
+              return (
+                <p
+                  data-deadline-label
+                  className={clsx(
+                    'flex flex-wrap items-center gap-x-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold',
+                    overdue ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-700'
+                  )}
+                >
+                  <Clock size={13} aria-hidden="true" className="shrink-0" />
+                  <span>{deadlineLabel(deadline)}</span>
+                  <span className={clsx('font-normal', overdue ? 'text-red-600' : 'text-gray-500')}>
+                    · prazo {formatDeadlineClock(deadline.promisedAtMs, restaurantTimeZone)}
+                  </span>
+                </p>
+              );
+            })()}
 
             <div className="space-y-1.5 mb-3 mt-2">
               {order.items.map((item) => {
