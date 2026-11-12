@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
 vi.mock('../src/services/api', () => ({ default: mocks }));
 vi.mock('../src/hooks/useAuth', () => ({
-  useAuth: () => ({ user: { id: 'admin', role: 'ADMIN' } }),
+  useAuth: () => ({ user: { id: 'admin', name: 'Operador', role: 'ADMIN' } }),
 }));
 vi.mock('../src/hooks/useOrderEvents', () => ({ useOrderEvents: () => undefined }));
 
@@ -62,10 +62,6 @@ function setupGetMocks() {
       return { data: { tabs: [existingTab], total: 10, balance: 4 } };
     }
     if (url === '/cash-register/current') return { data: { id: 'session', status: 'OPEN' } };
-    if (url === '/auth/me') return { data: { id: 'admin' } };
-    if (url === '/users') {
-      return { data: [{ id: 'admin', name: 'Operador', role: 'ADMIN' }] };
-    }
     if (url === '/config') return { data: null };
     return { data: [] };
   });
@@ -75,9 +71,6 @@ async function openOrderModal() {
   render(<OrdersPage />);
   fireEvent.click(await screen.findByRole('button', { name: 'Novo Pedido' }));
   fireEvent.click(await screen.findByRole('button', { name: /Água/ }));
-  fireEvent.change(screen.getByDisplayValue('Responsável pelo Pedido'), {
-    target: { value: 'admin' },
-  });
 }
 
 beforeEach(() => {
@@ -135,6 +128,27 @@ describe('PDV table tabs', () => {
       expect.any(Object)
     ));
     expect(mocks.post.mock.calls.some(([url]) => url.includes('/tabs'))).toBe(false);
+  });
+
+  it('shows the logged-in operator as the responsible person, with nothing to choose or send', async () => {
+    await openOrderModal();
+
+    expect(screen.getByText('Responsável:').textContent).toContain('Operador');
+    expect(screen.queryByDisplayValue('Responsável pelo Pedido')).toBeNull();
+    expect(mocks.get.mock.calls.some(([url]) => url === '/users')).toBe(false);
+
+    fireEvent.change(screen.getByDisplayValue('Selecione a mesa'), {
+      target: { value: 'occupied-table' },
+    });
+    fireEvent.change(await screen.findByDisplayValue('Selecione a comanda'), {
+      target: { value: 'existing-tab' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Pedido' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
+    const body = mocks.post.mock.calls[0][1];
+    expect(body).not.toHaveProperty('waiterId');
+    expect(body).not.toHaveProperty('userId');
   });
 
   it('opens the first tab for a free table before creating its order', async () => {

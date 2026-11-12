@@ -206,9 +206,11 @@ export const getOrders = async (req: Request, res: Response) => {
     // Lido depois das consultas, o mais perto possível do envio.
     setServerTimeHeader(res);
     res.json(
-      detailedOrders.map(({ order, items }) => ({
+      detailedOrders.map(({ order, items, waiter, user: createdBy }) => ({
         ...order,
         items,
+        waiter: waiter ?? null,
+        user: createdBy ?? null,
         payment: latestPaymentByOrderId.get(order.id) ?? null,
       }))
     );
