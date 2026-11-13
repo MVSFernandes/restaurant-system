@@ -6,6 +6,15 @@ import { useAuth } from '../hooks/useAuth';
 import { useMenuViewers, type MenuViewers } from '../hooks/useMenuViewers';
 import { useOrderEvents } from '../hooks/useOrderEvents';
 import api from '../services/api';
+import {
+  OPERATIONAL_ORDERS_URL,
+  SERVER_TIME_HEADER,
+  countOverdueOrders,
+  estimateServerNow,
+  nextOverdueAt,
+  serverClockSample,
+  type ServerClockSample,
+} from '../lib/orderDeadline';
 import type { CashRegisterSession, Order, Table as RestaurantTable } from '../types';
 import { dueStatus, restaurantTodayKey } from '../utils/calendarDate';
 import { formatCurrencyBRL } from '../utils/currency';
@@ -460,12 +469,19 @@ const LiveViewers: React.FC<{ viewers: MenuViewers; inline?: boolean }> = ({ vie
 // ---------------------------------------------------------------------------
 
 const fetchCurrent = async () => (await api.get<CashRegisterSession | null>('/cash-register/current')).data ?? null;
-const fetchOrders = async () => (await api.get<Order[]>('/orders')).data ?? [];
 const fetchTables = async () => (await api.get<RestaurantTable[]>('/tables')).data ?? [];
 const fetchLowStock = async () => (await api.get<{ id: string; name: string }[]>('/stock/low')).data ?? [];
 const fetchTopProducts = async () =>
   ((await api.get<{ topProducts?: TopProduct[] }>('/finance/reports?period=today')).data?.topProducts ?? []);
 const fetchPayables = async () => (await api.get<Payable[]>('/finance/payables')).data ?? [];
+
+// Recorte original de GET /orders sem filtro, usado pela fita "Agora".
+const LIST_DEFAULT_EXCLUDED: readonly Order['status'][] = ['FINISHED', 'CANCELED'];
+
+// Margem para o temporizador não acordar um instante antes da virada.
+const DEADLINE_TICK_MARGIN_MS = 25;
+// Teto do temporizador: corrige suspensão do computador.
+const DEADLINE_TICK_MAX_MS = 60_000;
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -473,6 +489,25 @@ const DashboardPage: React.FC = () => {
   const canOperate = role === 'ADMIN' || role === 'CASHIER';
   const canSeeFinance = role === 'ADMIN' || role === 'FINANCE';
   const viewers = useMenuViewers();
+
+  // Pedidos da sessão em todas as situações (mesma consulta da tela de
+  // Pedidos) e a referência de horário do servidor: o X-Server-Time marcado no
+  // relógio monotônico quando a resposta chega. Resposta sem cabeçalho válido
+  // mantém a última referência, como na tela de Pedidos.
+  const serverClockRef = React.useRef<ServerClockSample | null>(null);
+  const [deadlineNowMs, setDeadlineNowMs] = React.useState<number | null>(null);
+  const fetchOrders = React.useCallback(async () => {
+    const res = await api.get<Order[]>(OPERATIONAL_ORDERS_URL);
+    const sample = serverClockSample(res.headers?.[SERVER_TIME_HEADER], performance.now());
+    if (sample) serverClockRef.current = sample;
+    const clock = serverClockRef.current;
+    setDeadlineNowMs(clock ? estimateServerNow(clock, performance.now()) : null);
+    return res.data ?? [];
+  }, []);
+  const syncDeadlineNow = React.useCallback(() => {
+    const clock = serverClockRef.current;
+    if (clock) setDeadlineNowMs(estimateServerNow(clock, performance.now()));
+  }, []);
 
   const [current, refreshCurrent] = useResource(fetchCurrent);
   const [orders, refreshOrders] = useResource(fetchOrders);
@@ -533,6 +568,9 @@ const DashboardPage: React.FC = () => {
   React.useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
+      // Em segundo plano o navegador atrasa temporizadores: os atrasos são
+      // recalculados já, com a lista na tela, antes de a recarga responder.
+      syncDeadlineNow();
       // A recarga abaixo já cobre a volta do backend e a virada do dia.
       liveDown.current = false;
       day.current = restaurantTodayKey(new Date(), timeZoneRef.current);
@@ -541,10 +579,22 @@ const DashboardPage: React.FC = () => {
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [refreshLive, refreshOnDemand]);
+  }, [refreshLive, refreshOnDemand, syncDeadlineNow]);
 
-  // Turno, pedidos e mesas acompanham os eventos de pedido (com reforço a cada 30s).
+  // Turno, pedidos e mesas acompanham os eventos de pedido (com reforço a cada
+  // 30s); é essa recarga que traz a confirmação de entrega.
   useOrderEvents(refreshLive);
+
+  // Virada de prazo com a tela aberta: acorda no próximo promisedAt e recalcula
+  // com a lista que já está na tela, sem buscar de novo.
+  React.useEffect(() => {
+    if (deadlineNowMs === null || orders.status !== 'ready') return undefined;
+    const nextAt = nextOverdueAt(orders.data, deadlineNowMs);
+    if (nextAt === null) return undefined;
+    const delay = Math.min(nextAt - deadlineNowMs + DEADLINE_TICK_MARGIN_MS, DEADLINE_TICK_MAX_MS);
+    const timer = setTimeout(syncDeadlineNow, delay);
+    return () => clearTimeout(timer);
+  }, [orders, deadlineNowMs, syncDeadlineNow]);
 
   const session = current.status === 'ready' ? current.data : null;
   const shiftClosed = current.status === 'ready' && current.data === null;
@@ -580,8 +630,10 @@ const DashboardPage: React.FC = () => {
   ];
 
   // --- Agora: pedidos ativos por situação ---------------------------------
-  const byStatus = (status: Order['status']) =>
-    orders.status === 'ready' ? orders.data.filter((o) => o.status === status).length : 0;
+  // Mesmo conjunto de antes: GET /orders sem filtro, que omite FINISHED e CANCELED.
+  const activeOrders =
+    orders.status === 'ready' ? orders.data.filter((o) => !LIST_DEFAULT_EXCLUDED.includes(o.status)) : [];
+  const byStatus = (status: Order['status']) => activeOrders.filter((o) => o.status === status).length;
   const ready = byStatus('READY');
   const awaitingPayment = byStatus('DELIVERED');
   const flowCells: RibbonCell[] = [
@@ -593,7 +645,16 @@ const DashboardPage: React.FC = () => {
 
   // --- Precisa de atenção --------------------------------------------------
   const attention: AttentionItem[] = [];
-  const attentionStates = [current.status, lowStock.status, ...(canSeeFinance ? [payables.status] : [])];
+  // Atrasos só existem com a lista e uma referência de horário do servidor;
+  // sem uma das duas não dá para afirmar que não há atraso.
+  const overdueState: LoadState =
+    orders.status === 'loading' ? 'loading' : orders.status === 'error' || deadlineNowMs === null ? 'error' : 'ready';
+  const attentionStates = [
+    ...(canOperate ? [overdueState] : []),
+    current.status,
+    lowStock.status,
+    ...(canSeeFinance ? [payables.status] : []),
+  ];
   const attentionSources: AttentionSources = attentionStates.includes('loading')
     ? 'loading'
     : attentionStates.every((state) => state === 'error')
@@ -601,6 +662,25 @@ const DashboardPage: React.FC = () => {
       : attentionStates.every((state) => state === 'ready')
         ? 'checked'
         : 'partial';
+
+  // Mesma regra da fila da tela de Pedidos (lib/orderDeadline), que já põe
+  // os atrasados no topo: o atalho leva direto para lá.
+  if (canOperate) {
+    if (overdueState === 'error') {
+      attention.push({ key: 'overdue', label: 'Pedidos atrasados', value: '', unavailable: true });
+    } else if (overdueState === 'ready' && orders.status === 'ready' && deadlineNowMs !== null) {
+      const overdue = countOverdueOrders(orders.data, deadlineNowMs);
+      if (overdue > 0) {
+        attention.push({
+          key: 'overdue',
+          label: 'Pedidos atrasados',
+          value: count(overdue),
+          detail: 'Prazo vencido e entrega ainda não confirmada.',
+          link: { to: '/pdv/orders', label: 'Ver fila de pedidos' },
+        });
+      }
+    }
+  }
 
   if (current.status === 'error') {
     attention.push({ key: 'fiscal', label: 'Notas fiscais pendentes ou rejeitadas', value: '', unavailable: true });

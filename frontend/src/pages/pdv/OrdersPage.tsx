@@ -52,6 +52,7 @@ import { playNewOrderSound } from '../../lib/orderAlerts';
 import { getOrderPaymentSummary } from '../../lib/orderPayment';
 import { useBranding } from '../../contexts/brandingContext';
 import {
+  OPERATIONAL_ORDERS_URL,
   SERVER_TIME_HEADER,
   deadlineLabel,
   estimateServerNow,
@@ -65,8 +66,6 @@ import {
 import { resolveRestaurantTimeZone } from '../../utils/calendarDate';
 
 const statusColors = ORDER_STATUS_BADGE_CLASSES;
-
-const OPERATIONAL_ORDERS_URL = '/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED';
 
 // Lista de pedidos + referência de horário do servidor, marcada no relógio
 // monotônico quando esta resposta chega (não quando o Promise.all termina).

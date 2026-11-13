@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countOverdueOrders,
   deadlineLabel,
   estimateServerNow,
   formatDeadlineClock,
   isAwaitingDelivery,
   nextDeadlineChangeAt,
+  nextOverdueAt,
   orderDeadlineState,
   serverClockSample,
   sortOrdersByOverdue,
@@ -103,6 +105,33 @@ describe('nextDeadlineChangeAt', () => {
 
   it('is null when no waiting order has a deadline', () => {
     expect(nextDeadlineChangeAt([order('a', 'NEW', null), order('b', 'CANCELED', at(5))], NOW)).toBeNull();
+  });
+});
+
+describe('countOverdueOrders and nextOverdueAt', () => {
+  const list = [
+    order('late', 'READY', at(-5)),
+    order('paidLate', 'FINISHED', at(-15)),
+    order('delivered', 'FINISHED', at(-20), { deliveredAt: at(-1) }),
+    order('historic', 'FINISHED', at(-30), { deliveryTracked: false }),
+    order('canceled', 'CANCELED', at(-40)),
+    order('legacy', 'DELIVERED', at(-40)),
+    order('noDeadline', 'NEW', null),
+    order('soon', 'NEW', at(2)),
+    order('later', 'IN_PROGRESS', at(10)),
+  ];
+
+  it('counts the overdue orders by the queue rule', () => {
+    expect(countOverdueOrders(list, NOW)).toBe(2);
+    // At the exact deadline the order already counts as overdue.
+    expect(countOverdueOrders(list, NOW + min(2))).toBe(3);
+    expect(countOverdueOrders([], NOW)).toBe(0);
+  });
+
+  it('next turn is the earliest deadline still ahead, null when none', () => {
+    expect(nextOverdueAt(list, NOW)).toBe(NOW + min(2));
+    expect(nextOverdueAt(list, NOW + min(2))).toBe(NOW + min(10));
+    expect(nextOverdueAt(list, NOW + min(10))).toBeNull();
   });
 });
 
