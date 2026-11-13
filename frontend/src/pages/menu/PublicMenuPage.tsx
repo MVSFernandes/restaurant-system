@@ -17,6 +17,9 @@ const createIdempotencyKey = () =>
     ? crypto.randomUUID()
     : `order-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+const joinLabels = (labels: string[]) =>
+  labels.length <= 1 ? labels.join('') : `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`;
+
 const PublicMenuPage: React.FC = () => {
   useMenuViewers(true);
   const { displayName, logoUrl, bannerUrl, deliveryFee, enabledPayments } = useBranding();
@@ -31,6 +34,10 @@ const PublicMenuPage: React.FC = () => {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [orderType, setOrderType] = useState('TAKE_AWAY');
+  const [deliveryStreet, setDeliveryStreet] = useState('');
+  const [deliveryNumber, setDeliveryNumber] = useState('');
+  const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
+  const [deliveryReference, setDeliveryReference] = useState('');
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState('');
   const checkoutSubmittingRef = useRef(false);
@@ -81,10 +88,19 @@ const PublicMenuPage: React.FC = () => {
     ? paymentMethod
     : paymentOptions[0]?.value ?? '';
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const isDelivery = orderType === 'DELIVERY';
+  // Mesma regra do PDV e do servidor: retirada pede só o nome; entrega pede
+  // também rua, número (aceita "S/N"), bairro e telefone. Referência é opcional.
+  const missingFields = [
+    ['seu nome', customerName],
+    ...(isDelivery
+      ? [['rua', deliveryStreet], ['número', deliveryNumber], ['bairro', deliveryNeighborhood], ['telefone', customerPhone]]
+      : []),
+  ].filter(([, value]) => !value.trim()).map(([label]) => label);
 
   const handleCheckout = async () => {
     if (checkoutSubmittingRef.current) return;
-    if (cart.length === 0 || !customerName || !selectedPaymentMethod) return;
+    if (cart.length === 0 || missingFields.length > 0 || !selectedPaymentMethod) return;
     try {
       checkoutSubmittingRef.current = true;
       setCheckoutSubmitting(true);
@@ -97,6 +113,10 @@ const PublicMenuPage: React.FC = () => {
         customerName,
         customerPhone,
         type: orderType,
+        // Endereço só vai na entrega: quem trocou para retirada não o envia.
+        ...(isDelivery
+          ? { deliveryStreet, deliveryNumber, deliveryNeighborhood, deliveryReference }
+          : {}),
         paymentMethod: selectedPaymentMethod,
         deliveryFee: currentDeliveryFee,
         items: cart.map((item) => ({ productId: item.product.id, quantity: item.quantity })),
@@ -274,7 +294,7 @@ const PublicMenuPage: React.FC = () => {
                     <input id="checkout-customer-name" name="name" autoComplete="name" type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="input" placeholder="João Silva" />
                   </div>
                   <div>
-                    <label htmlFor="checkout-customer-phone" className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                    <label htmlFor="checkout-customer-phone" className="block text-sm font-medium text-gray-700 mb-1">{isDelivery ? 'Telefone *' : 'Telefone'}</label>
                     <input id="checkout-customer-phone" name="tel" autoComplete="tel" type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="input" placeholder="(11) 99999-9999" />
                   </div>
                   <div>
@@ -284,6 +304,31 @@ const PublicMenuPage: React.FC = () => {
                       <option value="DELIVERY">Entrega</option>
                     </select>
                   </div>
+                  {isDelivery && (
+                    <fieldset>
+                      <legend className="sr-only">Endereço de entrega</legend>
+                      <div className="space-y-3">
+                        <div>
+                          <label htmlFor="checkout-delivery-street" className="block text-sm font-medium text-gray-700 mb-1">Rua *</label>
+                          <input id="checkout-delivery-street" name="address-line1" autoComplete="address-line1" type="text" value={deliveryStreet} onChange={(e) => setDeliveryStreet(e.target.value)} className="input" placeholder="Rua das Flores" />
+                        </div>
+                        <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3">
+                          <div>
+                            <label htmlFor="checkout-delivery-number" className="block text-sm font-medium text-gray-700 mb-1">Número *</label>
+                            <input id="checkout-delivery-number" name="address-number" type="text" value={deliveryNumber} onChange={(e) => setDeliveryNumber(e.target.value)} className="input" placeholder="123 ou S/N" />
+                          </div>
+                          <div>
+                            <label htmlFor="checkout-delivery-neighborhood" className="block text-sm font-medium text-gray-700 mb-1">Bairro *</label>
+                            <input id="checkout-delivery-neighborhood" name="address-level3" autoComplete="address-level3" type="text" value={deliveryNeighborhood} onChange={(e) => setDeliveryNeighborhood(e.target.value)} className="input" placeholder="Centro" />
+                          </div>
+                        </div>
+                        <div>
+                          <label htmlFor="checkout-delivery-reference" className="block text-sm font-medium text-gray-700 mb-1">Referência</label>
+                          <input id="checkout-delivery-reference" name="delivery-reference" type="text" value={deliveryReference} onChange={(e) => setDeliveryReference(e.target.value)} className="input" placeholder="Perto da praça" />
+                        </div>
+                      </div>
+                    </fieldset>
+                  )}
                   <div>
                     <label htmlFor="checkout-payment-method" className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
                     <select
@@ -327,7 +372,12 @@ const PublicMenuPage: React.FC = () => {
                   </div>
                 </div>
                 {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
-                <button onClick={handleCheckout} disabled={!customerName || !selectedPaymentMethod || checkoutSubmitting} className="btn-primary w-full py-4 text-lg">
+                {missingFields.length > 0 && (
+                  <p id="checkout-missing-fields" aria-live="polite" className="mb-3 text-sm text-gray-600">
+                    Para finalizar, preencha {joinLabels(missingFields)}.
+                  </p>
+                )}
+                <button onClick={handleCheckout} disabled={missingFields.length > 0 || !selectedPaymentMethod || checkoutSubmitting} aria-describedby={missingFields.length > 0 ? 'checkout-missing-fields' : undefined} className="btn-primary w-full py-4 text-lg">
                   {checkoutSubmitting ? (
                     <span className="inline-flex items-center justify-center gap-2">
                       <Loader2 size={18} className="animate-spin" />

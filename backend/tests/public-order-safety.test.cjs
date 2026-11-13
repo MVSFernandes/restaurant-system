@@ -195,17 +195,104 @@ test('public checkout still creates TAKE_AWAY orders from the exact menu payload
   assert.equal(p_payment.method, 'PIX');
 });
 
+// O corpo que o cardápio envia para entrega: o telefone vai em customerPhone.
+const deliveryBody = () => ({
+  ...menuBody(),
+  type: 'DELIVERY',
+  deliveryFee: 5,
+  deliveryStreet: 'Rua A',
+  deliveryNumber: '1',
+  deliveryNeighborhood: 'Centro',
+  deliveryReference: 'Portão azul',
+});
+
 test('public DELIVERY uses the configured fee, never the fee the client sent', async () => {
-  await orderService.createPublicOrder(
-    { ...menuBody(), type: 'DELIVERY', deliveryFee: 0.01, deliveryStreet: 'Rua A', deliveryNumber: '1' },
-    'public:delivery'
-  );
+  await orderService.createPublicOrder({ ...deliveryBody(), deliveryFee: 0.01 }, 'public:delivery');
   const { p_order } = createdOrder();
   assert.equal(p_order.type, 'DELIVERY');
   assert.equal(p_order.delivery_fee, 5);
   assert.equal(p_order.total, 17);
   assert.equal(p_order.delivery_street, 'Rua A');
   assert.equal(p_order.delivery_type, null);
+});
+
+test('public DELIVERY stores the address and the menu phone on the order', async () => {
+  await orderService.createPublicOrder(deliveryBody(), 'public:delivery-address');
+  const { p_order, p_payment } = createdOrder();
+  assert.equal(p_order.delivery_street, 'Rua A');
+  assert.equal(p_order.delivery_number, '1');
+  assert.equal(p_order.delivery_neighborhood, 'Centro');
+  assert.equal(p_order.delivery_reference, 'Portão azul');
+  assert.equal(p_order.delivery_phone, '11999990000');
+  assert.equal(p_payment.amount, 17);
+});
+
+test('public DELIVERY accepts "S/N" as the number and no reference', async () => {
+  const body = { ...deliveryBody(), deliveryNumber: 'S/N' };
+  delete body.deliveryReference;
+  await orderService.createPublicOrder(body, 'public:delivery-sn');
+  const { p_order } = createdOrder();
+  assert.equal(p_order.delivery_number, 'S/N');
+  assert.equal(p_order.delivery_reference, null);
+});
+
+for (const [field, label] of [
+  ['deliveryStreet', 'rua'],
+  ['deliveryNumber', 'número'],
+  ['deliveryNeighborhood', 'bairro'],
+  ['customerPhone', 'telefone'],
+]) {
+  for (const [kind, value] of [['missing', undefined], ['blank', '   ']]) {
+    test(`public DELIVERY refuses a ${kind} ${field}`, async () => {
+      const body = deliveryBody();
+      if (value === undefined) delete body[field];
+      else body[field] = value;
+      await assert.rejects(
+        orderService.createPublicOrder(body, `public:delivery:${field}:${kind}`),
+        (error) => error.status === 400
+          && error.details?.field === (field === 'customerPhone' ? 'deliveryPhone' : field)
+          && error.message === `Para entrega, preencha ${label}.`
+      );
+      assert.equal(rpcCalls.length, 0);
+    });
+  }
+}
+
+test('public DELIVERY names every missing field in Portuguese', async () => {
+  await assert.rejects(
+    orderService.createPublicOrder(
+      { ...menuBody(), type: 'DELIVERY', customerPhone: ' ', deliveryStreet: '', deliveryNumber: '  ' },
+      'public:delivery:all-missing'
+    ),
+    (error) => error.status === 400
+      && error.details?.field === 'deliveryStreet'
+      && error.message === 'Para entrega, preencha rua, número, bairro e telefone.'
+  );
+  assert.equal(rpcCalls.length, 0);
+});
+
+test('public TAKE_AWAY needs no address or phone and drops an address it receives', async () => {
+  const body = { ...deliveryBody(), type: 'TAKE_AWAY', deliveryNotes: 'Bater palmas' };
+  delete body.customerPhone;
+  await orderService.createPublicOrder(body, 'public:take-away-drops-address');
+  const { p_order } = createdOrder();
+  assert.equal(p_order.type, 'TAKE_AWAY');
+  assert.equal(p_order.delivery_fee, 0);
+  assert.equal(p_order.total, 12);
+  assert.equal(p_order.delivery_street, null);
+  assert.equal(p_order.delivery_number, null);
+  assert.equal(p_order.delivery_neighborhood, null);
+  assert.equal(p_order.delivery_reference, null);
+  assert.equal(p_order.delivery_notes, null);
+  assert.equal(p_order.delivery_phone, null);
+});
+
+test('replaying a key that already created an order returns it, even an incomplete old DELIVERY', async () => {
+  const existing = { id: 'old-public-delivery', type: 'DELIVERY', deliveryStreet: null };
+  orderRepository.findByIdempotencyKey = async () => existing;
+  const body = { ...menuBody(), type: 'DELIVERY' };
+  assert.equal(await orderService.createPublicOrder(body, 'public:old-delivery'), existing);
+  assert.equal(rpcCalls.length, 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -351,6 +438,25 @@ test('POST /api/orders/public still answers 201 for the menu payload', async () 
   const { p_order } = createdOrder();
   assert.equal(p_order.user_id, null);
   assert.equal(p_order.customer_id, null);
+});
+
+test('POST /api/orders/public answers 400 for an incomplete DELIVERY and creates nothing', async () => {
+  orderRepository.findItems = async () => [];
+  const response = await postJson('/orders/public', {
+    ...menuBody(), idempotencyKey: 'http-delivery-incomplete', type: 'DELIVERY',
+    deliveryStreet: 'Rua A', deliveryNumber: ' ',
+  });
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.match(JSON.stringify(body), /Para entrega, preencha número e bairro\./);
+  assert.equal(rpcCalls.length, 0);
+});
+
+test('POST /api/orders/public answers 201 for a complete DELIVERY', async () => {
+  orderRepository.findItems = async () => [];
+  const response = await postJson('/orders/public', { ...deliveryBody(), idempotencyKey: 'http-delivery' });
+  assert.equal(response.status, 201);
+  assert.equal(createdOrder().p_order.delivery_neighborhood, 'Centro');
 });
 
 test('authenticated waiters still launch DINE_IN orders into an open tab', async () => {
