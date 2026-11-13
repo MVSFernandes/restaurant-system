@@ -11,6 +11,14 @@ import type { Order } from '../types';
 
 export const SERVER_TIME_HEADER = 'x-server-time';
 
+/**
+ * Pedidos da sessão de caixa aberta em todas as situações. Sem o filtro,
+ * GET /orders omite FINISHED e CANCELED, e um FINISHED rastreado pago sem
+ * entrega confirmada ainda pode estar atrasado. Tela de Pedidos e Dashboard
+ * usam a mesma consulta para as contagens coincidirem.
+ */
+export const OPERATIONAL_ORDERS_URL = '/orders?status=NEW,IN_PROGRESS,READY,DELIVERED,FINISHED,CANCELED';
+
 const MINUTE_MS = 60_000;
 
 type DeadlineOrder = Pick<Order, 'status' | 'promisedAt' | 'deliveredAt' | 'deliveryTracked'>;
@@ -43,6 +51,23 @@ export const orderDeadlineState = (order: DeadlineOrder, nowMs: number): OrderDe
   return nowMs >= promisedAtMs
     ? { kind: 'overdue', promisedAtMs, overdueMs: nowMs - promisedAtMs }
     : { kind: 'onTime', promisedAtMs, remainingMs: promisedAtMs - nowMs };
+};
+
+/** Quantos pedidos estão atrasados agora, pela mesma regra da fila. */
+export const countOverdueOrders = (orders: readonly DeadlineOrder[], nowMs: number) =>
+  orders.reduce((total, order) => total + (orderDeadlineState(order, nowMs).kind === 'overdue' ? 1 : 0), 0);
+
+/**
+ * Próximo instante (no relógio do servidor) em que um pedido no prazo passa a
+ * atrasado: o menor promisedAt ainda por vir. null quando não há nenhum.
+ */
+export const nextOverdueAt = (orders: readonly DeadlineOrder[], nowMs: number): number | null => {
+  let next: number | null = null;
+  for (const order of orders) {
+    const state = orderDeadlineState(order, nowMs);
+    if (state.kind === 'onTime' && (next === null || state.promisedAtMs < next)) next = state.promisedAtMs;
+  }
+  return next;
 };
 
 /**
