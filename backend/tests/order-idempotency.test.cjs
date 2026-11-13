@@ -185,6 +185,33 @@ test('a 4xx refusal is not cached: fixing the cause and retrying with the same k
   assert.equal(serviceRuns, 2);
 });
 
+test('POST /orders/public: closed cash register answers 400 with CASH_REGISTER_CLOSED, saves nothing, and the same key works after reopening', async () => {
+  cashRegisterRepository.findOpenSession = async () => null;
+  const refused = await createPublic('public-closed-register');
+  assert.equal(refused.code, 400);
+  assert.equal(refused.body.code, 'CASH_REGISTER_CLOSED');
+  assert.equal(typeof refused.body.message, 'string', 'a mensagem continua no corpo');
+  assert.equal(ordersByKey.size, 0);
+  assert.equal(rpcCalls, 0);
+
+  cashRegisterRepository.findOpenSession = async () => ({ id: 'session' });
+  const retry = await createPublic('public-closed-register');
+  assert.equal(retry.code, 201);
+  assert.equal(isReplay(retry), false);
+  assert.equal(ordersByKey.size, 1);
+
+  const again = await createPublic('public-closed-register');
+  assert.equal(isReplay(again), true, 'repetir o envio não cria outro pedido');
+  assert.equal(ordersByKey.size, 1);
+});
+
+test('an unexpected (non-domain) error keeps the generic 500 body, without a code', async () => {
+  restaurantConfigRepository.get = async () => { throw new Error('unexpected'); };
+  const failed = await createPublic('public-5xx-body');
+  assert.equal(failed.code, 500);
+  assert.deepEqual(failed.body, { message: 'Erro ao criar pedido público' });
+});
+
 test('POST /orders/public: a 4xx refusal is not cached either', async () => {
   const refused = await createPublic('public-bad-payment', { ...publicInput, paymentMethod: 'CREDIT_CARD' });
   assert.equal(refused.code, 400);

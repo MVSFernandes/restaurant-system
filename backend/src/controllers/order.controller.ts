@@ -128,7 +128,9 @@ async function getCreatedOrderBody(order: Order) {
 
 const toErrorResult = (error: unknown, fallback: string): IdempotencyResult => {
   if (error instanceof DomainError) {
-    return { status: error.status, body: { message: error.message } };
+    // O código acompanha a mensagem: quem chama reconhece a recusa (por
+    // exemplo CASH_REGISTER_CLOSED) sem depender do texto.
+    return { status: error.status, body: { message: error.message, code: error.code } };
   }
   console.error(error);
   return { status: 500, body: { message: fallback } };

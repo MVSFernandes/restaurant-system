@@ -1,4 +1,4 @@
-import { orderErrorMessage } from '../../lib/orderErrors';
+import { publicCheckoutErrorMessage } from '../../lib/orderErrors';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import type { Category, Product } from '../../types';
@@ -128,7 +128,7 @@ const PublicMenuPage: React.FC = () => {
       setCheckoutIdempotencyKey('');
     } catch (error) {
       console.error(error);
-      setOrderError(orderErrorMessage(error));
+      setOrderError(publicCheckoutErrorMessage(error));
       void api.get<Category[]>('/categories?includeProducts=true')
         .then(({ data }) => setCategories(data))
         .catch(() => {});

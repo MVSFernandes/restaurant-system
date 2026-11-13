@@ -220,6 +220,78 @@ describe('public delivery checkout', () => {
   });
 });
 
+describe('public checkout with the cash register closed', () => {
+  const CLOSED = 'No momento, o restaurante não está aceitando pedidos. Tente novamente mais tarde.';
+  const closedRefusal = {
+    response: { status: 400, data: { message: 'No cash register session is currently open.', code: 'CASH_REGISTER_CLOSED' } },
+  };
+
+  it('shows the Portuguese message, keeps every field and lets the same submission go through after reopening', async () => {
+    mocks.post.mockRejectedValueOnce(closedRefusal).mockResolvedValueOnce({ data: { id: 'public-order' } });
+    render(<PublicMenuPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente Fictício' } });
+    fireEvent.change(screen.getByLabelText('Tipo do pedido'), { target: { value: 'DELIVERY' } });
+    fillDeliveryAddress();
+    fireEvent.change(screen.getByLabelText('Referência'), { target: { value: 'Portão azul' } });
+    fireEvent.change(screen.getByLabelText('Forma de pagamento'), { target: { value: 'PIX' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(CLOSED);
+    expect(screen.queryByText(/No cash register/)).toBeNull();
+    expect(screen.queryByText('Pedido Realizado!')).toBeNull();
+    expect((screen.getByLabelText('Seu nome', { exact: false }) as HTMLInputElement).value).toBe('Cliente Fictício');
+    expect((screen.getByLabelText('Tipo do pedido') as HTMLSelectElement).value).toBe('DELIVERY');
+    expect((screen.getByLabelText('Forma de pagamento') as HTMLSelectElement).value).toBe('PIX');
+    expect((screen.getByLabelText('Telefone *') as HTMLInputElement).value).toBe('11900000000');
+    expect((screen.getByLabelText('Rua *') as HTMLInputElement).value).toBe('Rua Fictícia');
+    expect((screen.getByLabelText('Número *') as HTMLInputElement).value).toBe('S/N');
+    expect((screen.getByLabelText('Bairro *') as HTMLInputElement).value).toBe('Centro');
+    expect((screen.getByLabelText('Referência') as HTMLInputElement).value).toBe('Portão azul');
+    const finish = screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement;
+    expect(finish.disabled).toBe(false);
+
+    fireEvent.click(finish);
+    expect(await screen.findByText('Pedido Realizado!')).toBeTruthy();
+    expect(mocks.post).toHaveBeenCalledTimes(2);
+    const [first, retry] = mocks.post.mock.calls;
+    // O carrinho e os dados continuam os mesmos na nova tentativa.
+    expect(first[1].items).toHaveLength(1);
+    expect(retry[1]).toEqual(first[1]);
+    expect(retry[1]).toMatchObject({
+      type: 'DELIVERY', paymentMethod: 'PIX', customerName: 'Cliente Fictício', customerPhone: '11900000000',
+      deliveryStreet: 'Rua Fictícia', deliveryNumber: 'S/N', deliveryNeighborhood: 'Centro', deliveryReference: 'Portão azul',
+    });
+    expect(retry[2].headers['X-Idempotency-Key']).toBe(first[2].headers['X-Idempotency-Key']);
+  });
+
+  it('recognizes the closed register by code, not by the English text', async () => {
+    mocks.post.mockRejectedValue({ response: { status: 400, data: { message: 'Outro texto qualquer', code: 'CASH_REGISTER_CLOSED' } } });
+    render(<PublicMenuPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(CLOSED);
+  });
+
+  it('does not treat a network failure or another refusal as a closed register', async () => {
+    mocks.post.mockRejectedValueOnce(new Error('Network Error'))
+      .mockRejectedValueOnce({ response: { status: 400, data: { message: 'Forma de pagamento indisponível.', code: 'VALIDATION_ERROR' } } });
+    render(<PublicMenuPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+    expect((await screen.findByRole('alert')).textContent)
+      .toBe('Não foi possível confirmar o pedido. Verifique a conexão e tente novamente.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Forma de pagamento indisponível.'));
+  });
+});
+
 describe('PDV delivery fee selection', () => {
   it('defaults to urban and requires a value when selecting another fee', async () => {
     await openPdv();
