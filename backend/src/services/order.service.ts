@@ -508,6 +508,15 @@ function creationItems(orderId: string, items: ResolvedItemPricing[]): OrderItem
   return items.map((item) => ({ ...item, id: createId(), orderId }));
 }
 
+/**
+ * Sessão de caixa em que um pedido público entraria agora, ou null quando o
+ * restaurante não está aceitando pedidos. A criação do pedido público e a
+ * consulta de disponibilidade do cardápio usam esta mesma regra.
+ */
+function sessionForPublicOrder() {
+  return cashRegisterRepository.findOpenSession();
+}
+
 export const orderService = {
   async createOrder(
     input: CreateOrderInput,
@@ -592,6 +601,16 @@ export const orderService = {
   },
 
   /**
+   * Disponibilidade do checkout público, para o cardápio avisar antes do envio.
+   * Só o booleano sai daqui: sessão, saldo e operador do caixa continuam nas
+   * rotas autenticadas. O envio ainda é validado em createPublicOrder, porque o
+   * caixa pode fechar entre esta consulta e o pedido.
+   */
+  async getPublicOrderAvailability(): Promise<{ acceptingOrders: boolean }> {
+    return { acceptingOrders: (await sessionForPublicOrder()) !== null };
+  },
+
+  /**
    * Checkout público do cardápio.
    *
    * - Só retirada (TAKE_AWAY) e entrega (DELIVERY); mesa e comanda ficam nas
@@ -611,7 +630,7 @@ export const orderService = {
       const existing = await orderRepository.findByIdempotencyKey(storedKey);
       if (existing) return existing;
     }
-    const session = await cashRegisterRepository.findOpenSession();
+    const session = await sessionForPublicOrder();
     if (!session) throw new CashRegisterClosedError();
 
     const type = input.type;

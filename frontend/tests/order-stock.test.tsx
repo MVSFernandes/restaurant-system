@@ -225,6 +225,16 @@ describe('public checkout with the cash register closed', () => {
   const closedRefusal = {
     response: { status: 400, data: { message: 'No cash register session is currently open.', code: 'CASH_REGISTER_CLOSED' } },
   };
+  // Resposta de GET /orders/public/availability; o padrão é a consulta não
+  // trazer o booleano (estado desconhecido, que não bloqueia).
+  let availability: unknown;
+  beforeEach(() => {
+    availability = [];
+    const fallback = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (url: string) => (
+      url === '/orders/public/availability' ? { data: availability } : fallback(url)
+    ));
+  });
 
   it('shows the Portuguese message, keeps every field and lets the same submission go through after reopening', async () => {
     mocks.post.mockRejectedValueOnce(closedRefusal).mockResolvedValueOnce({ data: { id: 'public-order' } });
@@ -238,7 +248,8 @@ describe('public checkout with the cash register closed', () => {
     fireEvent.change(screen.getByLabelText('Forma de pagamento'), { target: { value: 'PIX' } });
     fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
 
-    expect((await screen.findByRole('alert')).textContent).toBe(CLOSED);
+    expect(await screen.findByText(CLOSED)).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/No cash register/)).toBeNull();
     expect(screen.queryByText('Pedido Realizado!')).toBeNull();
     expect((screen.getByLabelText('Seu nome', { exact: false }) as HTMLInputElement).value).toBe('Cliente Fictício');
@@ -250,7 +261,13 @@ describe('public checkout with the cash register closed', () => {
     expect((screen.getByLabelText('Bairro *') as HTMLInputElement).value).toBe('Centro');
     expect((screen.getByLabelText('Referência') as HTMLInputElement).value).toBe('Portão azul');
     const finish = screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement;
-    expect(finish.disabled).toBe(false);
+    // A recusa no envio confirma o caixa fechado: só a finalização fica bloqueada.
+    expect(finish.disabled).toBe(true);
+
+    availability = { acceptingOrders: true };
+    fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
+    await waitFor(() => expect(finish.disabled).toBe(false));
+    expect(screen.queryByText(CLOSED)).toBeNull();
 
     fireEvent.click(finish);
     expect(await screen.findByText('Pedido Realizado!')).toBeTruthy();
@@ -273,7 +290,8 @@ describe('public checkout with the cash register closed', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
     fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente' } });
     fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
-    expect((await screen.findByRole('alert')).textContent).toBe(CLOSED);
+    expect(await screen.findByText(CLOSED)).toBeTruthy();
+    expect(screen.queryByText('Outro texto qualquer')).toBeNull();
   });
 
   it('does not treat a network failure or another refusal as a closed register', async () => {
@@ -289,6 +307,98 @@ describe('public checkout with the cash register closed', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Forma de pagamento indisponível.'));
+  });
+
+  const availabilityCalls = () => mocks.get.mock.calls.filter(([url]) => url === '/orders/public/availability').length;
+
+  it('warns on the menu when closed, keeps browsing and the cart, and disables only the finish button', async () => {
+    availability = { acceptingOrders: false };
+    render(<PublicMenuPage />);
+    expect(await screen.findByText(CLOSED)).toBeTruthy();
+    expect(screen.getByText(/carrinho e os dados preenchidos ficam guardados/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bebidas' }));
+    const add = screen.getAllByRole('button', { name: 'Adicionar' })[0] as HTMLButtonElement;
+    expect(add.disabled).toBe(false);
+    fireEvent.click(add);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente Fictício' } });
+    fireEvent.change(screen.getByLabelText('Tipo do pedido'), { target: { value: 'DELIVERY' } });
+    fillDeliveryAddress();
+
+    await waitFor(() => expect(availabilityCalls()).toBe(2));
+    expect(screen.getAllByText(CLOSED)).toHaveLength(1);
+    const finish = screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement;
+    expect(finish.disabled).toBe(true);
+    expect(finish.getAttribute('aria-describedby')).toBe('checkout-ordering-closed');
+    fireEvent.click(finish);
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect((screen.getByLabelText('Tipo do pedido') as HTMLSelectElement).disabled).toBe(false);
+    expect((screen.getByLabelText('Forma de pagamento') as HTMLSelectElement).disabled).toBe(false);
+  });
+
+  it('checks again when the cart opens and after "Verificar novamente", keeping every field, and sends one order', async () => {
+    availability = { acceptingOrders: false };
+    mocks.post.mockResolvedValue({ data: { id: 'public-order' } });
+    render(<PublicMenuPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente Fictício' } });
+    fireEvent.change(screen.getByLabelText('Telefone'), { target: { value: '11900000000' } });
+    const finish = screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement;
+    await waitFor(() => expect(availabilityCalls()).toBe(2));
+    expect(finish.disabled).toBe(true);
+
+    // Ainda fechado na nova consulta: segue bloqueado, com os dados no lugar.
+    fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
+    await waitFor(() => expect(availabilityCalls()).toBe(3));
+    await screen.findByRole('button', { name: 'Verificar novamente' });
+    expect(finish.disabled).toBe(true);
+
+    availability = { acceptingOrders: true };
+    fireEvent.click(screen.getByRole('button', { name: 'Verificar novamente' }));
+    await waitFor(() => expect(finish.disabled).toBe(false));
+    expect(screen.queryByText(CLOSED)).toBeNull();
+    expect((screen.getByLabelText('Seu nome', { exact: false }) as HTMLInputElement).value).toBe('Cliente Fictício');
+    expect((screen.getByLabelText('Telefone') as HTMLInputElement).value).toBe('11900000000');
+
+    fireEvent.click(finish);
+    expect(await screen.findByText('Pedido Realizado!')).toBeTruthy();
+    expect(mocks.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the customer try the normal flow when the availability lookup fails', async () => {
+    const fallback = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (url: string) => {
+      if (url === '/orders/public/availability') throw new Error('Network Error');
+      return fallback(url);
+    });
+    mocks.post.mockResolvedValue({ data: { id: 'public-order' } });
+    render(<PublicMenuPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente' } });
+    await waitFor(() => expect(availabilityCalls()).toBe(2));
+    expect(screen.queryByText(CLOSED)).toBeNull();
+    const finish = screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement;
+    expect(finish.disabled).toBe(false);
+    fireEvent.click(finish);
+    expect(await screen.findByText('Pedido Realizado!')).toBeTruthy();
+  });
+
+  it('a lookup that fails after a closed answer stops blocking the finish button', async () => {
+    availability = { acceptingOrders: false };
+    render(<PublicMenuPage />);
+    expect(await screen.findByText(CLOSED)).toBeTruthy();
+    const fallback = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (url: string) => {
+      if (url === '/orders/public/availability') throw new Error('Network Error');
+      return fallback(url);
+    });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Adicionar' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente' } });
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement).disabled).toBe(false));
   });
 });
 

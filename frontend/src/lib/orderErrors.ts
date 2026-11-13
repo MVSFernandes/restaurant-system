@@ -7,10 +7,13 @@ export const PUBLIC_CHECKOUT_CLOSED_MESSAGE =
  * as demais recusas seguem a mensagem comum de pedido.
  */
 export function publicCheckoutErrorMessage(error: unknown): string {
-  const data = (error as { response?: { data?: { code?: unknown; error?: { code?: unknown } } } })?.response?.data;
-  const code = data?.code ?? data?.error?.code;
-  if (code === 'CASH_REGISTER_CLOSED') return PUBLIC_CHECKOUT_CLOSED_MESSAGE;
+  if (isCashRegisterClosedError(error)) return PUBLIC_CHECKOUT_CLOSED_MESSAGE;
   return orderErrorMessage(error);
+}
+
+export function isCashRegisterClosedError(error: unknown): boolean {
+  const data = (error as { response?: { data?: { code?: unknown; error?: { code?: unknown } } } })?.response?.data;
+  return (data?.code ?? data?.error?.code) === 'CASH_REGISTER_CLOSED';
 }
 
 export function orderErrorMessage(error: unknown): string {

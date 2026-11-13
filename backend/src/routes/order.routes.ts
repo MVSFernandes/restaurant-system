@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 import {
   getOrders, getRecentOrders, getOrderHistory, getOrderById, createOrder, updateOrderStatus,
-  deleteOrder, createPublicOrder, processPayment, getOrderReceipt, updateOrder
+  deleteOrder, createPublicOrder, getPublicOrderAvailability, processPayment, getOrderReceipt, updateOrder
 } from '../controllers/order.controller';
 
 const router = Router();
 
-// Rota pública para o cardápio digital
+// Rotas públicas para o cardápio digital
+router.get('/public/availability', getPublicOrderAvailability);
 router.post('/public', createPublicOrder);
 
 router.use(authenticate);

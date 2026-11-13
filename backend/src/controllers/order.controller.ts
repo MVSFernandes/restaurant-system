@@ -311,6 +311,17 @@ export const createOrder = async (req: Request, res: Response) => {
   }, 'Erro ao criar pedido');
 };
 
+export const getPublicOrderAvailability = async (_req: Request, res: Response) => {
+  try {
+    const availability = await orderService.getPublicOrderAvailability();
+    // O caixa abre e fecha a qualquer momento: nenhuma cópia intermediária.
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(availability);
+  } catch (error) {
+    handleError(res, error, 'Erro ao verificar se o restaurante está aceitando pedidos');
+  }
+};
+
 export const createPublicOrder = async (req: Request, res: Response) => {
   await runIdempotent(req, res, 'orders:create-public', async () => {
     const order = await orderService.createPublicOrder(req.body, getScopedIdempotencyKey(req, 'orders:create-public'));

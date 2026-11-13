@@ -1,5 +1,9 @@
-import { publicCheckoutErrorMessage } from '../../lib/orderErrors';
-import React, { useState, useEffect, useRef } from 'react';
+import {
+  isCashRegisterClosedError,
+  PUBLIC_CHECKOUT_CLOSED_MESSAGE,
+  publicCheckoutErrorMessage,
+} from '../../lib/orderErrors';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../services/api';
 import type { Category, Product } from '../../types';
 import { ShoppingCart, Plus, Minus, Trash2, X, UtensilsCrossed, Loader2 } from 'lucide-react';
@@ -19,6 +23,26 @@ const createIdempotencyKey = () =>
 
 const joinLabels = (labels: string[]) =>
   labels.length <= 1 ? labels.join('') : `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`;
+
+const OrderingClosedNotice: React.FC<{ id?: string; checking: boolean; onRecheck: () => void }> = ({
+  id,
+  checking,
+  onRecheck,
+}) => (
+  <div id={id} role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+    <p className="font-medium">{PUBLIC_CHECKOUT_CLOSED_MESSAGE}</p>
+    <p className="mt-1">Você pode continuar montando o pedido: o carrinho e os dados preenchidos ficam guardados.</p>
+    <button
+      type="button"
+      onClick={onRecheck}
+      disabled={checking}
+      className="mt-2 inline-flex items-center gap-2 font-semibold text-amber-900 underline disabled:opacity-60"
+    >
+      {checking && <Loader2 size={14} className="animate-spin" />}
+      {checking ? 'Verificando...' : 'Verificar novamente'}
+    </button>
+  </div>
+);
 
 const PublicMenuPage: React.FC = () => {
   useMenuViewers(true);
@@ -41,6 +65,32 @@ const PublicMenuPage: React.FC = () => {
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState('');
   const checkoutSubmittingRef = useRef(false);
+  // false só quando a API confirmou que não está aceitando pedidos; null é
+  // "não se sabe" (ainda consultando ou a consulta falhou) e não bloqueia o
+  // envio, que continua validado no servidor.
+  const [acceptingOrders, setAcceptingOrders] = useState<boolean | null>(null);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const availabilityRequestRef = useRef(0);
+  const orderingClosed = acceptingOrders === false;
+
+  const checkAvailability = useCallback(async () => {
+    const requestId = ++availabilityRequestRef.current;
+    setCheckingAvailability(true);
+    try {
+      const { data } = await api.get<{ acceptingOrders?: unknown }>('/orders/public/availability');
+      if (requestId !== availabilityRequestRef.current) return;
+      const value = data?.acceptingOrders;
+      setAcceptingOrders(typeof value === 'boolean' ? value : null);
+    } catch {
+      if (requestId === availabilityRequestRef.current) setAcceptingOrders(null);
+    } finally {
+      if (requestId === availabilityRequestRef.current) setCheckingAvailability(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkAvailability();
+  }, [checkAvailability]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -100,7 +150,7 @@ const PublicMenuPage: React.FC = () => {
 
   const handleCheckout = async () => {
     if (checkoutSubmittingRef.current) return;
-    if (cart.length === 0 || missingFields.length > 0 || !selectedPaymentMethod) return;
+    if (cart.length === 0 || missingFields.length > 0 || !selectedPaymentMethod || orderingClosed) return;
     try {
       checkoutSubmittingRef.current = true;
       setCheckoutSubmitting(true);
@@ -128,7 +178,16 @@ const PublicMenuPage: React.FC = () => {
       setCheckoutIdempotencyKey('');
     } catch (error) {
       console.error(error);
-      setOrderError(publicCheckoutErrorMessage(error));
+      if (isCashRegisterClosedError(error)) {
+        // O caixa fechou entre a consulta e o envio: mesmo estado da consulta,
+        // com o aviso e "Verificar novamente". A chave do envio é mantida.
+        availabilityRequestRef.current += 1;
+        setCheckingAvailability(false);
+        setAcceptingOrders(false);
+        setOrderError(null);
+      } else {
+        setOrderError(publicCheckoutErrorMessage(error));
+      }
       void api.get<Category[]>('/categories?includeProducts=true')
         .then(({ data }) => setCategories(data))
         .catch(() => {});
@@ -170,6 +229,7 @@ const PublicMenuPage: React.FC = () => {
             onClick={() => {
               setCheckoutIdempotencyKey((current) => current || createIdempotencyKey());
               setShowCart(true);
+              void checkAvailability();
             }}
             aria-label="Abrir carrinho"
             className="relative btn-primary p-3"
@@ -183,6 +243,12 @@ const PublicMenuPage: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {orderingClosed && !showCart && (
+        <div className="max-w-4xl mx-auto px-4 pt-4">
+          <OrderingClosedNotice checking={checkingAvailability} onRecheck={() => void checkAvailability()} />
+        </div>
+      )}
 
       {/* Banner */}
       {bannerUrl && failedBannerUrl !== bannerUrl && (
@@ -372,12 +438,29 @@ const PublicMenuPage: React.FC = () => {
                   </div>
                 </div>
                 {orderError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{orderError}</p>}
+                {orderingClosed && (
+                  <div className="mb-3">
+                    <OrderingClosedNotice
+                      id="checkout-ordering-closed"
+                      checking={checkingAvailability}
+                      onRecheck={() => void checkAvailability()}
+                    />
+                  </div>
+                )}
                 {missingFields.length > 0 && (
                   <p id="checkout-missing-fields" aria-live="polite" className="mb-3 text-sm text-gray-600">
                     Para finalizar, preencha {joinLabels(missingFields)}.
                   </p>
                 )}
-                <button onClick={handleCheckout} disabled={missingFields.length > 0 || !selectedPaymentMethod || checkoutSubmitting} aria-describedby={missingFields.length > 0 ? 'checkout-missing-fields' : undefined} className="btn-primary w-full py-4 text-lg">
+                <button
+                  onClick={handleCheckout}
+                  disabled={missingFields.length > 0 || !selectedPaymentMethod || checkoutSubmitting || orderingClosed}
+                  aria-describedby={[
+                    orderingClosed ? 'checkout-ordering-closed' : '',
+                    missingFields.length > 0 ? 'checkout-missing-fields' : '',
+                  ].filter(Boolean).join(' ') || undefined}
+                  className="btn-primary w-full py-4 text-lg"
+                >
                   {checkoutSubmitting ? (
                     <span className="inline-flex items-center justify-center gap-2">
                       <Loader2 size={18} className="animate-spin" />

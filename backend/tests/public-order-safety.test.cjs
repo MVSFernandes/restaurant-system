@@ -485,3 +485,70 @@ test('authenticated cashiers still launch DINE_IN orders from the PDV', async ()
   assert.equal(p_order.source, 'PDV');
   assert.equal(p_order.user_id, 'user-cashier');
 });
+
+// ---------------------------------------------------------------------------
+// Disponibilidade do checkout (GET /orders/public/availability)
+// ---------------------------------------------------------------------------
+
+const openSessionWithInternals = () => ({
+  id: 'session-secret-id',
+  status: 'OPEN',
+  openingBalance: 321.45,
+  openedBy: 'user-cashier',
+  openedAt: new Date('2026-11-13T12:00:00Z'),
+});
+
+test('GET /api/orders/public/availability answers true without login while the register is open', async () => {
+  cashRegisterRepository.findOpenSession = async () => openSessionWithInternals();
+  const response = await fetch(`${baseUrl}/orders/public/availability`);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const body = await response.json();
+  assert.deepEqual(body, { acceptingOrders: true });
+  for (const secret of ['session-secret-id', '321.45', 'user-cashier', 'openedAt', 'status']) {
+    assert.ok(!JSON.stringify(body).includes(secret), `a resposta pública não pode trazer ${secret}`);
+  }
+});
+
+test('GET /api/orders/public/availability answers false while the register is closed', async () => {
+  cashRegisterRepository.findOpenSession = async () => null;
+  const response = await fetch(`${baseUrl}/orders/public/availability`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { acceptingOrders: false });
+});
+
+test('availability follows the same rule as public order creation', async () => {
+  for (const session of [null, { id: 'session-1' }]) {
+    cashRegisterRepository.findOpenSession = async () => session;
+    rpcCalls = [];
+    const { acceptingOrders } = await orderService.getPublicOrderAvailability();
+    let created = true;
+    try {
+      await orderService.createPublicOrder(menuBody(), `public:rule:${String(acceptingOrders)}`);
+    } catch (error) {
+      assert.equal(error.code, 'CASH_REGISTER_CLOSED');
+      created = false;
+    }
+    assert.equal(created, acceptingOrders);
+  }
+});
+
+test('GET /api/orders/public/availability answers 500 without internals when the lookup fails', async () => {
+  cashRegisterRepository.findOpenSession = async () => { throw new Error('db down: session-secret-id'); };
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const response = await fetch(`${baseUrl}/orders/public/availability`);
+    assert.equal(response.status, 500);
+    const body = await response.json();
+    assert.equal(body.acceptingOrders, undefined);
+    assert.ok(!JSON.stringify(body).includes('session-secret-id'));
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test('the internal cash register route still requires login', async () => {
+  const response = await fetch(`${baseUrl}/cash-register/current`);
+  assert.equal(response.status, 401);
+});
