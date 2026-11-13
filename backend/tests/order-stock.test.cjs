@@ -141,7 +141,16 @@ test('editing an order rejects paused products before changing existing items or
 
 test('public delivery creation includes a DB-valid payment and the delivery fee in the total', async () => {
   await orderService.createPublicOrder(
-    { ...input, type: 'DELIVERY', deliveryFee: 99, paymentMethod: 'CASH' },
+    {
+      ...input,
+      type: 'DELIVERY',
+      deliveryFee: 99,
+      paymentMethod: 'CASH',
+      deliveryStreet: 'Rua Fictícia',
+      deliveryNumber: '10',
+      deliveryNeighborhood: 'Centro',
+      deliveryPhone: '11900000000',
+    },
     'public:key'
   );
   assert.equal(requests.length, 1);

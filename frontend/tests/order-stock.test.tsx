@@ -40,6 +40,13 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+function fillDeliveryAddress() {
+  fireEvent.change(screen.getByLabelText('Telefone *'), { target: { value: '11900000000' } });
+  fireEvent.change(screen.getByLabelText('Rua *'), { target: { value: 'Rua Fictícia' } });
+  fireEvent.change(screen.getByLabelText('Número *'), { target: { value: 'S/N' } });
+  fireEvent.change(screen.getByLabelText('Bairro *'), { target: { value: 'Centro' } });
+}
+
 async function openPdv() {
   render(<OrdersPage />);
   fireEvent.click(await screen.findByRole('button', { name: 'Novo Pedido' }));
@@ -128,6 +135,7 @@ describe('public delivery checkout', () => {
 
     fireEvent.change(screen.getByDisplayValue('PIX'), { target: { value: 'CASH' } });
     fireEvent.change(screen.getByPlaceholderText('João Silva'), { target: { value: 'Cliente Entrega' } });
+    fillDeliveryAddress();
     fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
@@ -137,7 +145,62 @@ describe('public delivery checkout', () => {
       type: 'DELIVERY',
       paymentMethod: 'CASH',
       deliveryFee: 5,
+      customerPhone: '11900000000',
+      deliveryStreet: 'Rua Fictícia',
+      deliveryNumber: 'S/N',
+      deliveryNeighborhood: 'Centro',
+      deliveryReference: '',
     });
+  });
+
+  it('shows the address only for delivery and names the missing fields in Portuguese', async () => {
+    render(<PublicMenuPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    const finish = () => screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement;
+
+    expect(screen.queryByLabelText('Rua *')).toBeNull();
+    expect(screen.getByText('Para finalizar, preencha seu nome.')).toBeTruthy();
+    expect(finish().disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente' } });
+    expect(screen.queryByText(/Para finalizar/)).toBeNull();
+    expect(finish().disabled).toBe(false);
+
+    fireEvent.change(screen.getByLabelText('Tipo do pedido'), { target: { value: 'DELIVERY' } });
+    expect(screen.getByLabelText('Telefone *')).toBeTruthy();
+    expect((screen.getByLabelText('Rua *') as HTMLInputElement).autocomplete).toBe('address-line1');
+    expect((screen.getByLabelText('Bairro *') as HTMLInputElement).autocomplete).toBe('address-level3');
+    expect(screen.getByLabelText('Número *')).toBeTruthy();
+    expect(screen.getByLabelText('Referência')).toBeTruthy();
+    expect(screen.getByText('Para finalizar, preencha rua, número, bairro e telefone.')).toBeTruthy();
+    expect(finish().disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Rua *'), { target: { value: '   ' } });
+    fireEvent.change(screen.getByLabelText('Número *'), { target: { value: '12' } });
+    expect(screen.getByText('Para finalizar, preencha rua, bairro e telefone.')).toBeTruthy();
+    fireEvent.click(finish());
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it('does not send the typed address after switching back to take-away', async () => {
+    mocks.post.mockResolvedValue({ data: { id: 'public-order' } });
+    render(<PublicMenuPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente' } });
+    fireEvent.change(screen.getByLabelText('Tipo do pedido'), { target: { value: 'DELIVERY' } });
+    fillDeliveryAddress();
+    fireEvent.change(screen.getByLabelText('Tipo do pedido'), { target: { value: 'TAKE_AWAY' } });
+    expect(screen.queryByLabelText('Rua *')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
+    const body = mocks.post.mock.calls[0][1];
+    expect(body.type).toBe('TAKE_AWAY');
+    for (const field of ['deliveryStreet', 'deliveryNumber', 'deliveryNeighborhood', 'deliveryReference']) {
+      expect(body).not.toHaveProperty(field);
+    }
   });
 
   it('labels every checkout field and lets the phone autofill name and phone', async () => {

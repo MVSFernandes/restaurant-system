@@ -198,6 +198,76 @@ export function parsePublicOrderInput(body: unknown): PublicOrderInput {
   return { type: type as PublicOrderType, ...strings, items };
 }
 
+// Campos de endereço que o checkout público exige para entrega, na ordem em
+// que aparecem no cardápio. O telefone pode vir em deliveryPhone ou no
+// customerPhone que o cardápio envia; os dois são o mesmo contato do pedido.
+const PUBLIC_DELIVERY_REQUIRED_FIELDS = [
+  ['deliveryStreet', 'rua'],
+  ['deliveryNumber', 'número'],
+  ['deliveryNeighborhood', 'bairro'],
+  ['deliveryPhone', 'telefone'],
+] as const;
+
+function joinLabels(labels: string[]): string {
+  return labels.length <= 1
+    ? labels.join('')
+    : `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`;
+}
+
+/**
+ * Endereço e contato gravados no pedido público.
+ *
+ * - DELIVERY: rua, número (aceita "S/N", como o PDV), bairro e telefone são
+ *   obrigatórios; referência e observações são opcionais. Os textos já chegam
+ *   aparados por parsePublicOrderInput, então só espaços contam como vazio.
+ * - TAKE_AWAY: endereço não tem uso e não é gravado; o telefone continua
+ *   opcional.
+ */
+export function publicOrderDeliveryFields(input: PublicOrderInput): Pick<
+  Order,
+  | 'deliveryStreet'
+  | 'deliveryNumber'
+  | 'deliveryNeighborhood'
+  | 'deliveryReference'
+  | 'deliveryPhone'
+  | 'deliveryNotes'
+> {
+  const deliveryPhone = input.deliveryPhone ?? input.customerPhone ?? null;
+  if (input.type !== 'DELIVERY') {
+    return {
+      deliveryStreet: null,
+      deliveryNumber: null,
+      deliveryNeighborhood: null,
+      deliveryReference: null,
+      deliveryPhone,
+      deliveryNotes: null,
+    };
+  }
+
+  const values: Record<(typeof PUBLIC_DELIVERY_REQUIRED_FIELDS)[number][0], string | null> = {
+    deliveryStreet: input.deliveryStreet,
+    deliveryNumber: input.deliveryNumber,
+    deliveryNeighborhood: input.deliveryNeighborhood,
+    deliveryPhone,
+  };
+  const missing = PUBLIC_DELIVERY_REQUIRED_FIELDS.filter(([field]) => !values[field]);
+  if (missing.length > 0) {
+    throw new ValidationError(
+      missing[0][0],
+      `Para entrega, preencha ${joinLabels(missing.map(([, label]) => label))}.`
+    );
+  }
+
+  return {
+    deliveryStreet: input.deliveryStreet,
+    deliveryNumber: input.deliveryNumber,
+    deliveryNeighborhood: input.deliveryNeighborhood,
+    deliveryReference: input.deliveryReference,
+    deliveryPhone,
+    deliveryNotes: input.deliveryNotes,
+  };
+}
+
 // Resultado de pricing de um item
 interface ResolvedItemPricing {
   productId: string;
@@ -552,6 +622,9 @@ export const orderService = {
     if (!customerName) {
       throw new ValidationError('customerName', 'Informe o nome do cliente.');
     }
+    // Depois da busca pela chave: repetir um envio que já criou pedido devolve
+    // esse pedido, mesmo que ele seja anterior a esta regra.
+    const deliveryFields = publicOrderDeliveryFields(input);
 
     let total = 0;
     const resolvedItems: ResolvedItemPricing[] = [];
@@ -584,12 +657,7 @@ export const orderService = {
       waiterId: null,
       cashRegisterSessionId: session.id,
       deliveryType: null,
-      deliveryStreet: input.deliveryStreet ?? null,
-      deliveryNumber: input.deliveryNumber ?? null,
-      deliveryNeighborhood: input.deliveryNeighborhood ?? null,
-      deliveryReference: input.deliveryReference ?? null,
-      deliveryPhone: input.deliveryPhone ?? input.customerPhone ?? null,
-      deliveryNotes: input.deliveryNotes ?? null,
+      ...deliveryFields,
       // O banco grava o prazo na inserção, pelo tipo; o pedido devolvido o traz.
       promisedAt: null,
       deliveredAt: null,

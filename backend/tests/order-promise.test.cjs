@@ -330,6 +330,7 @@ test('public menu creation never announces the deadline to the customer', async 
     paymentMethod: 'PIX',
     deliveryStreet: 'Rua Fictícia',
     deliveryNumber: '10',
+    deliveryNeighborhood: 'Centro',
     items: [{ productId: 'drink', quantity: 1 }],
   });
   assert.equal(response.status, 201);
