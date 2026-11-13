@@ -139,6 +139,22 @@ describe('public delivery checkout', () => {
       deliveryFee: 5,
     });
   });
+
+  it('labels every checkout field and lets the phone autofill name and phone', async () => {
+    render(<PublicMenuPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+
+    const name = screen.getByLabelText('Seu nome', { exact: false }) as HTMLInputElement;
+    expect(name.autocomplete).toBe('name');
+    expect(name.name).toBe('name');
+    const phone = screen.getByLabelText('Telefone') as HTMLInputElement;
+    expect(phone.type).toBe('tel');
+    expect(phone.autocomplete).toBe('tel');
+    expect(phone.name).toBe('tel');
+    expect((screen.getByLabelText('Tipo do pedido') as HTMLSelectElement).value).toBe('TAKE_AWAY');
+    expect(screen.getByLabelText('Forma de pagamento').tagName).toBe('SELECT');
+  });
 });
 
 describe('PDV delivery fee selection', () => {

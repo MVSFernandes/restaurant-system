@@ -270,23 +270,24 @@ const PublicMenuPage: React.FC = () => {
               {cart.length > 0 && (
                 <div className="border-t pt-4 space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Seu nome *</label>
-                    <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="input" placeholder="João Silva" />
+                    <label htmlFor="checkout-customer-name" className="block text-sm font-medium text-gray-700 mb-1">Seu nome *</label>
+                    <input id="checkout-customer-name" name="name" autoComplete="name" type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="input" placeholder="João Silva" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                    <input type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="input" placeholder="(11) 99999-9999" />
+                    <label htmlFor="checkout-customer-phone" className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                    <input id="checkout-customer-phone" name="tel" autoComplete="tel" type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="input" placeholder="(11) 99999-9999" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo do pedido</label>
-                    <select value={orderType} onChange={(e) => setOrderType(e.target.value)} className="input">
+                    <label htmlFor="checkout-order-type" className="block text-sm font-medium text-gray-700 mb-1">Tipo do pedido</label>
+                    <select id="checkout-order-type" value={orderType} onChange={(e) => setOrderType(e.target.value)} className="input">
                       <option value="TAKE_AWAY">Retirada no local</option>
                       <option value="DELIVERY">Entrega</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
+                    <label htmlFor="checkout-payment-method" className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
                     <select
+                      id="checkout-payment-method"
                       value={selectedPaymentMethod}
                       onChange={(e) => setPaymentMethod(e.target.value)}
                       className="input"
