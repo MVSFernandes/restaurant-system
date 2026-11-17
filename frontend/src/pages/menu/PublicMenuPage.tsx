@@ -13,8 +13,23 @@ import { formatCurrencyBRL } from '../../utils/currency';
 import { BrandMark } from '../../components/branding/BrandMark';
 import { useBranding } from '../../contexts/brandingContext';
 import { getPublicPaymentOptions } from '../../lib/publicPayments';
+import { orderShortCode } from '../../lib/orderCode';
 
 interface CartItem { product: Product; quantity: number; }
+
+interface ConfirmedOrder { code: string | null; type: 'TAKE_AWAY' | 'DELIVERY' | null; }
+
+const ORDER_TYPE_LABELS = { TAKE_AWAY: 'Retirada', DELIVERY: 'Entrega' } as const;
+
+// Lê a resposta do servidor sem supor nada: sem id ou tipo reconhecível, a
+// confirmação mostra só o recebimento.
+const confirmedOrderFrom = (data: unknown): ConfirmedOrder => {
+  const body = (data && typeof data === 'object' ? data : {}) as { id?: unknown; type?: unknown };
+  return {
+    code: orderShortCode(body.id),
+    type: body.type === 'TAKE_AWAY' || body.type === 'DELIVERY' ? body.type : null,
+  };
+};
 
 const createIdempotencyKey = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -53,7 +68,8 @@ const PublicMenuPage: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [activeCategory, setActiveCategory] = useState('');
-  const [orderPlaced, setOrderPlaced] = useState(false);
+  // Preenchido só com a resposta de sucesso do POST /orders/public.
+  const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrder | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('PIX');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -158,7 +174,7 @@ const PublicMenuPage: React.FC = () => {
       const idempotencyKey = checkoutIdempotencyKey || createIdempotencyKey();
       setCheckoutIdempotencyKey(idempotencyKey);
       // Cria ou busca o cliente
-      await api.post('/orders/public', {
+      const { data } = await api.post<unknown>('/orders/public', {
         idempotencyKey,
         customerName,
         customerPhone,
@@ -173,7 +189,7 @@ const PublicMenuPage: React.FC = () => {
       }, {
         headers: { 'X-Idempotency-Key': idempotencyKey },
       });
-      setOrderPlaced(true);
+      setConfirmedOrder(confirmedOrderFrom(data));
       setCart([]);
       setCheckoutIdempotencyKey('');
     } catch (error) {
@@ -199,16 +215,49 @@ const PublicMenuPage: React.FC = () => {
 
   const currentProducts = categories.find(c => c.id === activeCategory)?.products || [];
 
-  if (orderPlaced) {
+  const startNewOrder = () => {
+    // Nada da confirmação anterior passa para o próximo pedido.
+    setConfirmedOrder(null);
+    setOrderError(null);
+    setShowCart(false);
+    void checkAvailability();
+  };
+
+  if (confirmedOrder) {
+    const { code, type } = confirmedOrder;
+    // Só o recebimento: o pagamento fica pendente e o preparo ainda não começou.
+    const hint = !code
+      ? null
+      : type === 'TAKE_AWAY'
+        ? 'Informe este código ao retirar o pedido.'
+        : 'Informe este código se precisar falar com o restaurante sobre o pedido.';
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-sm w-full animate-in fade-in zoom-in duration-300">
+        <div role="status" className="bg-white rounded-2xl shadow-xl p-6 sm:p-8 text-center max-w-sm w-full animate-in fade-in zoom-in duration-300">
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <UtensilsCrossed className="text-green-600" size={40} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Pedido Realizado!</h2>
-          <p className="text-gray-500 mb-6">Seu pedido foi enviado para a cozinha. Aguarde!</p>
-          <button onClick={() => setOrderPlaced(false)} className="btn-primary w-full py-3">Fazer Novo Pedido</button>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Pedido recebido!</h2>
+          <p className="text-gray-500">O restaurante recebeu o seu pedido.</p>
+          {(code || type) && (
+            <dl className="my-5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 space-y-2 text-left">
+              {code && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-sm text-gray-500">Código do pedido</dt>
+                  <dd className="text-xl font-bold tabular-nums tracking-wide text-gray-900">#{code}</dd>
+                </div>
+              )}
+              {type && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-sm text-gray-500">Tipo</dt>
+                  <dd className="font-semibold text-gray-900">{ORDER_TYPE_LABELS[type]}</dd>
+                </div>
+              )}
+            </dl>
+          )}
+          {hint && <p className="text-sm text-gray-500 mb-6">{hint}</p>}
+          {!code && !type && <div className="mb-6" />}
+          <button onClick={startNewOrder} className="btn-primary w-full py-3">Fazer Novo Pedido</button>
         </div>
       </div>
     );

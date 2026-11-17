@@ -251,7 +251,7 @@ describe('public checkout with the cash register closed', () => {
     expect(await screen.findByText(CLOSED)).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/No cash register/)).toBeNull();
-    expect(screen.queryByText('Pedido Realizado!')).toBeNull();
+    expect(screen.queryByText('Pedido recebido!')).toBeNull();
     expect((screen.getByLabelText('Seu nome', { exact: false }) as HTMLInputElement).value).toBe('Cliente Fictício');
     expect((screen.getByLabelText('Tipo do pedido') as HTMLSelectElement).value).toBe('DELIVERY');
     expect((screen.getByLabelText('Forma de pagamento') as HTMLSelectElement).value).toBe('PIX');
@@ -270,7 +270,7 @@ describe('public checkout with the cash register closed', () => {
     expect(screen.queryByText(CLOSED)).toBeNull();
 
     fireEvent.click(finish);
-    expect(await screen.findByText('Pedido Realizado!')).toBeTruthy();
+    expect(await screen.findByText('Pedido recebido!')).toBeTruthy();
     expect(mocks.post).toHaveBeenCalledTimes(2);
     const [first, retry] = mocks.post.mock.calls;
     // O carrinho e os dados continuam os mesmos na nova tentativa.
@@ -363,7 +363,7 @@ describe('public checkout with the cash register closed', () => {
     expect((screen.getByLabelText('Telefone') as HTMLInputElement).value).toBe('11900000000');
 
     fireEvent.click(finish);
-    expect(await screen.findByText('Pedido Realizado!')).toBeTruthy();
+    expect(await screen.findByText('Pedido recebido!')).toBeTruthy();
     expect(mocks.post).toHaveBeenCalledTimes(1);
   });
 
@@ -383,7 +383,7 @@ describe('public checkout with the cash register closed', () => {
     const finish = screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement;
     expect(finish.disabled).toBe(false);
     fireEvent.click(finish);
-    expect(await screen.findByText('Pedido Realizado!')).toBeTruthy();
+    expect(await screen.findByText('Pedido recebido!')).toBeTruthy();
   });
 
   it('a lookup that fails after a closed answer stops blocking the finish button', async () => {
@@ -399,6 +399,108 @@ describe('public checkout with the cash register closed', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
     fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente' } });
     await waitFor(() => expect((screen.getByRole('button', { name: 'Finalizar Pedido' }) as HTMLButtonElement).disabled).toBe(false));
+  });
+});
+
+describe('public checkout confirmation', () => {
+  const PROMISES = /pagamento (foi )?aprovado|pagamento confirmado|pronto|saiu para entrega|a caminho|cozinha/i;
+
+  async function submitOrder(type: 'TAKE_AWAY' | 'DELIVERY') {
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Seu nome', { exact: false }), { target: { value: 'Cliente Fictício' } });
+    if (type === 'DELIVERY') {
+      fireEvent.change(screen.getByLabelText('Tipo do pedido'), { target: { value: 'DELIVERY' } });
+      fillDeliveryAddress();
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+  }
+
+  it('shows the PDV short code and Retirada from the confirmed response', async () => {
+    mocks.post.mockResolvedValue({ data: { id: 'cmh2x9k4t0001ab7f3e9z', type: 'TAKE_AWAY', status: 'NEW' } });
+    render(<PublicMenuPage />);
+    await submitOrder('TAKE_AWAY');
+
+    const confirmation = await screen.findByRole('status');
+    expect(screen.getByText('Pedido recebido!')).toBeTruthy();
+    // Mesmo formato do cartão do PDV: id.slice(-6).toUpperCase().
+    expect(screen.getByText('#7F3E9Z')).toBeTruthy();
+    expect(screen.getByText('Retirada')).toBeTruthy();
+    expect(confirmation.textContent).not.toMatch(PROMISES);
+    expect(screen.getByRole('button', { name: 'Fazer Novo Pedido' })).toBeTruthy();
+  });
+
+  it('shows Entrega from the response, not from the form', async () => {
+    mocks.post.mockResolvedValue({ data: { id: 'order-delivery-ab12cd', type: 'DELIVERY' } });
+    render(<PublicMenuPage />);
+    await submitOrder('DELIVERY');
+
+    const confirmation = await screen.findByRole('status');
+    expect(screen.getByText('#AB12CD')).toBeTruthy();
+    expect(screen.getByText('Entrega')).toBeTruthy();
+    expect(confirmation.textContent).not.toMatch(PROMISES);
+  });
+
+  it('keeps the basic confirmation when the response has no usable code', async () => {
+    mocks.post.mockResolvedValue({ data: '' });
+    render(<PublicMenuPage />);
+    await submitOrder('TAKE_AWAY');
+
+    const confirmation = await screen.findByRole('status');
+    expect(screen.getByText('Pedido recebido!')).toBeTruthy();
+    expect(screen.queryByText('Código do pedido')).toBeNull();
+    expect(screen.queryByText('Retirada')).toBeNull();
+    expect(confirmation.textContent).not.toMatch(/#/);
+    expect(screen.getByRole('button', { name: 'Fazer Novo Pedido' })).toBeTruthy();
+  });
+
+  it('shows no confirmation when the submission fails', async () => {
+    mocks.post.mockRejectedValue(new Error('Network Error'));
+    render(<PublicMenuPage />);
+    await submitOrder('TAKE_AWAY');
+
+    expect((await screen.findByRole('alert')).textContent)
+      .toBe('Não foi possível confirmar o pedido. Verifique a conexão e tente novamente.');
+    expect(screen.queryByText('Pedido recebido!')).toBeNull();
+    expect(screen.queryByText('Código do pedido')).toBeNull();
+  });
+
+  it('retries a lost response with the same key and shows the code the server returns', async () => {
+    mocks.post.mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValueOnce({ data: { id: 'order-replayed-99zz11', type: 'TAKE_AWAY' } });
+    render(<PublicMenuPage />);
+    await submitOrder('TAKE_AWAY');
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+
+    expect(await screen.findByText('#99ZZ11')).toBeTruthy();
+    const [first, retry] = mocks.post.mock.calls;
+    expect(retry[2].headers['X-Idempotency-Key']).toBe(first[2].headers['X-Idempotency-Key']);
+  });
+
+  it('starts a new order without the previous confirmation and with a new key', async () => {
+    mocks.post.mockResolvedValueOnce({ data: { id: 'order-first-aaa111', type: 'DELIVERY' } })
+      .mockResolvedValueOnce({ data: { id: 'order-second-bbb222', type: 'TAKE_AWAY' } });
+    render(<PublicMenuPage />);
+    await submitOrder('DELIVERY');
+    expect(await screen.findByText('#AAA111')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fazer Novo Pedido' }));
+    expect(screen.queryByText('Pedido recebido!')).toBeNull();
+    expect(screen.queryByText('#AAA111')).toBeNull();
+    // O carrinho começa vazio e fechado.
+    expect(screen.queryByRole('button', { name: 'Finalizar Pedido' })).toBeNull();
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Adicionar' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir carrinho' }));
+    fireEvent.change(screen.getByLabelText('Tipo do pedido'), { target: { value: 'TAKE_AWAY' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Finalizar Pedido' }));
+
+    expect(await screen.findByText('#BBB222')).toBeTruthy();
+    expect(screen.getByText('Retirada')).toBeTruthy();
+    expect(screen.queryByText('#AAA111')).toBeNull();
+    const [first, second] = mocks.post.mock.calls;
+    expect(second[2].headers['X-Idempotency-Key']).not.toBe(first[2].headers['X-Idempotency-Key']);
   });
 });
 
